@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Spacer's Buvette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens ───────────────────────────────────────────────────────────── */
+:root {
+  --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
+  --text-sm:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
+  --text-base: clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
+  --text-lg:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
+  --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
+  --space-1:.25rem;--space-2:.5rem;--space-3:.75rem;--space-4:1rem;
+  --space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;--space-10:2.5rem;
+  --radius-sm:.375rem;--radius-md:.5rem;--radius-lg:.75rem;--radius-xl:1rem;--radius-full:9999px;
+  --transition:180ms cubic-bezier(0.16,1,0.3,1);
+  --font-body:'Inter','Helvetica Neue',sans-serif;
+}
+[data-theme="dark"] {
+  --bg:#111210;--surface:#1a1917;--surface-2:#201f1d;--surface-3:#282724;
+  --border:rgba(255,255,255,.08);--divider:rgba(255,255,255,.05);
+  --text:#e8e6e3;--text-muted:#888785;--text-faint:#555452;
+  --primary:#4f98a3;--primary-hover:#227f8b;
+  --success:#6daa45;--success-bg:rgba(109,170,69,.15);
+  --warning:#fdab43;--warning-bg:rgba(253,171,67,.15);
+  --error:#dd6974;--error-bg:rgba(221,105,116,.15);
+  --navy:#1a2e4a;--gold:#f5c518;
+  --shadow:0 4px 20px rgba(0,0,0,.4);
+}
+[data-theme="light"] {
+  --bg:#f7f6f2;--surface:#fff;--surface-2:#f3f0ec;--surface-3:#edeae5;
+  --border:rgba(0,0,0,.1);--divider:rgba(0,0,0,.06);
+  --text:#28251d;--text-muted:#7a7974;--text-faint:#bab9b4;
+  --primary:#01696f;--primary-hover:#0c4e54;
+  --success:#437a22;--success-bg:rgba(67,122,34,.12);
+  --warning:#da7101;--warning-bg:rgba(218,113,1,.12);
+  --error:#a12c7b;--error-bg:rgba(161,44,123,.12);
+  --navy:#1a2e4a;--gold:#f5c518;
+  --shadow:0 4px 12px rgba(0,0,0,.08);
+}
+
+/* ── Reset ────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow:hidden;-webkit-text-size-adjust:none;text-size-adjust:none}
+body{height:100%;font-family:var(--font-body);font-size:var(--text-base);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
+input,select{font:inherit;color:inherit}
+
+/* ── Layout ───────────────────────────────────────────────────────────── */
+#app{display:grid;grid-template-rows:auto auto 1fr auto;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg)}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.header{background:var(--navy);padding:var(--space-3) var(--space-4);display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);position:sticky;top:0;z-index:20}
+.header-left{display:flex;align-items:center;gap:var(--space-3)}
+.logo{display:flex;align-items:center;gap:var(--space-2)}
+.logo-icon{width:28px;height:28px;flex-shrink:0}
+.logo-text{font-size:var(--text-sm);font-weight:700;color:#fff;line-height:1.2}
+.logo-sub{font-size:var(--text-xs);color:rgba(255,255,255,.55);font-weight:400}
+.match-badge{background:rgba(245,197,24,.15);border:1px solid rgba(245,197,24,.3);border-radius:var(--radius-full);padding:var(--space-1) var(--space-3);font-size:var(--text-xs);color:var(--gold);font-weight:600;white-space:nowrap}
+.header-right{display:flex;align-items:center;gap:var(--space-2)}
+.btn-icon{width:34px;height:34px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1);color:#fff;transition:background var(--transition)}
+.btn-icon:hover{background:rgba(255,255,255,.2)}
+.btn-icon svg{width:18px;height:18px}
+
+/* ── Main scrollable ──────────────────────────────────────────────────── */
+.main{overflow-y:auto;overscroll-behavior:contain;padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-4)}
+
+/* ── Tab selector ─────────────────────────────────────────────────────── */
+.tab-selector{display:flex;gap:8px;overflow-x:auto;padding:10px 16px;background:var(--navy);border-bottom:1px solid rgba(255,255,255,.1);scrollbar-width:none}
+.tab-selector::-webkit-scrollbar{display:none}
+.tab-btn{flex-shrink:0;padding:6px 18px;border-radius:20px;font-size:13px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);transition:all .2s;cursor:pointer;white-space:nowrap}
+.tab-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* ── Stock KPI bar ────────────────────────────────────────────────────── */
+.stock-bar{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:var(--space-3) var(--space-4);display:flex;gap:var(--space-4);overflow-x:auto;scrollbar-width:none}
+.stock-bar::-webkit-scrollbar{display:none}
+.stock-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:64px}
+.stock-qty{font-size:var(--text-lg);font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.stock-qty.ok{color:var(--success)}
+.stock-qty.warn{color:var(--warning)}
+.stock-qty.crit{color:var(--error)}
+.stock-label{font-size:var(--text-xs);color:var(--text-muted);text-align:center;line-height:1.2}
+.stock-divider{width:1px;background:var(--divider);flex-shrink:0;align-self:stretch}
+
+/* ── Alert banner ─────────────────────────────────────────────────────── */
+.alert-banner{border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:600;display:flex;align-items:center;gap:var(--space-2);animation:slideIn .3s ease}
+.alert-banner.warn{background:var(--warning-bg);color:var(--warning);border:1px solid rgba(253,171,67,.3)}
+.alert-banner.err{background:var(--error-bg);color:var(--error);border:1px solid rgba(221,105,116,.3)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Product grid ─────────────────────────────────────────────────────── */
+.section-title{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
+.product-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+.product-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);transition:box-shadow var(--transition),border-color var(--transition);position:relative;overflow:hidden}
+.product-card:active{transform:scale(.98)}
+.product-card.consigne::after{content:'CONSIGNE';position:absolute;top:var(--space-2);right:var(--space-2);font-size:10px;font-weight:700;background:rgba(253,171,67,.2);color:var(--warning);border-radius:var(--radius-full);padding:1px 6px}
+.product-name{font-size:var(--text-sm);font-weight:600;line-height:1.2}
+.product-price{font-size:var(--text-xs);color:var(--text-muted)}
+.product-price span{color:var(--primary);font-weight:700}
+.qty-control{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
+.qty-btn{width:38px;height:38px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;background:var(--surface-2);border:1px solid var(--border);transition:all var(--transition);flex-shrink:0}
+.qty-btn:hover{background:var(--surface-3)}
+.qty-btn.minus:active{background:var(--error-bg);color:var(--error)}
+.qty-btn.plus:active{background:var(--success-bg);color:var(--success)}
+.qty-display{font-size:var(--text-lg);font-weight:700;font-variant-numeric:tabular-nums;min-width:32px;text-align:center}
+.stock-remaining{font-size:var(--text-xs);color:var(--text-faint);text-align:right}
+.stock-remaining.low{color:var(--warning)}
+.stock-remaining.empty{color:var(--error)}
+
+/* ── Écocup section ───────────────────────────────────────────────────── */
+.ecocup-card{background:var(--surface);border:1px solid rgba(253,171,67,.25);border-radius:var(--radius-lg);padding:var(--space-4)}
+.ecocup-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)}
+.ecocup-title{font-size:var(--text-sm);font-weight:700;display:flex;align-items:center;gap:var(--space-2)}
+.consigne-tag{font-size:10px;font-weight:700;background:rgba(253,171,67,.2);color:var(--warning);border-radius:var(--radius-full);padding:2px 8px}
+.ecocup-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+.ecocup-item{background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3)}
+.ecocup-label{font-size:var(--text-xs);color:var(--text-muted);margin-bottom:var(--space-2)}
+.ecocup-controls{display:flex;align-items:center;gap:var(--space-2)}
+.ecocup-controls .qty-btn{width:34px;height:34px}
+.ecocup-net{font-size:var(--text-xs);color:var(--text-muted);margin-top:var(--space-2);padding-top:var(--space-2);border-top:1px solid var(--divider);display:flex;justify-content:space-between}
+.ecocup-net b{color:var(--warning)}
+
+/* ── Bottom bar ───────────────────────────────────────────────────────── */
+.bottom-bar{background:var(--surface);border-top:1px solid var(--border);padding:var(--space-3) var(--space-4);display:flex;align-items:center;gap:var(--space-3)}
+.ca-total{flex:1}
+.ca-label{font-size:var(--text-xs);color:var(--text-muted)}
+.ca-value{font-size:var(--text-xl);font-weight:700;font-variant-numeric:tabular-nums;color:var(--success);line-height:1}
+.btn-sync{flex-shrink:0;background:var(--primary);color:#fff;border-radius:var(--radius-lg);padding:var(--space-3) var(--space-5);font-size:var(--text-sm);font-weight:700;display:flex;align-items:center;gap:var(--space-2);transition:background var(--transition)}
+.btn-sync:hover{background:var(--primary-hover)}
+.btn-sync svg{width:18px;height:18px}
+
+/* ── Modals ───────────────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:100;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:var(--space-6) var(--space-4);width:100%;max-width:480px;max-height:90dvh;overflow-y:auto;animation:slideUp .25s cubic-bezier(.16,1,.3,1)}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:var(--radius-full);margin:0 auto var(--space-4)}
+.modal-title{font-size:var(--text-lg);font-weight:700;margin-bottom:var(--space-4)}
+.modal-close{position:absolute;top:var(--space-4);right:var(--space-4);width:32px;height:32px;border-radius:var(--radius-full);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--text-muted)}
+
+/* ── Settings modal ───────────────────────────────────────────────────── */
+.settings-form{display:flex;flex-direction:column;gap:var(--space-4)}
+.form-row{display:flex;flex-direction:column;gap:var(--space-2)}
+.form-label{font-size:var(--text-sm);font-weight:600;color:var(--text-muted)}
+.form-input{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-base);color:var(--text);width:100%}
+.form-input:focus{outline:2px solid var(--primary);outline-offset:2px}
+.btn-primary{background:var(--primary);color:#fff;border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:700;width:100%;transition:background var(--transition)}
+.btn-primary:hover{background:var(--primary-hover)}
+
+/* ── Rapport modal ────────────────────────────────────────────────────── */
+.rapport-section{margin-bottom:var(--space-4)}
+.rapport-section-title{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
+.rapport-row{display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) 0;border-bottom:1px solid var(--divider);font-size:var(--text-sm)}
+.rapport-row:last-child{border-bottom:none}
+.rapport-row b{font-variant-numeric:tabular-nums}
+.rapport-total{background:var(--success-bg);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);display:flex;justify-content:space-between;align-items:center;margin:var(--space-3) 0}
+.rapport-total-label{font-weight:700;color:var(--success)}
+.rapport-total-value{font-size:var(--text-lg);font-weight:700;color:var(--success);font-variant-numeric:tabular-nums}
+.json-block{background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3);font-size:11px;font-family:monospace;color:var(--text-muted);white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;margin-top:var(--space-3)}
+.btn-copy{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-2) var(--space-4);font-size:var(--text-sm);font-weight:600;width:100%;margin-top:var(--space-2);transition:background var(--transition)}
+.btn-copy:hover{background:var(--surface-3)}
+
+/* ── Synchro modal ────────────────────────────────────────────────────── */
+.sync-url-input{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);color:var(--text);width:100%;margin-bottom:var(--space-3)}
+.sync-status{border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:600;display:none;margin-top:var(--space-3)}
+.sync-status.ok{background:var(--success-bg);color:var(--success);display:block}
+.sync-status.err{background:var(--error-bg);color:var(--error);display:block}
+
+/* ── Theme toggle ─────────────────────────────────────────────────────── */
+[data-theme-toggle]{position:relative}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 28 28" fill="none" aria-label="Spacer's Buvette">
+          <circle cx="14" cy="14" r="13" fill="#1a2e4a" stroke="#f5c518" stroke-width="1.5"/>
+          <path d="M8 10 Q14 6 20 10 L20 18 Q14 22 8 18 Z" fill="none" stroke="#f5c518" stroke-width="1.2"/>
+          <circle cx="14" cy="14" r="2.5" fill="#f5c518"/>
+          <line x1="14" y1="8" x2="14" y2="20" stroke="#f5c518" stroke-width=".8" opacity=".5"/>
+          <line x1="8" y1="14" x2="20" y2="14" stroke="#f5c518" stroke-width=".8" opacity=".5"/>
+        </svg>
+        <div>
+          <div class="logo-text">Spacer's Buvette</div>
+          <div class="logo-sub" id="match-label">Aucun match configuré</div>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="match-badge" id="tab-badge">Tab. 1</div>
+      <button class="btn-icon" onclick="openSettings()" aria-label="Paramètres">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="btn-icon" data-theme-toggle onclick="toggleTheme()" aria-label="Thème">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Sélecteur tablette — fixe, hors scroll -->
+  <div class="tab-selector" id="tab-selector"></div>
+
+  <!-- MAIN scrollable -->
+  <main class="main" id="main-content">
+
+    <!-- Alertes -->
+    <div id="alerts-zone"></div>
+
+    <!-- Stock KPIs + CA Total + Rapport -->
+    <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+      <div class="stock-bar" id="stock-bar">
+        <div class="stock-item"><div class="stock-qty ok" id="kpi-biere33">—</div><div class="stock-label">Bière 33cl</div></div>
+        <div class="stock-divider"></div>
+        <div class="stock-item"><div class="stock-qty ok" id="kpi-biere50">—</div><div class="stock-label">Bière 50cl</div></div>
+        <div class="stock-divider"></div>
+        <div class="stock-item"><div class="stock-qty ok" id="kpi-soda">—</div><div class="stock-label">Soda</div></div>
+        <div class="stock-divider"></div>
+        <div class="stock-item"><div class="stock-qty ok" id="kpi-eau">—</div><div class="stock-label">Eau</div></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-4)">
+        <div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">CA Total match</div>
+          <div style="font-size:var(--text-xl);font-weight:700;color:var(--success);font-variant-numeric:tabular-nums;line-height:1.1" id="ca-total-display">0,00 €</div>
+        </div>
+        <button class="btn-sync" onclick="openRapport()" style="background:var(--primary);color:#fff;padding:var(--space-2) var(--space-4);border-radius:var(--radius-md);font-weight:700;font-size:var(--text-sm);display:flex;align-items:center;gap:var(--space-2)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Rapport fin de match
+        </button>
+      </div>
+    </div>
+
+    <!-- Bières -->
+    <div>
+      <div class="section-title">🍺 Bière pression (fût 30L)</div>
+      <div class="product-grid" id="grid-biere"></div>
+    </div>
+
+    <!-- Softs -->
+    <div>
+      <div class="section-title">🥤 Softs</div>
+      <div class="product-grid" id="grid-softs"></div>
+    </div>
+
+    <!-- Offres combinées (masqué si vide) -->
+    <div id="offres-section" style="display:none">
+      <div class="section-title">🎁 Offres combinées</div>
+      <div class="product-grid" id="grid-offres"></div>
+    </div>
+
+    <!-- Écocups -->
+    <div>
+      <div class="section-title">♻️ Écocups — Vente avant-match</div>
+      <div class="ecocup-card" id="ecocup-section">
+        <div class="ecocup-header">
+          <div class="ecocup-title">Vente écocups <span class="consigne-tag">+1 € / vente</span></div>
+        </div>
+        <div class="ecocup-grid">
+          <div class="ecocup-item">
+            <div class="ecocup-label">Écocup 33cl vendus</div>
+            <div class="ecocup-controls">
+              <button class="qty-btn minus" onclick="changeEcocup('E01',-1)">−</button>
+              <div class="qty-display" id="qty-E01">0</div>
+              <button class="qty-btn plus" onclick="changeEcocup('E01',1)">+</button>
+            </div>
+          </div>
+          <div class="ecocup-item">
+            <div class="ecocup-label">Écocup 50cl vendus</div>
+            <div class="ecocup-controls">
+              <button class="qty-btn minus" onclick="changeEcocup('E02',-1)">−</button>
+              <div class="qty-display" id="qty-E02">0</div>
+              <button class="qty-btn plus" onclick="changeEcocup('E02',1)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title" style="color:var(--error)">♻️ Remboursements consignes — Après-match</div>
+      <div class="ecocup-card" style="border-color:rgba(221,105,116,.3)">
+        <div class="ecocup-header">
+          <div class="ecocup-title">Remboursements <span class="consigne-tag" style="background:rgba(221,105,116,.2);color:var(--error)">−1 € / remb.</span></div>
+        </div>
+        <div class="ecocup-grid">
+          <div class="ecocup-item">
+            <div class="ecocup-label">Remboursements 33cl</div>
+            <div class="ecocup-controls">
+              <button class="qty-btn minus" onclick="changeRemb('E01',-1)">−</button>
+              <div class="qty-display" id="remb-E01">0</div>
+              <button class="qty-btn plus" onclick="changeRemb('E01',1)">+</button>
+            </div>
+          </div>
+          <div class="ecocup-item">
+            <div class="ecocup-label">Remboursements 50cl</div>
+            <div class="ecocup-controls">
+              <button class="qty-btn minus" onclick="changeRemb('E02',-1)">−</button>
+              <div class="qty-display" id="remb-E02">0</div>
+              <button class="qty-btn plus" onclick="changeRemb('E02',1)">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="ecocup-net">
+          <span>Net consignes encaissées</span>
+          <b id="net-consigne">0,00 €</b>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar" style="padding:var(--space-3) var(--space-4);display:flex;gap:var(--space-2)">
+    <button id="btn-undo" onclick="annulerDerniereCommande()" title="Annuler la dernière commande"
+      style="flex-shrink:0;width:48px;height:48px;border-radius:var(--radius-lg);background:var(--surface-2);border:1px solid var(--border);font-size:1.25rem;display:flex;align-items:center;justify-content:center;transition:all var(--transition)" disabled>
+      ↩
+    </button>
+    <button id="btn-valider" onclick="validerCommande()" style="flex:1;padding:var(--space-4);border-radius:var(--radius-lg);background:var(--primary);color:#fff;font-weight:700;font-size:var(--text-xl);border:none;transition:all var(--transition);letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:var(--space-3)" disabled>
+      <span>✔ Valider</span>
+      <span style="background:rgba(255,255,255,0.2);border-radius:var(--radius-md);padding:var(--space-1) var(--space-3);font-size:var(--text-xl);font-variant-numeric:tabular-nums" id="ca-cmd-display">0,00 €</span>
+    </button>
+  </div>
+</div>
+
+<!-- MODAL SETTINGS -->
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('modal-settings')">✕</button>
+    <div class="modal-title">⚙️ Configuration</div>
+    <div class="settings-form">
+      <div class="form-row">
+        <label class="form-label">Tablette</label>
+        <select class="form-input" id="sel-tab" onchange="updateStockInputs()">
+          <option>Tab. 1</option><option>Tab. 2</option><option>Tab. 3</option>
+          <option>Tab. 4</option><option>Tab. 5</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">ID Match</label>
+        <input class="form-input" id="inp-match" placeholder="ex: M2025_14" type="text">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Date du match</label>
+        <input class="form-input" id="inp-date" type="date">
+      </div>
+      <div class="form-row">
+        <label class="form-label">URL Web App (Google Apps Script)</label>
+        <input class="form-input" id="inp-url" placeholder="https://script.google.com/..." type="url">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Stocks initiaux — <span id="stock-tab-label">Tab. 1</span></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)">
+          <div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted);margin-bottom:4px">🍺 Bière 33cl (verres)</div>
+            <input class="form-input" id="stk-P01_33" type="number" min="0" placeholder="0">
+          </div>
+          <div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted);margin-bottom:4px">🍺 Bière 50cl (verres)</div>
+            <input class="form-input" id="stk-P01_50" type="number" min="0" placeholder="0">
+          </div>
+          <div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted);margin-bottom:4px">🥤 Soda</div>
+            <input class="form-input" id="stk-P02" type="number" min="0" placeholder="0">
+          </div>
+          <div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted);margin-bottom:4px">💧 Eau plate</div>
+            <input class="form-input" id="stk-P03" type="number" min="0" placeholder="0">
+          </div>
+          <div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted);margin-bottom:4px">💧 Eau pétillante</div>
+            <input class="form-input" id="stk-P04" type="number" min="0" placeholder="0">
+          </div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer & Synchroniser</button>
+      <button class="btn-primary" style="background:var(--surface-2);color:var(--text-muted)" onclick="syncPreMatch()">📡 Synchro pré-match (GET)</button>
+      <div class="sync-status" id="sync-status-pre"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RAPPORT -->
+<div class="modal-overlay" id="modal-rapport">
+  <div class="modal" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('modal-rapport')">✕</button>
+    <div class="modal-title">📊 Rapport de caisse</div>
+    <div id="rapport-content"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════
+const state = {
+  tab:     'Tab. 1',
+  matchId: '',
+  date:    new Date().toISOString().slice(0,10),
+  url:     '',
+  stocks: {},
+  ventes: {},
+  commandes: [],
+  totalVentes: {},
+  offresVentes: {},   // commande en cours — offres
+  totalOffres:  {},   // totaux validés — offres
+  // Totaux globaux match (cumulés après chaque validation)
+  ecocups: { E01: 0, E02: 0 },
+  rembs:   { E01: 0, E02: 0 },
+  // Commande en cours écocups/rembs (remis à zéro après validation)
+  ecocupsCmd: { E01: 0, E02: 0 },
+  rembsCmd:   { E01: 0, E02: 0 },
+};
+
+// Offres combinées (chargées depuis le Sheet via doGet)
+let OFFRES = [];
+
+// Catalogue produits (chargé depuis le Sheet via doGet, fallback local)
+const CATALOGUE = [
+  { ref:'P01_33', nom:'Bière 33cl',      cat:'biere', pv:3.00,  pv50:null, consigne:0,    seuil:15 },
+  { ref:'P01_50', nom:'Bière 50cl',      cat:'biere', pv:null,  pv50:6.00, consigne:0,    seuil:10 },
+  { ref:'P02',    nom:'Soda',            cat:'soft',  pv:3.00,  pv50:null, consigne:0,    seuil:0  },
+  { ref:'P03',    nom:'Eau Plate',       cat:'soft',  pv:1.50,  pv50:null, consigne:0,    seuil:0  },
+  { ref:'P04',    nom:'Eau Pétillante',  cat:'soft',  pv:1.50,  pv50:null, consigne:0,    seuil:0  },
+  { ref:'E01',    nom:'Écocup 33cl',     cat:'eco',   pv:0,     pv50:null, consigne:1.00, seuil:0  },
+  { ref:'E02',    nom:'Écocup 50cl',     cat:'eco',   pv:0,     pv50:null, consigne:1.00, seuil:0  },
+];
+
+const PARAMS = { rdt33: 90, rdt50: 60, seuil33: 15, seuil50: 10 };
+
+// ── Init stocks par défaut ──────────────────────────────────────────
+function initDefaultStocks() {
+  for (let t = 1; t <= 5; t++) {
+    const k = 'Tab. ' + t;
+    state.stocks[k] = {
+      P01_33: 0, P01_50: 0, P02: 0, P03: 0, P04: 0
+    };
+  }
+}
+initDefaultStocks();
+
+// ── Ventes init ─────────────────────────────────────────────────────
+function resetVentes() {
+  state.ventes = {};
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => { state.ventes[p.ref] = 0; });
+  state.ecocups = { E01:0, E02:0 };
+  state.rembs   = { E01:0, E02:0 };
+  state.ecocupsCmd = { E01:0, E02:0 };
+  state.rembsCmd   = { E01:0, E02:0 };
+  state.commandes = [];
+  state.totalVentes = {};
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => { state.totalVentes[p.ref] = 0; });
+  // Offres
+  state.offresVentes = {};
+  state.totalOffres  = {};
+  OFFRES.forEach(o => { state.offresVentes[o.ref] = 0; state.totalOffres[o.ref] = 0; });
+}
+resetVentes();
+
+// ═══════════════════════════════════════════════════════════════════
+// PERSISTANCE (protection fermeture accidentelle)
+// ═══════════════════════════════════════════════════════════════════
+function sauvegarderState() {
+  try {
+    const save = {
+      matchId: state.matchId,
+      date: state.date,
+      tab: state.tab,
+      url: state.url,
+      stocks: state.stocks,
+      commandes: state.commandes,
+      totalVentes: state.totalVentes,
+      totalOffres: state.totalOffres,
+      ecocups: state.ecocups,
+      rembs: state.rembs,
+    };
+    sessionStorage.setItem('buvette_state', JSON.stringify(save));
+  } catch(e) {}
+}
+function restaurerState() {
+  try {
+    const raw = sessionStorage.getItem('buvette_state');
+    if (!raw) return false;
+    const save = JSON.parse(raw);
+    state.matchId = save.matchId || '';
+    state.date = save.date || state.date;
+    state.tab = save.tab || 'Tab. 1';
+    state.url = save.url || '';
+    if (save.stocks) {
+      Object.entries(save.stocks).forEach(([k, v]) => { state.stocks[k] = v; });
+    }
+    state.commandes = save.commandes || [];
+    state.totalVentes = save.totalVentes || {};
+    state.totalOffres = save.totalOffres || {};
+    state.ecocups = save.ecocups || { E01:0, E02:0 };
+    state.rembs = save.rembs || { E01:0, E02:0 };
+    return state.commandes.length > 0 || Object.values(state.totalVentes).some(v=>v>0);
+  } catch(e) { return false; }
+}
+// Restaurer au chargement
+const restored = restaurerState();
+
+// ═══════════════════════════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════════════════════════
+let currentTheme = 'dark';
+function toggleTheme() {
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  const btn = document.querySelector('[data-theme-toggle] svg');
+  if (currentTheme === 'light') {
+    btn.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+  } else {
+    btn.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════
+function renderTabs() {
+  const c = document.getElementById('tab-selector');
+  c.innerHTML = '';
+  const tabs = Object.keys(state.stocks).filter(k => {
+    const s = state.stocks[k];
+    return Object.values(s).some(v => v > 0);
+  });
+  if (tabs.length === 0) {
+    ['Tab. 1','Tab. 2','Tab. 3'].forEach(t => addTabBtn(c, t));
+    return;
+  }
+  tabs.forEach(t => addTabBtn(c, t));
+}
+function addTabBtn(c, t) {
+  const b = document.createElement('button');
+  b.className = 'tab-btn' + (t === state.tab ? ' active' : '');
+  b.textContent = t;
+  b.onclick = () => { state.tab = t; document.getElementById('tab-badge').textContent = t; renderAll(); };
+  c.appendChild(b);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════
+function renderAll() {
+  renderTabs();
+  renderAlerts();
+  renderStockBar();
+  renderGridBiere();
+  renderGridSofts();
+  renderGridOffres();
+  renderEcocups();
+  renderCA();
+  // Mettre à jour label match dans header
+  const ml = document.getElementById('match-label');
+  if (ml) ml.textContent = state.matchId || 'Aucun match configuré';
+}
+
+function stockDispo(ref) {
+  const s = state.stocks[state.tab] || {};
+  const total = (state.totalVentes[ref]||0) + (state.ventes[ref]||0);
+  // Consommation des composantes par les offres (validées + commande en cours)
+  const offerCons = OFFRES.reduce((sum, o) => {
+    const comp = o.lignes ? o.lignes.find(l => l.ref === ref) : null;
+    return sum + (comp ? comp.qty * ((state.totalOffres[o.ref]||0) + (state.offresVentes[o.ref]||0)) : 0);
+  }, 0);
+  return Math.max(0, (s[ref] || 0) - total - offerCons);
+}
+
+function renderStockBar() {
+  const b33 = stockDispo('P01_33');
+  const b50 = stockDispo('P01_50');
+  const sd  = stockDispo('P02');
+  setKpi('kpi-biere33', b33, b33 <= PARAMS.seuil33 ? (b33 === 0 ? 'crit' : 'warn') : 'ok');
+  setKpi('kpi-biere50', b50, b50 <= PARAMS.seuil50 ? (b50 === 0 ? 'crit' : 'warn') : 'ok');
+  setKpi('kpi-soda',    sd,  sd === 0 ? 'crit' : 'ok');
+  setKpi('kpi-eau',     Math.max(stockDispo('P03'), stockDispo('P04')), 'ok');
+}
+function setKpi(id, val, cls) {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  el.className = 'stock-qty ' + cls;
+}
+
+function renderAlerts() {
+  const z = document.getElementById('alerts-zone');
+  z.innerHTML = '';
+  const b33 = stockDispo('P01_33');
+  const b50 = stockDispo('P01_50');
+  if (b33 > 0 && b33 <= PARAMS.seuil33) addAlert(z, 'warn', '⚠️ Bière 33cl : ' + b33 + ' verres restants — prévoir changement de fût');
+  if (b50 > 0 && b50 <= PARAMS.seuil50) addAlert(z, 'warn', '⚠️ Bière 50cl : ' + b50 + ' verres restants — prévoir changement de fût');
+  if (b33 === 0 && (state.stocks[state.tab]||{}).P01_33 > 0) addAlert(z, 'err', '🚨 Bière 33cl ÉPUISÉE — changer le fût !');
+  if (b50 === 0 && (state.stocks[state.tab]||{}).P01_50 > 0) addAlert(z, 'err', '🚨 Bière 50cl ÉPUISÉE — changer le fût !');
+}
+function addAlert(z, type, msg) {
+  const d = document.createElement('div');
+  d.className = 'alert-banner ' + (type === 'warn' ? 'warn' : 'err');
+  d.textContent = msg;
+  z.appendChild(d);
+}
+
+function renderGridBiere() {
+  const g = document.getElementById('grid-biere');
+  g.innerHTML = '';
+  CATALOGUE.filter(p => p.cat === 'biere').forEach(p => {
+    const dispo = stockDispo(p.ref);
+    const vendu = state.ventes[p.ref] || 0;
+    const pv    = p.pv || p.pv50;
+    const stockConfigured = ((state.stocks[state.tab]||{})[p.ref] || 0) > 0;
+    const lowCls  = stockConfigured ? (dispo === 0 ? 'empty' : dispo <= (p.seuil||0) ? 'low' : '') : '';
+    const dispoTxt = stockConfigured ? `Dispo : ${dispo} verres` : '';
+    g.innerHTML += `
+      <div class="product-card">
+        <div>
+          <div class="product-name">${p.nom}</div>
+          <div class="product-price">Prix : <span>${fmt(pv)}</span></div>
+        </div>
+        <div class="qty-control">
+          <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)">−</button>
+          <div class="qty-display">${vendu}</div>
+          <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)">+</button>
+        </div>
+        <div class="stock-remaining ${lowCls}">${dispoTxt}</div>
+      </div>`;
+  });
+}
+
+function renderGridSofts() {
+  const g = document.getElementById('grid-softs');
+  g.innerHTML = '';
+  CATALOGUE.filter(p => p.cat === 'soft').forEach(p => {
+    const dispo = stockDispo(p.ref);
+    const vendu = state.ventes[p.ref] || 0;
+    const stockConfigured = ((state.stocks[state.tab]||{})[p.ref] || 0) > 0;
+    const dispoCls = stockConfigured && dispo === 0 ? 'empty' : '';
+    const dispoTxt = stockConfigured ? `Dispo : ${dispo}` : ``;
+    g.innerHTML += `
+      <div class="product-card">
+        <div>
+          <div class="product-name">${p.nom}</div>
+          <div class="product-price">Prix : <span>${fmt(p.pv)}</span></div>
+        </div>
+        <div class="qty-control">
+          <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)">−</button>
+          <div class="qty-display">${vendu}</div>
+          <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)">+</button>
+        </div>
+        <div class="stock-remaining ${dispoCls}">${dispoTxt}</div>
+      </div>`;
+  });
+}
+
+function renderGridOffres() {
+  const section = document.getElementById('offres-section');
+  const g = document.getElementById('grid-offres');
+  if (!section || !g) return;
+  if (!OFFRES || OFFRES.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  g.innerHTML = '';
+  OFFRES.forEach(o => {
+    const vendu = state.offresVentes[o.ref] || 0;
+    const composStr = (o.lignes || []).map(l => {
+      const prod = CATALOGUE.find(p => p.ref === l.ref);
+      return l.qty + '× ' + (prod ? prod.nom : l.ref);
+    }).join(' + ');
+    // Vérifier si au moins une composante manque de stock
+    const stockConfigured = Object.values(state.stocks[state.tab]||{}).some(v => v > 0);
+    const blocked = stockConfigured && (o.lignes || []).some(l => {
+      if (l.ref === 'E01' || l.ref === 'E02') return false;
+      return stockDispo(l.ref) < l.qty;
+    });
+    g.innerHTML += `
+      <div class="product-card" style="border-color:rgba(245,197,24,.25);background:linear-gradient(135deg,var(--surface) 0%,rgba(245,197,24,.04) 100%)">
+        <div>
+          <div class="product-name">${o.emoji || '🎁'} ${o.nom}</div>
+          <div class="product-price">Prix offre : <span>${fmt(o.prix)}</span></div>
+          <div style="font-size:10px;color:var(--text-faint);margin-top:3px;line-height:1.4">${composStr}</div>
+        </div>
+        <div class="qty-control">
+          <button class="qty-btn minus" onclick="changeOffer('${o.ref}',-1)">−</button>
+          <div class="qty-display">${vendu}</div>
+          <button class="qty-btn plus" onclick="changeOffer('${o.ref}',1)" ${blocked ? 'disabled style="opacity:.4"' : ''}>+</button>
+        </div>
+      </div>`;
+  });
+}
+
+function changeOffer(ref, delta) {
+  const o = OFFRES.find(o => o.ref === ref);
+  if (!o) return;
+  const cur = state.offresVentes[ref] || 0;
+  if (delta < 0 && cur <= 0) return;
+  if (delta > 0) {
+    const stockConfigured = Object.values(state.stocks[state.tab]||{}).some(v => v > 0);
+    if (stockConfigured) {
+      for (const comp of (o.lignes || [])) {
+        if (comp.ref === 'E01' || comp.ref === 'E02') continue;
+        if (stockDispo(comp.ref) < comp.qty) return;
+      }
+    }
+  }
+  state.offresVentes[ref] = cur + delta;
+  renderAll();
+}
+
+function renderEcocups() {
+  ['E01','E02'].forEach(ref => {
+    document.getElementById('qty-' + ref).textContent  = state.ecocupsCmd[ref] || 0;
+    document.getElementById('remb-' + ref).textContent = state.rembsCmd[ref] || 0;
+  });
+  const net = ((state.ecocupsCmd.E01||0) - (state.rembsCmd.E01||0)) * 1
+            + ((state.ecocupsCmd.E02||0) - (state.rembsCmd.E02||0)) * 1;
+  document.getElementById('net-consigne').textContent = fmt(net);
+}
+
+function renderCA() {
+  document.getElementById('ca-total-display').textContent = fmt(calcCA());
+  const caCmd = calcCACmd();
+  const nb = nbArticlesCmd();
+  const span = document.getElementById('ca-cmd-display');
+  if (span) span.textContent = fmt(caCmd);
+  const btn = document.getElementById('btn-valider');
+  if (btn) {
+    btn.disabled = nb === 0;
+    btn.style.opacity = nb === 0 ? '0.45' : '1';
+  }
+  const btnUndo = document.getElementById('btn-undo');
+  if (btnUndo) {
+    btnUndo.disabled = state.commandes.length === 0;
+    btnUndo.style.opacity = state.commandes.length === 0 ? '0.35' : '1';
+  }
+}
+
+function calcCA() {
+  let ca = 0;
+  // Commandes validées (boissons)
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => {
+    ca += (state.totalVentes[p.ref] || 0) * (p.pv || p.pv50 || 0);
+  });
+  // Commande en cours (boissons)
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => {
+    ca += (state.ventes[p.ref] || 0) * (p.pv || p.pv50 || 0);
+  });
+  // Consignes globales validées
+  ca += (state.ecocups.E01||0) * 1 - (state.rembs.E01||0) * 1;
+  ca += (state.ecocups.E02||0) * 1 - (state.rembs.E02||0) * 1;
+  // Consignes commande en cours
+  ca += (state.ecocupsCmd.E01||0) * 1 - (state.rembsCmd.E01||0) * 1;
+  ca += (state.ecocupsCmd.E02||0) * 1 - (state.rembsCmd.E02||0) * 1;
+  // Offres validées
+  OFFRES.forEach(o => { ca += (state.totalOffres[o.ref]||0) * o.prix; });
+  // Offres commande en cours
+  OFFRES.forEach(o => { ca += (state.offresVentes[o.ref]||0) * o.prix; });
+  return ca;
+}
+function calcCACmd() {
+  let ca = 0;
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => {
+    ca += (state.ventes[p.ref] || 0) * (p.pv || p.pv50 || 0);
+  });
+  ca += (state.ecocupsCmd.E01||0) * 1 - (state.rembsCmd.E01||0) * 1;
+  ca += (state.ecocupsCmd.E02||0) * 1 - (state.rembsCmd.E02||0) * 1;
+  OFFRES.forEach(o => { ca += (state.offresVentes[o.ref]||0) * o.prix; });
+  return ca;
+}
+function nbArticlesCmd() {
+  const boissons = CATALOGUE.filter(p => p.cat !== 'eco').reduce((s,p) => s + (state.ventes[p.ref]||0), 0);
+  const ecos = (state.ecocupsCmd.E01||0) + (state.ecocupsCmd.E02||0) + (state.rembsCmd.E01||0) + (state.rembsCmd.E02||0);
+  const offres = OFFRES.reduce((s,o) => s + (state.offresVentes[o.ref]||0), 0);
+  return boissons + ecos + offres;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════════════════════
+function validerCommande() {
+  const lignes = CATALOGUE.filter(p => p.cat !== 'eco' && (state.ventes[p.ref]||0) > 0)
+    .map(p => ({ ref: p.ref, nom: p.nom, qty: state.ventes[p.ref], pv: p.pv || p.pv50 }));
+  // Écocups vendus dans la commande
+  if ((state.ecocupsCmd.E01||0) > 0) lignes.push({ ref:'E01', nom:'Écocup 33cl (consigne)', qty: state.ecocupsCmd.E01, pv: 1.00 });
+  if ((state.ecocupsCmd.E02||0) > 0) lignes.push({ ref:'E02', nom:'Écocup 50cl (consigne)', qty: state.ecocupsCmd.E02, pv: 1.00 });
+  // Remboursements dans la commande
+  if ((state.rembsCmd.E01||0) > 0) lignes.push({ ref:'RE01', nom:'Remb. consigne 33cl', qty: state.rembsCmd.E01, pv: -1.00 });
+  if ((state.rembsCmd.E02||0) > 0) lignes.push({ ref:'RE02', nom:'Remb. consigne 50cl', qty: state.rembsCmd.E02, pv: -1.00 });
+  // Offres combinées
+  OFFRES.forEach(o => {
+    const qty = state.offresVentes[o.ref] || 0;
+    if (qty > 0) lignes.push({ ref: o.ref, nom: o.emoji + ' ' + o.nom, qty, pv: o.prix });
+  });
+  if (lignes.length === 0) return;
+  const montant = lignes.reduce((s, l) => s + l.qty * l.pv, 0);
+  const cmd = {
+    num: state.commandes.length + 1,
+    heure: new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}),
+    lignes,
+    montant
+  };
+  state.commandes.push(cmd);
+  // Ajouter aux totaux cumulés (boissons)
+  lignes.forEach(l => {
+    if (!l.ref.startsWith('RE') && CATALOGUE.find(p => p.ref === l.ref)) {
+      state.totalVentes[l.ref] = (state.totalVentes[l.ref]||0) + l.qty;
+    }
+  });
+  // Cumuler écocups et rembs dans les totaux globaux
+  state.ecocups.E01 = (state.ecocups.E01||0) + (state.ecocupsCmd.E01||0);
+  state.ecocups.E02 = (state.ecocups.E02||0) + (state.ecocupsCmd.E02||0);
+  state.rembs.E01 = (state.rembs.E01||0) + (state.rembsCmd.E01||0);
+  state.rembs.E02 = (state.rembs.E02||0) + (state.rembsCmd.E02||0);
+  // Cumuler offres validées (pour stockDispo et rapport)
+  OFFRES.forEach(o => {
+    state.totalOffres[o.ref] = (state.totalOffres[o.ref]||0) + (state.offresVentes[o.ref]||0);
+  });
+  // Réinitialiser commande en cours
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => { state.ventes[p.ref] = 0; });
+  state.ecocupsCmd = { E01:0, E02:0 };
+  state.rembsCmd   = { E01:0, E02:0 };
+  state.offresVentes = {};
+  OFFRES.forEach(o => { state.offresVentes[o.ref] = 0; });
+  sauvegarderState();
+  // Feedback visuel
+  const btn = document.getElementById('btn-valider');
+  btn.textContent = '✅ Validée !';
+  btn.style.background = 'var(--success)';
+  setTimeout(() => { btn.textContent = '✔ Valider commande'; btn.style.background = ''; }, 1200);
+  renderAll();
+}
+function changeQty(ref, delta) {
+  const current = state.ventes[ref] || 0;
+  const dispo   = stockDispo(ref);
+  const stockConfigured = Object.values(state.stocks[state.tab]||{}).some(v => v > 0);
+  if (delta > 0 && stockConfigured && dispo <= 0) return;
+  if (delta < 0 && current <= 0) return;
+  state.ventes[ref] = current + delta;
+  renderAll();
+}
+function changeEcocup(ref, delta) {
+  const cur = state.ecocupsCmd[ref] || 0;
+  if (delta < 0 && cur <= 0) return;
+  state.ecocupsCmd[ref] = cur + delta;
+  renderEcocups(); renderCA();
+}
+function changeRemb(ref, delta) {
+  const cur = state.rembsCmd[ref] || 0;
+  if (delta < 0 && cur <= 0) return;
+  state.rembsCmd[ref] = cur + delta;
+  renderEcocups(); renderCA();
+}
+
+function telechargerJSON(json) {
+  const blob = new Blob([JSON.stringify(json, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'rapport_' + (json.matchId||'match') + '_' + (json.tablette||'tab').replace('. ','') + '.json';
+  a.click();
+}
+function envoyerSheet() {
+  const c = document.getElementById('rapport-content');
+  const json = c._json;
+  const statusEl = document.getElementById('sync-status-post');
+  if (!state.url) { statusEl.className = 'sync-status err'; statusEl.textContent = '❌ URL non configurée.'; statusEl.style.display='block'; return; }
+  statusEl.className = 'sync-status'; statusEl.textContent = '⏳ Envoi…'; statusEl.style.display = 'block';
+  fetch(state.url, { method:'POST', body: JSON.stringify(json) })
+    .then(r => r.json())
+    .then(d => { statusEl.className = 'sync-status ok'; statusEl.textContent = '✅ ' + (d.message || 'Envoyé !'); })
+    .catch(() => { statusEl.className = 'sync-status err'; statusEl.textContent = '❌ Erreur réseau — utilisez le JSON.'; });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════════════
+function annulerDerniereCommande() {
+  if (state.commandes.length === 0) return;
+  const cmd = state.commandes[state.commandes.length - 1];
+  const desc = cmd.lignes.map(l => l.qty + '× ' + l.nom).join(', ');
+  if (!confirm(`Annuler la commande #${cmd.num} ?\n${desc}\n(${fmt(cmd.montant)})`)) return;
+  state.commandes.pop();
+  cmd.lignes.forEach(l => {
+    if (l.ref === 'RE01') {
+      state.rembs.E01 = Math.max(0, (state.rembs.E01||0) - l.qty);
+    } else if (l.ref === 'RE02') {
+      state.rembs.E02 = Math.max(0, (state.rembs.E02||0) - l.qty);
+    } else if (l.ref === 'E01' || l.ref === 'E02') {
+      state.ecocups[l.ref] = Math.max(0, (state.ecocups[l.ref]||0) - l.qty);
+    } else {
+      state.totalVentes[l.ref] = Math.max(0, (state.totalVentes[l.ref]||0) - l.qty);
+    }
+  });
+  sauvegarderState();
+  renderAll();
+}
+
+function updateStockInputs() {
+  const tab = document.getElementById('sel-tab').value;
+  document.getElementById('stock-tab-label').textContent = tab;
+  const s = state.stocks[tab] || {};
+  ['P01_33','P01_50','P02','P03','P04'].forEach(ref => {
+    const el = document.getElementById('stk-' + ref);
+    if (el) el.value = s[ref] || 0;
+  });
+}
+
+function openSettings() {
+  document.getElementById('sel-tab').value  = state.tab;
+  document.getElementById('inp-match').value = state.matchId;
+  document.getElementById('inp-date').value  = state.date;
+  document.getElementById('inp-url').value   = state.url;
+  updateStockInputs();
+  document.getElementById('modal-settings').classList.add('open');
+}
+function saveSettings() {
+  const prevTab = state.tab;
+  state.tab     = document.getElementById('sel-tab').value;
+  state.matchId = document.getElementById('inp-match').value.trim();
+  state.date    = document.getElementById('inp-date').value;
+  state.url     = document.getElementById('inp-url').value.trim();
+  // Sauvegarder les stocks saisis manuellement
+  if (!state.stocks[state.tab]) state.stocks[state.tab] = {};
+  ['P01_33','P01_50','P02','P03','P04'].forEach(ref => {
+    const el = document.getElementById('stk-' + ref);
+    if (el) state.stocks[state.tab][ref] = parseInt(el.value, 10) || 0;
+  });
+  document.getElementById('tab-badge').textContent = state.tab;
+  document.getElementById('match-label').textContent = state.matchId || 'Aucun match configuré';
+  sauvegarderState();
+  closeModal('modal-settings');
+  renderAll();
+}
+
+// ── Synchro pré-match GET ───────────────────────────────────────────
+async function syncPreMatch() {
+  const url = state.url;
+  const statusEl = document.getElementById('sync-status-pre');
+  if (!url) { statusEl.className = 'sync-status err'; statusEl.textContent = '❌ URL non configurée.'; return; }
+  statusEl.className = 'sync-status'; statusEl.textContent = '⏳ Connexion…'; statusEl.style.display = 'block';
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const cfg = await r.json();
+    applyTabletConfig(cfg);
+    statusEl.className = 'sync-status ok';
+    statusEl.textContent = '✅ Config reçue — Match ' + (cfg.matchId || '?');
+  } catch(e) {
+    statusEl.className = 'sync-status err';
+    statusEl.textContent = '❌ Erreur : ' + e.message;
+  }
+}
+
+function applyTabletConfig(cfg) {
+  if (cfg.matchId)    { state.matchId = cfg.matchId; document.getElementById('inp-match').value = cfg.matchId; document.getElementById('match-label').textContent = cfg.matchId; }
+  if (cfg.params_fut) {
+    PARAMS.rdt33   = cfg.params_fut.rdt33   || 90;
+    PARAMS.rdt50   = cfg.params_fut.rdt50   || 60;
+    PARAMS.seuil33 = cfg.params_fut.seuil_alerte_33cl || 15;
+    PARAMS.seuil50 = cfg.params_fut.seuil_alerte_50cl || 10;
+  }
+  if (cfg.stocks_tablettes) {
+    Object.entries(cfg.stocks_tablettes).forEach(([tab, items]) => {
+      if (!state.stocks[tab]) state.stocks[tab] = {};
+      items.forEach(item => {
+        if (item.type === 'biere_33') state.stocks[tab].P01_33 = item.qty_verres;
+        else if (item.type === 'biere_50') state.stocks[tab].P01_50 = item.qty_verres;
+        else state.stocks[tab][item.ref] = item.qty_unites;
+      });
+    });
+  }
+  if (cfg.produits) {
+    cfg.produits.forEach(p => {
+      const local = CATALOGUE.find(c => c.ref === p.ref);
+      if (!local) return;
+      if (p.pv_33cl) local.pv  = p.pv_33cl;
+      if (p.pv_50cl) local.pv50 = p.pv_50cl;
+      if (p.consigne !== undefined) local.consigne = p.consigne;
+    });
+  }
+  resetVentes();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RAPPORT
+// ═══════════════════════════════════════════════════════════════════
+function openRapport() {
+  const c = document.getElementById('rapport-content');
+
+  // Totaux toutes commandes validées + commande en cours éventuelle
+  const totaux = {};
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => {
+    totaux[p.ref] = (state.totalVentes[p.ref]||0) + (state.ventes[p.ref]||0);
+  });
+
+  // JSON export
+  const ventesExport = CATALOGUE.filter(p => p.cat !== 'eco' && totaux[p.ref] > 0)
+    .map(p => ({ ref: p.ref, produit: p.nom, qty: totaux[p.ref], pv: p.pv || p.pv50 }));
+  if ((state.ecocups.E01||0) > 0) ventesExport.push({ ref:'E01', produit:'Écocup 33cl', qty: state.ecocups.E01, pv:0, consigne:1 });
+  if ((state.ecocups.E02||0) > 0) ventesExport.push({ ref:'E02', produit:'Écocup 50cl', qty: state.ecocups.E02, pv:0, consigne:1 });
+  const rembs = [];
+  if ((state.rembs.E01||0) > 0) rembs.push({ ref:'E01', qty: state.rembs.E01, montant: state.rembs.E01 });
+  if ((state.rembs.E02||0) > 0) rembs.push({ ref:'E02', qty: state.rembs.E02, montant: state.rembs.E02 });
+
+  const json = {
+    matchId: state.matchId || 'NON_CONFIGURE',
+    tablette: state.tab,
+    dateMatch: state.date,
+    nbCommandes: state.commandes.length,
+    commandes: state.commandes,
+    totaux: ventesExport,
+    remboursements_consigne: rembs,
+    ca_total: calcCA()
+  };
+
+  let out = '';
+
+  // === Résumé en tête ===
+  out += `<div style="background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);margin-bottom:var(--space-4);display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)">
+    <div><div style="font-size:var(--text-xs);color:var(--text-muted)">Match</div><div style="font-weight:700">${state.matchId||'—'}</div></div>
+    <div><div style="font-size:var(--text-xs);color:var(--text-muted)">Tablette</div><div style="font-weight:700">${state.tab}</div></div>
+    <div><div style="font-size:var(--text-xs);color:var(--text-muted)">Commandes</div><div style="font-weight:700">${state.commandes.length}</div></div>
+    <div><div style="font-size:var(--text-xs);color:var(--text-muted)">CA Total</div><div style="font-weight:700;color:var(--success)">${fmt(calcCA())}</div></div>
+  </div>`;
+
+  // === Détail commandes ===
+  if (state.commandes.length > 0) {
+    out += `<div style="font-size:var(--text-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)">Détail commandes</div>`;
+    state.commandes.forEach(cmd => {
+      const desc = cmd.lignes.map(l => l.qty + '× ' + l.nom).join(', ');
+      out += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);margin-bottom:var(--space-2);display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Cmd #${cmd.num} — ${cmd.heure}</div>
+          <div style="font-size:var(--text-sm);margin-top:2px">${desc}</div>
+        </div>
+        <div style="font-weight:700;color:var(--primary);font-size:var(--text-sm);flex-shrink:0;margin-left:var(--space-3)">${fmt(cmd.montant)}</div>
+      </div>`;
+    });
+  }
+
+  // === Totaux par produit ===
+  out += `<div style="font-size:var(--text-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:var(--space-4) 0 var(--space-2)">Total ventes par produit</div>`;
+  out += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:var(--space-3)">`;
+  CATALOGUE.filter(p => p.cat !== 'eco').forEach((p, i) => {
+    const qty = totaux[p.ref] || 0;
+    const mt = qty * (p.pv || p.pv50 || 0);
+    const bg = i % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)';
+    out += `<div style="display:flex;justify-content:space-between;padding:var(--space-2) var(--space-4);background:${bg}">
+      <span style="font-size:var(--text-sm)">${p.nom}</span>
+      <span style="font-size:var(--text-sm);color:var(--text-muted)">${qty} × ${fmt(p.pv||p.pv50)} = <b style="color:var(--text)">${fmt(mt)}</b></span>
+    </div>`;
+  });
+  // Écocups
+  const eco1 = state.ecocups.E01||0, eco2 = state.ecocups.E02||0;
+  const remb1 = state.rembs.E01||0, remb2 = state.rembs.E02||0;
+  const netConsigne = (eco1 - remb1) + (eco2 - remb2);
+  out += `<div style="display:flex;justify-content:space-between;padding:var(--space-2) var(--space-4);background:var(--surface)">
+    <span style="font-size:var(--text-sm)">Écocups 33cl</span>
+    <span style="font-size:var(--text-sm);color:var(--text-muted)">${eco1} vendus / ${remb1} remb. = <b style="color:var(--warning)">${fmt(eco1-remb1)}</b></span>
+  </div>`;
+  out += `<div style="display:flex;justify-content:space-between;padding:var(--space-2) var(--space-4);background:var(--surface-2)">
+    <span style="font-size:var(--text-sm)">Écocups 50cl</span>
+    <span style="font-size:var(--text-sm);color:var(--text-muted)">${eco2} vendus / ${remb2} remb. = <b style="color:var(--warning)">${fmt(eco2-remb2)}</b></span>
+  </div>`;
+  out += `<div style="display:flex;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--surface-3);border-top:1px solid var(--border)">
+    <span style="font-size:var(--text-sm);font-weight:700">Net consignes</span>
+    <b style="color:var(--warning)">${fmt(netConsigne)}</b>
+  </div>`;
+  out += `<div style="display:flex;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--navy)">
+    <span style="font-size:var(--text-sm);font-weight:700;color:#fff">CA TOTAL</span>
+    <b style="color:var(--gold);font-size:var(--text-lg)">${fmt(calcCA())}</b>
+  </div>`;
+  out += `</div>`;
+
+  // === Actions ===
+  out += `<div style="display:flex;flex-direction:column;gap:var(--space-3);margin-top:var(--space-4)">`;
+  out += `<button onclick="telechargerJSON(document.getElementById('rapport-content')._json||{})" style="padding:var(--space-3);border-radius:var(--radius-md);background:var(--primary);color:#fff;font-weight:700;font-size:var(--text-sm);border:none;width:100%">⬇️ Télécharger rapport JSON</button>`;
+  out += `<button onclick="envoyerSheet()" style="padding:var(--space-3);border-radius:var(--radius-md);background:var(--surface-2);color:var(--text);font-weight:600;font-size:var(--text-sm);border:1px solid var(--border);width:100%">📤 Envoyer au Sheet (si connexion)</button>`;
+  out += `<div class="sync-status" id="sync-status-post"></div>`;
+  out += `</div>`;
+
+  c.innerHTML = out;
+  c._json = json;
+  document.getElementById('modal-rapport').classList.add('open');
+}
+
+
+function copyJson() {
+  const txt = document.getElementById('json-block').textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '✅ Copié !';
+    setTimeout(() => btn.textContent = '📋 Copier le JSON', 2000);
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════
+function fmt(n) {
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
+}
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Fermer sur clic overlay
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+
+// Date par défaut
+document.getElementById('inp-date').value = state.date;
+
+// ── Init ─────────────────────────────────────────────────────────────
+renderAll();
+renderEcocups();
+</script>
+</body>
+</html>
