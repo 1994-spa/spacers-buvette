@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Spacer's Buvette</title>
+<link rel="manifest" id="pwa-manifest">
+<meta name="theme-color" content="#0d1f35">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Buvette">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════════
+   TOKENS
+════════════════════════════════════════════════════ */
+:root {
+  --navy:    #0d1f35;
+  --gold:    #f5c518;
+  --green:   #2ecc71;
+  --green-dk:#1a9e52;
+  --red:     #e74c3c;
+  --amber:   #f39c12;
+  --blue:    #3498db;
+  --font-head:'Barlow Condensed',sans-serif;
+  --font-body:'Barlow',sans-serif;
+  --ease:    cubic-bezier(0.16,1,0.3,1);
+}
+[data-theme="dark"] {
+  --bg:        #0b0e14;
+  --surface:   #141820;
+  --surface-2: #1c2130;
+  --surface-3: #242b3d;
+  --border:    rgba(255,255,255,.09);
+  --text:      #f0eeea;
+  --text-2:    #9ba3b8;
+  --text-3:    #545e78;
+  --primary:   #4fc3f7;
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.6);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.4);
+}
+[data-theme="light"] {
+  --bg:        #f0f2f7;
+  --surface:   #ffffff;
+  --surface-2: #e8ecf5;
+  --surface-3: #dde3f0;
+  --border:    rgba(0,0,0,.1);
+  --text:      #1a2035;
+  --text-2:    #5a6480;
+  --text-3:    #9ba3b8;
+  --primary:   #0277bd;
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+}
+
+/* ════════════════════════════════════════════════════
+   RESET
+════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;-webkit-text-size-adjust:none}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;touch-action:manipulation}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
+input,select{font:inherit;color:inherit}
+
+/* ════════════════════════════════════════════════════
+   APP SHELL — 4 rows: header / tabs / main / bottombar
+════════════════════════════════════════════════════ */
+#app{
+  display:grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100dvh;
+  max-width: 900px;
+  margin: 0 auto;
+  background: var(--bg);
+}
+
+/* ════════════════════════════════════════════════════
+   HEADER
+════════════════════════════════════════════════════ */
+.header{
+  background: var(--navy);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid rgba(245,197,24,.25);
+}
+.header-left{ display:flex; align-items:center; gap:10px; min-width:0 }
+.logo-icon{
+  width:38px; height:38px; border-radius:50%;
+  background:rgba(245,197,24,.15);
+  border:2px solid rgba(245,197,24,.4);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; flex-shrink:0;
+}
+.logo-text{
+  font-family:var(--font-head);
+  font-size:20px; font-weight:800;
+  color:#fff; letter-spacing:.02em; line-height:1;
+}
+.match-info{
+  font-size:11px; color:rgba(255,255,255,.5);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.header-right{ display:flex; align-items:center; gap:8px; flex-shrink:0 }
+.tab-badge{
+  background: rgba(245,197,24,.18);
+  border: 1.5px solid rgba(245,197,24,.4);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: var(--font-head);
+  font-size: 14px; font-weight: 800;
+  color: var(--gold);
+  letter-spacing: .04em;
+}
+.btn-icon{
+  width:36px; height:36px; border-radius:10px;
+  background:rgba(255,255,255,.08);
+  display:flex; align-items:center; justify-content:center;
+  transition: background .15s;
+}
+.btn-icon:active{ background:rgba(255,255,255,.18) }
+.btn-icon svg{ width:18px; height:18px; stroke:#fff; fill:none; stroke-width:2 }
+
+/* ════════════════════════════════════════════════════
+   TAB SELECTOR
+════════════════════════════════════════════════════ */
+.tab-selector{
+  background: var(--navy);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-selector::-webkit-scrollbar{ display:none }
+.tab-btn{
+  flex-shrink: 0;
+  padding: 7px 20px;
+  border-radius: 20px;
+  font-family: var(--font-head);
+  font-size: 14px; font-weight: 700;
+  letter-spacing: .04em;
+  background: rgba(255,255,255,.10);
+  color: rgba(255,255,255,.7);
+  border: 1.5px solid rgba(255,255,255,.18);
+  transition: all .15s;
+}
+.tab-btn.active{
+  background: var(--gold);
+  color: var(--navy);
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(245,197,24,.4);
+}
+
+/* ════════════════════════════════════════════════════
+   MAIN CONTENT
+════════════════════════════════════════════════════ */
+.main{
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Alerte stock */
+.alert-banner{
+  border-radius:10px; padding:10px 14px;
+  font-size:13px; font-weight:600;
+  display:flex; align-items:center; gap:8px;
+  animation: slideIn .25s var(--ease);
+}
+.alert-banner.warn{ background:rgba(243,156,18,.18); color:#f39c12; border:1px solid rgba(243,156,18,.3) }
+.alert-banner.err { background:rgba(231,76,60,.18);  color:#e74c3c; border:1px solid rgba(231,76,60,.3) }
+@keyframes slideIn{ from{ opacity:0; transform:translateY(-6px) } }
+
+/* ════════════════════════════════════════════════════
+   CATÉGORIE LABEL
+════════════════════════════════════════════════════ */
+.cat-label{
+  font-family: var(--font-head);
+  font-size: 13px; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-2);
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.cat-label::after{
+  content:''; flex:1; height:1px; background:var(--border);
+}
+
+/* ════════════════════════════════════════════════════
+   PRODUCT GRID — cœur de l'interface
+════════════════════════════════════════════════════ */
+.prod-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+/* Carte produit — grosse zone de tap */
+.prod-card{
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  cursor: pointer;
+  transition: transform .1s, border-color .15s, background .15s;
+  user-select: none;
+  -webkit-user-select: none;
+  min-height: 110px;
+  justify-content: center;
+}
+.prod-card:active{ transform:scale(.96) }
+.prod-card.has-qty{
+  border-color: var(--gold);
+  background: linear-gradient(135deg, var(--surface) 60%, rgba(245,197,24,.08));
+}
+.prod-card.biere.has-qty{ border-color: var(--amber); background: linear-gradient(135deg,var(--surface) 60%,rgba(243,156,18,.10)) }
+.prod-card.soft.has-qty { border-color: var(--blue);  background: linear-gradient(135deg,var(--surface) 60%,rgba(52,152,219,.10)) }
+.prod-card.eco.has-qty  { border-color: var(--green); background: linear-gradient(135deg,var(--surface) 60%,rgba(46,204,113,.10)) }
+
+.prod-emoji{ font-size:28px; line-height:1; margin-bottom:2px }
+.prod-name{
+  font-family: var(--font-head);
+  font-size: 16px; font-weight: 800;
+  letter-spacing: .02em; text-align:center;
+  color: var(--text);
+  line-height: 1.1;
+}
+.prod-price{
+  font-family: var(--font-head);
+  font-size: 18px; font-weight: 900;
+  color: var(--text-2);
+  letter-spacing: .02em;
+}
+.prod-card.has-qty .prod-price{ color:var(--text) }
+
+/* Badge quantité — gros, visible de loin */
+.qty-badge{
+  position: absolute;
+  top: -8px; right: -8px;
+  min-width: 32px; height: 32px;
+  border-radius: 16px;
+  background: var(--gold);
+  color: var(--navy);
+  font-family: var(--font-head);
+  font-size: 18px; font-weight: 900;
+  display: flex; align-items:center; justify-content:center;
+  padding: 0 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  animation: popIn .2s var(--ease);
+  border: 2px solid var(--bg);
+}
+.prod-card.biere .qty-badge{ background:var(--amber) }
+.prod-card.soft  .qty-badge{ background:var(--blue) }
+.prod-card.eco   .qty-badge{ background:var(--green) }
+@keyframes popIn{ from{ transform:scale(0) } to{ transform:scale(1) } }
+
+/* Bouton moins — petite zone intentionnelle */
+.btn-minus-card{
+  position: absolute;
+  bottom: 6px; left: 8px;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: rgba(231,76,60,.2);
+  color: #e74c3c;
+  font-size: 18px; font-weight:700;
+  display: flex; align-items:center; justify-content:center;
+  transition: background .15s;
+  z-index: 2;
+}
+.btn-minus-card:active{ background:rgba(231,76,60,.45) }
+
+/* Stock restant */
+.prod-stock{
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.prod-stock.low { color: var(--amber) }
+.prod-stock.empty{ color: var(--red) }
+
+/* ════════════════════════════════════════════════════
+   SECTION ÉCOCUPS — style différencié
+════════════════════════════════════════════════════ */
+.eco-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+/* Les remboursements ont un style différent = rouge discret */
+.prod-card.remb{
+  background: rgba(231,76,60,.06);
+  border-color: rgba(231,76,60,.2);
+}
+.prod-card.remb .prod-price{ color:#e74c3c }
+.prod-card.remb.has-qty{
+  border-color: #e74c3c;
+  background: rgba(231,76,60,.14);
+}
+.prod-card.remb .qty-badge{ background:#e74c3c }
+
+/* ════════════════════════════════════════════════════
+   BOTTOM BAR — commande + validation
+════════════════════════════════════════════════════ */
+.bottom-bar{
+  background: var(--surface);
+  border-top: 2px solid var(--border);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Résumé commande en cours */
+.order-summary{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+  align-items: center;
+}
+.order-tag{
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-family: var(--font-head);
+  font-size: 16px; font-weight:700;
+  color: var(--text);
+  display: flex; align-items:center; gap:6px;
+}
+.order-tag .tag-qty{
+  background: var(--gold);
+  color: var(--navy);
+  border-radius:10px;
+  min-width:24px; height:24px;
+  font-size:14px; font-weight:900;
+  display:flex; align-items:center; justify-content:center;
+  padding:0 5px;
+}
+.order-empty{
+  font-size:14px; color:var(--text-3); font-style:italic;
+}
+/* Bouton aide */
+.btn-aide{
+  width:36px; height:36px; border-radius:50%;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  font-size:18px; font-weight:900;
+  color: var(--text-2);
+  display:flex; align-items:center; justify-content:center;
+  transition:all .15s; flex-shrink:0;
+}
+.btn-aide:active{ background:var(--navy); color:var(--gold) }
+/* Compteur commandes dans la CA bar */
+.ca-bar-count{
+  font-size:11px; color:var(--green);
+  font-weight:700; margin-top:2px;
+}
+
+/* Ligne actions */
+.actions-row{
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.btn-undo{
+  width: 52px; flex-shrink:0;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  font-size: 20px;
+  display: flex; align-items:center; justify-content:center;
+  color: var(--text-2);
+  transition: all .15s;
+}
+.btn-undo:disabled{ opacity:.35 }
+.btn-undo:not(:disabled):active{ background:var(--surface-3) }
+
+/* BOUTON VALIDER — le plus important de l'app */
+.btn-valider{
+  flex: 1;
+  background: var(--green);
+  color: #fff;
+  border-radius: 14px;
+  padding: 0 20px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-head);
+  font-size: 22px; font-weight: 900;
+  letter-spacing: .04em;
+  box-shadow: 0 4px 16px rgba(46,204,113,.35);
+  transition: all .15s;
+  position: relative;
+  overflow: hidden;
+}
+.btn-valider:disabled{
+  background: var(--surface-3);
+  box-shadow: none;
+  color: var(--text-3);
+}
+.btn-valider:not(:disabled):active{
+  transform: scale(.98);
+  background: var(--green-dk);
+}
+.btn-valider .valider-total{
+  background: rgba(0,0,0,.2);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 20px;
+}
+.btn-valider.success{
+  background: #27ae60;
+  animation: flashGreen .6s var(--ease);
+}
+/* Boutons paiement */
+.pay-row{ display:flex; gap:8px }
+.btn-pay{
+  flex:1; height:56px;
+  border-radius:14px;
+  font-family:var(--font-head);
+  font-size:18px; font-weight:900;
+  letter-spacing:.04em;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 16px;
+  transition:all .15s;
+  position:relative; overflow:hidden;
+}
+.btn-pay:disabled{ opacity:.4; pointer-events:none }
+.btn-pay:not(:disabled):active{ transform:scale(.98) }
+.btn-pay-cb{
+  background: #1565c0;
+  color:#fff;
+  box-shadow: 0 4px 14px rgba(21,101,192,.35);
+}
+.btn-pay-esp{
+  background: var(--green);
+  color:#fff;
+  box-shadow: 0 4px 14px rgba(46,204,113,.35);
+}
+.btn-pay .pay-total{
+  background:rgba(0,0,0,.2);
+  border-radius:8px; padding:3px 10px;
+  font-size:17px;
+}
+.btn-pay.success{ animation:flashGreen .6s var(--ease) }
+.montant-bar{
+  display:flex; align-items:center; justify-content:center;
+  gap:8px; padding:4px 0 2px;
+}
+.montant-label{ font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:.06em }
+.montant-value{
+  font-family:var(--font-head);
+  font-size:26px; font-weight:900;
+  color:var(--gold);
+  font-variant-numeric:tabular-nums;
+}
+@keyframes flashGreen{
+  0%{ transform:scale(1) }
+  30%{ transform:scale(1.03) }
+  100%{ transform:scale(1) }
+}
+
+/* ════════════════════════════════════════════════════
+   CA TOTAL MATCH (en haut du scroll)
+════════════════════════════════════════════════════ */
+.ca-bar{
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ca-bar-left{ display:flex; flex-direction:column }
+.ca-bar-label{ font-size:11px; color:var(--text-3); font-weight:600; text-transform:uppercase; letter-spacing:.06em }
+.ca-bar-value{
+  font-family: var(--font-head);
+  font-size: 28px; font-weight: 900;
+  color: var(--green);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.btn-rapport{
+  background: var(--navy);
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-family: var(--font-head);
+  font-size: 15px; font-weight: 800;
+  letter-spacing: .03em;
+  color: var(--gold);
+  display: flex; align-items:center; gap:6px;
+  transition: all .15s;
+  white-space:nowrap;
+}
+.btn-rapport:active{ opacity:.8 }
+
+/* ════════════════════════════════════════════════════
+   MODALS (settings + rapport) — inchangés
+════════════════════════════════════════════════════ */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.7);
+  display:flex; align-items:flex-end; justify-content:center;
+  z-index:100; opacity:0; pointer-events:none; transition:opacity .25s;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.open{ opacity:1; pointer-events:all }
+.modal{
+  background:var(--surface); border-radius:20px 20px 0 0;
+  padding:24px 20px 32px; width:100%; max-width:480px;
+  max-height:85vh; overflow-y:auto;
+  transform:translateY(40px); transition:transform .3s var(--ease);
+}
+.modal-overlay.open .modal{ transform:translateY(0) }
+.modal-handle{ width:36px; height:4px; background:var(--border); border-radius:4px; margin:0 auto 20px }
+.modal-title{ font-family:var(--font-head); font-size:22px; font-weight:800; margin-bottom:16px }
+.modal-close{
+  position:absolute; top:16px; right:16px;
+  width:32px; height:32px; border-radius:8px;
+  background:var(--surface-2); font-size:16px;
+  display:flex; align-items:center; justify-content:center;
+}
+.settings-form{ display:flex; flex-direction:column; gap:14px }
+.form-row{ display:flex; flex-direction:column; gap:6px }
+.form-label{ font-size:12px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:.06em }
+.form-input{
+  background:var(--surface-2); border:1.5px solid var(--border);
+  border-radius:10px; padding:10px 12px; font-size:15px; color:var(--text);
+  transition:border-color .15s;
+}
+.form-input:focus{ outline:none; border-color:var(--primary) }
+.btn-primary{
+  background:var(--navy); color:#fff;
+  border-radius:12px; padding:12px;
+  font-family:var(--font-head); font-size:16px; font-weight:700;
+  letter-spacing:.04em; text-align:center;
+  transition:opacity .15s;
+}
+.btn-primary:active{ opacity:.8 }
+.sync-status{ font-size:13px; font-weight:600; padding:8px 12px; border-radius:8px; display:none; margin-top:4px }
+.sync-status.ok { background:rgba(46,204,113,.15); color:#2ecc71; display:block }
+.sync-status.err{ background:rgba(231,76,60,.15);  color:#e74c3c; display:block }
+
+/* Rapport modal */
+#modal-rapport .modal{ max-width:600px; border-radius:20px 20px 0 0 }
+#rapport-content{ font-size:14px }
+pre.json-block{
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:10px; padding:12px; overflow-x:auto;
+  font-size:11px; line-height:1.6; max-height:300px;
+}
+.btn-copy{
+  background:var(--surface-2); border:1.5px solid var(--border);
+  border-radius:10px; padding:8px 14px;
+  font-size:13px; font-weight:700; transition:all .15s;
+}
+
+/* ════════════════════════════════════════════════════
+   MODAL MONNAIE — calcul rendu de monnaie pour Joël
+════════════════════════════════════════════════════ */
+.monnaie-modal{ max-width:380px !important; border-radius:20px 20px 0 0 }
+.monnaie-total-due{
+  text-align:center; margin-bottom:16px;
+}
+.monnaie-total-due .lbl{ font-size:12px; color:var(--text-2); text-transform:uppercase; letter-spacing:.06em }
+.monnaie-total-due .val{
+  font-family:var(--font-head); font-size:38px; font-weight:900;
+  color:var(--navy); line-height:1;
+}
+.monnaie-billets{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+  margin-bottom:16px;
+}
+.btn-billet{
+  background:var(--surface-2); border:2px solid var(--border);
+  border-radius:12px; padding:12px 6px;
+  font-family:var(--font-head); font-size:18px; font-weight:800;
+  color:var(--text); transition:all .15s; text-align:center;
+}
+.btn-billet:active{ background:var(--navy); color:var(--gold); border-color:var(--navy) }
+.btn-billet.sel{ background:var(--navy); color:var(--gold); border-color:var(--navy) }
+.monnaie-saisi-row{
+  display:flex; align-items:center; gap:10px;
+  background:var(--surface-2); border-radius:12px;
+  padding:10px 14px; margin-bottom:12px;
+}
+.monnaie-saisi-lbl{ font-size:12px; color:var(--text-2); font-weight:600; flex:1 }
+.monnaie-saisi-val{
+  font-family:var(--font-head); font-size:22px; font-weight:900;
+  color:var(--text); min-width:80px; text-align:right;
+}
+.monnaie-rendu-box{
+  border-radius:14px; padding:16px; text-align:center;
+  margin-bottom:16px;
+}
+.monnaie-rendu-box.positif{ background:#e8f5e9; border:2px solid #2ecc71 }
+.monnaie-rendu-box.negatif{ background:#fce8e6; border:2px solid #e74c3c }
+.monnaie-rendu-box.zero   { background:var(--surface-2); border:2px solid var(--border) }
+.monnaie-rendu-lbl{ font-size:13px; font-weight:700; color:var(--text-2) }
+.monnaie-rendu-val{
+  font-family:var(--font-head); font-size:52px; font-weight:900;
+  line-height:1; margin-top:4px;
+}
+.monnaie-rendu-box.positif .monnaie-rendu-val{ color:#27ae60 }
+.monnaie-rendu-box.negatif .monnaie-rendu-val{ color:#e74c3c }
+.monnaie-rendu-box.zero    .monnaie-rendu-val{ color:var(--text-3) }
+.btn-valider-monnaie{
+  width:100%; height:58px;
+  background:var(--green); color:#fff;
+  border-radius:14px;
+  font-family:var(--font-head); font-size:22px; font-weight:900;
+  letter-spacing:.04em;
+  box-shadow:0 4px 16px rgba(46,204,113,.35);
+  transition:all .15s;
+}
+.btn-valider-monnaie:disabled{ background:var(--surface-3); color:var(--text-3); box-shadow:none }
+.btn-valider-monnaie:not(:disabled):active{ transform:scale(.98); background:var(--green-dk) }
+/* Saisie manuelle si billet pas dans la liste */
+.monnaie-custom-row{
+  display:flex; gap:8px; margin-bottom:12px;
+}
+.monnaie-custom-inp{
+  flex:1; background:var(--surface-2); border:1.5px solid var(--border);
+  border-radius:10px; padding:10px 12px; font-size:18px; font-family:var(--font-head);
+  color:var(--text); font-weight:700; text-align:right;
+}
+.monnaie-custom-inp:focus{ outline:none; border-color:var(--navy) }
+.btn-monnaie-custom{
+  background:var(--surface-2); border:1.5px solid var(--border);
+  border-radius:10px; padding:10px 14px;
+  font-family:var(--font-head); font-size:14px; font-weight:700;
+  color:var(--text-2); transition:all .15s;
+}
+.btn-monnaie-custom:active{ background:var(--navy); color:var(--gold) }
+@media(min-width:640px){
+  .prod-grid{
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  .ca-bar-value{ font-size:34px }
+}
+
+/* ════════════════════════════════════════════════════
+   PIN RESPONSABLE
+════════════════════════════════════════════════════ */
+.pin-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  display:flex;align-items:center;justify-content:center;
+  z-index:200;backdrop-filter:blur(4px);
+}
+.pin-box{
+  background:var(--surface);border-radius:20px;
+  padding:28px 24px;width:300px;
+  display:flex;flex-direction:column;gap:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.4);
+}
+.pin-title{
+  font-family:var(--font-head);font-size:20px;font-weight:900;
+  text-align:center;color:var(--text);
+}
+.pin-dots{
+  display:flex;justify-content:center;gap:12px;
+  margin:4px 0;
+}
+.pin-dot{
+  width:16px;height:16px;border-radius:50%;
+  background:var(--border);transition:background .15s;
+}
+.pin-dot.filled{background:var(--navy)}
+.pin-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
+}
+.pin-key{
+  height:60px;border-radius:14px;
+  background:var(--surface-2);border:1.5px solid var(--border);
+  font-family:var(--font-head);font-size:24px;font-weight:800;
+  color:var(--text);transition:all .12s;
+}
+.pin-key:active{background:var(--navy);color:var(--gold);transform:scale(.93)}
+.pin-key.del{font-size:20px;color:var(--red)}
+.pin-err{
+  text-align:center;font-size:13px;font-weight:700;
+  color:var(--red);min-height:18px;
+}
+.pin-cancel{
+  background:none;color:var(--text-2);font-size:13px;
+  text-align:center;padding:6px;
+}
+
+/* ════════════════════════════════════════════════════
+   CHECKLIST DÉMARRAGE
+════════════════════════════════════════════════════ */
+.checklist-overlay{
+  position:fixed;inset:0;background:var(--bg);
+  z-index:150;display:flex;flex-direction:column;
+  padding:24px 18px;gap:16px;overflow-y:auto;
+}
+.checklist-header{
+  display:flex;flex-direction:column;gap:4px;
+}
+.checklist-title{
+  font-family:var(--font-head);font-size:24px;font-weight:900;
+  color:var(--text);
+}
+.checklist-sub{font-size:13px;color:var(--text-2)}
+.checklist-items{display:flex;flex-direction:column;gap:10px}
+.checklist-item{
+  background:var(--surface);border:2px solid var(--border);
+  border-radius:14px;padding:14px 16px;
+  display:flex;align-items:center;gap:14px;
+  transition:all .2s;
+}
+.checklist-item.done{
+  border-color:var(--green);
+  background:linear-gradient(135deg,var(--surface),rgba(46,204,113,.07));
+}
+.checklist-item.blocked{opacity:.45;pointer-events:none}
+.check-icon{
+  width:44px;height:44px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;background:var(--surface-2);
+  transition:all .2s;
+}
+.checklist-item.done .check-icon{background:var(--green);font-size:20px}
+.check-body{flex:1;min-width:0}
+.check-title{font-size:15px;font-weight:700;color:var(--text);line-height:1.2}
+.check-desc{font-size:12px;color:var(--text-2);margin-top:3px}
+.check-status{font-size:11px;font-weight:700;margin-top:4px}
+.check-status.ok{color:var(--green)}
+.check-status.warn{color:var(--amber)}
+.btn-checklist-start{
+  background:var(--green);color:#fff;border-radius:16px;
+  height:60px;font-family:var(--font-head);font-size:22px;font-weight:900;
+  letter-spacing:.04em;transition:all .15s;margin-top:auto;
+  box-shadow:0 4px 16px rgba(46,204,113,.35);
+}
+.btn-checklist-start:disabled{
+  background:var(--surface-3);color:var(--text-3);box-shadow:none;
+}
+.btn-checklist-start:not(:disabled):active{transform:scale(.98)}
+
+/* ════════════════════════════════════════════════════
+   LIEN CONFIG — bouton dans settings
+════════════════════════════════════════════════════ */
+.btn-link-cfg{
+  background:var(--navy);color:var(--gold);
+  border-radius:12px;padding:12px;
+  font-family:var(--font-head);font-size:15px;font-weight:800;
+  letter-spacing:.03em;text-align:center;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .15s;
+}
+.btn-link-cfg:active{opacity:.8}
+.welcome-banner{
+  background: linear-gradient(135deg, var(--navy) 0%, #1a3a5c 100%);
+  border: 2px solid var(--gold);
+  border-radius: 16px;
+  padding: 20px 18px;
+  display: flex; flex-direction:column; gap:12px;
+  animation: slideIn .3s var(--ease);
+}
+.welcome-title{
+  font-family: var(--font-head);
+  font-size: 20px; font-weight: 900;
+  color: var(--gold); letter-spacing:.04em;
+}
+.welcome-steps{
+  display: flex; flex-direction:column; gap:8px;
+}
+.welcome-step{
+  display: flex; align-items:center; gap:10px;
+  font-size: 13px; color: rgba(255,255,255,.85);
+}
+.welcome-step-num{
+  width:26px; height:26px; border-radius:50%;
+  background: var(--gold); color: var(--navy);
+  font-family: var(--font-head); font-size:13px; font-weight:900;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.btn-welcome-cfg{
+  background: var(--gold); color: var(--navy);
+  border-radius: 12px; padding: 12px 18px;
+  font-family: var(--font-head); font-size:16px; font-weight:900;
+  letter-spacing:.04em; display:flex; align-items:center; gap:8px;
+  justify-content:center; transition:all .15s;
+}
+.btn-welcome-cfg:active{ transform:scale(.97) }
+
+/* ════════════════════════════════════════════════════
+   BARRE PRODUITS DISPO (mini guide)
+════════════════════════════════════════════════════ */
+.dispo-bar{
+  display: flex; gap:6px; overflow-x:auto;
+  padding: 8px 0 4px; scrollbar-width:none;
+}
+.dispo-bar::-webkit-scrollbar{ display:none }
+.dispo-chip{
+  flex-shrink:0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 12px; font-weight:600;
+  color: var(--text-2);
+  display:flex; align-items:center; gap:4px;
+  white-space:nowrap;
+}
+.dispo-chip.ok  { border-color:rgba(46,204,113,.4); color:var(--green) }
+.dispo-chip.low { border-color:rgba(243,156,18,.4); color:var(--amber) }
+.dispo-chip.out { border-color:rgba(231,76,60,.3);  color:var(--red); text-decoration:line-through; opacity:.6 }
+
+/* Bouton − agrandi */
+.btn-minus-card{
+  position: absolute;
+  bottom: 6px; left: 8px;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(231,76,60,.2);
+  color: #e74c3c;
+  font-size: 22px; font-weight:700;
+  display: flex; align-items:center; justify-content:center;
+  transition: background .15s;
+  z-index: 2;
+}
+.btn-minus-card:active{ background:rgba(231,76,60,.5) }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ PIN RESPONSABLE ═══════════════════════════════════════════ -->
+  <div class="pin-overlay" id="pin-overlay" style="display:none">
+    <div class="pin-box">
+      <div class="pin-title">🔒 Code responsable</div>
+      <div class="pin-dots" id="pin-dots">
+        <div class="pin-dot" id="pd0"></div>
+        <div class="pin-dot" id="pd1"></div>
+        <div class="pin-dot" id="pd2"></div>
+        <div class="pin-dot" id="pd3"></div>
+      </div>
+      <div class="pin-err" id="pin-err"></div>
+      <div class="pin-grid">
+        <button class="pin-key" onclick="pinKey('1')">1</button>
+        <button class="pin-key" onclick="pinKey('2')">2</button>
+        <button class="pin-key" onclick="pinKey('3')">3</button>
+        <button class="pin-key" onclick="pinKey('4')">4</button>
+        <button class="pin-key" onclick="pinKey('5')">5</button>
+        <button class="pin-key" onclick="pinKey('6')">6</button>
+        <button class="pin-key" onclick="pinKey('7')">7</button>
+        <button class="pin-key" onclick="pinKey('8')">8</button>
+        <button class="pin-key" onclick="pinKey('9')">9</button>
+        <button class="pin-key" onclick="pinKey('C')" style="font-size:13px;color:var(--text-2)">Effacer</button>
+        <button class="pin-key" onclick="pinKey('0')">0</button>
+        <button class="pin-key del" onclick="pinKey('⌫')">⌫</button>
+      </div>
+      <button class="pin-cancel" onclick="pinCancel()">Annuler</button>
+    </div>
+  </div>
+
+  <!-- ══ CHECKLIST DÉMARRAGE ═══════════════════════════════════════ -->
+  <div class="checklist-overlay" id="checklist-overlay" style="display:none">
+    <div class="checklist-header">
+      <div class="checklist-title">🏐 Avant de commencer</div>
+      <div class="checklist-sub">Vérifie ces 3 points avant d'ouvrir la buvette</div>
+    </div>
+    <div class="checklist-items">
+      <div class="checklist-item" id="chk-config" onclick="checklistOuvrirSettings()" style="cursor:pointer">
+        <div class="check-icon">⚙️</div>
+        <div class="check-body">
+          <div class="check-title">Configuration du match</div>
+          <div class="check-desc">ID match, tablette et URL configurés</div>
+          <div class="check-status" id="chk-config-status"></div>
+        </div>
+        <div style="font-size:22px;color:var(--text-3)">›</div>
+      </div>
+      <div class="checklist-item" id="chk-synchro" onclick="checklistOuvrirSettings()">
+        <div class="check-icon">📡</div>
+        <div class="check-body">
+          <div class="check-title">Synchro des stocks</div>
+          <div class="check-desc">Les stocks et prix sont chargés depuis le Sheet</div>
+          <div class="check-status" id="chk-synchro-status">En attente de la configuration</div>
+        </div>
+        <div style="font-size:22px;color:var(--text-3)">›</div>
+      </div>
+      <div class="checklist-item" id="chk-stocks">
+        <div class="check-icon">📦</div>
+        <div class="check-body">
+          <div class="check-title">Stocks disponibles</div>
+          <div class="check-desc">Au moins un produit a un stock > 0</div>
+          <div class="check-status" id="chk-stocks-status">En attente de la synchro</div>
+        </div>
+      </div>
+    </div>
+    <!-- Bouton configurer bien visible -->
+    <button class="btn-primary" onclick="checklistOuvrirSettings()" style="background:var(--navy);color:var(--gold);font-family:var(--font-head);font-size:18px;font-weight:900;height:56px;border-radius:14px">
+      ⚙️ Ouvrir la configuration
+    </button>
+    <button class="btn-checklist-start" id="btn-checklist-start" onclick="demarrerBuvette()" disabled>
+      🚀 Ouvrir la buvette !
+    </button>
+    <!-- Passer outre en cas de problème -->
+    <button onclick="demarrerBuvette()" style="background:none;color:var(--text-3);font-size:12px;padding:8px;text-align:center">
+      Continuer sans configurer →
+    </button>
+  </div>
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════ -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-icon">🏐</div>
+      <div>
+        <div class="logo-text">Spacer's Buvette</div>
+        <div class="match-info" id="match-label">Aucun match configuré</div>
+        <div class="match-info" id="poste-label" style="color:var(--gold);font-weight:700;display:none"></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="tab-badge" id="tab-badge">Tab. 1</div>
+      <button class="btn-icon" onclick="openSettings()">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="btn-icon" onclick="toggleTheme()">
+        <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══ TAB SELECTOR ════════════════════════════════════════════ -->
+  <div class="tab-selector" id="tab-selector"></div>
+
+  <!-- ══ MAIN ════════════════════════════════════════════════════ -->
+  <main class="main" id="main-content">
+
+    <!-- Banner accueil bénévole (visible si pas de match configuré) -->
+    <div id="welcome-banner" class="welcome-banner" style="display:none">
+      <div class="welcome-title">👋 Bienvenue à la buvette !</div>
+      <div class="welcome-steps">
+        <div class="welcome-step"><span class="welcome-step-num">1</span>Demande au responsable que la tablette soit configurée</div>
+        <div class="welcome-step"><span class="welcome-step-num">2</span>Vérifie que le match et les stocks sont bien chargés</div>
+        <div class="welcome-step"><span class="welcome-step-num">3</span>C'est parti — tape sur un produit pour l'ajouter !</div>
+      </div>
+      <button class="btn-welcome-cfg" onclick="openSettings()">⚙️ Ouvrir la configuration</button>
+    </div>
+
+    <!-- Alertes stock -->
+    <div id="alerts-zone"></div>
+
+    <!-- Barre produits disponibles -->
+    <div id="dispo-bar-zone" style="display:none">
+      <div class="dispo-bar" id="dispo-bar"></div>
+    </div>
+
+    <!-- CA Total -->
+    <div class="ca-bar">
+      <div class="ca-bar-left">
+        <span class="ca-bar-label">CA Total match</span>
+        <span class="ca-bar-value" id="ca-total-display">0,00 €</span>
+        <span class="ca-bar-count" id="ca-count-display"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-aide" onclick="openAide()" title="Aide">?</button>
+        <button class="btn-rapport" onclick="openRapport()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Rapport fin de match
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Bières ─────────────────────────────────────────────── -->
+    <div>
+      <div class="cat-label">🍺 Bière pression</div>
+      <div class="prod-grid" id="grid-biere"></div>
+    </div>
+
+    <!-- ── Softs & autres produits (dynamiques depuis le Sheet) ──── -->
+    <div id="softs-container"></div>
+
+    <!-- ── Offres combinées (masqué si vide) ─────────────────── -->
+    <div id="offres-section" style="display:none">
+      <div class="cat-label">🎁 Offres combinées</div>
+      <div class="prod-grid" id="grid-offres"></div>
+    </div>
+
+    <!-- ── Écocups — remontés juste après les softs ──────────── -->
+    <div>
+      <div class="cat-label">♻️ Écocups &amp; consignes</div>
+      <div class="eco-grid">
+        <div class="prod-card eco" id="card-E01" onclick="changeEcocupCmd('E01',1)">
+          <div class="prod-emoji">♻️</div>
+          <div class="prod-name">Écocup 33cl</div>
+          <div class="prod-price">+1,00 €</div>
+          <button class="btn-minus-card" onclick="event.stopPropagation();changeEcocupCmd('E01',-1)">−</button>
+        </div>
+        <div class="prod-card eco" id="card-E02" onclick="changeEcocupCmd('E02',1)">
+          <div class="prod-emoji">♻️</div>
+          <div class="prod-name">Écocup 50cl</div>
+          <div class="prod-price">+1,00 €</div>
+          <button class="btn-minus-card" onclick="event.stopPropagation();changeEcocupCmd('E02',-1)">−</button>
+        </div>
+        <div class="prod-card remb" id="card-RE01" onclick="changeRembCmd('E01',1)">
+          <div class="prod-emoji">↩️</div>
+          <div class="prod-name">Remb. 33cl</div>
+          <div class="prod-price">−1,00 €</div>
+          <button class="btn-minus-card" onclick="event.stopPropagation();changeRembCmd('E01',-1)">−</button>
+        </div>
+        <div class="prod-card remb" id="card-RE02" onclick="changeRembCmd('E02',1)">
+          <div class="prod-emoji">↩️</div>
+          <div class="prod-name">Remb. 50cl</div>
+          <div class="prod-price">−1,00 €</div>
+          <button class="btn-minus-card" onclick="event.stopPropagation();changeRembCmd('E02',-1)">−</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ══ BOTTOM BAR ═══════════════════════════════════════════════ -->
+  <div class="bottom-bar">
+    <!-- Résumé commande -->
+    <div class="order-summary" id="order-summary">
+      <span class="order-empty">Aucune commande en cours</span>
+    </div>
+    <!-- Montant en cours — gros et visible -->
+    <div class="montant-bar" id="montant-bar" style="display:none">
+      <span class="montant-label">Total</span>
+      <span class="montant-value" id="ca-cmd-display">0,00 €</span>
+    </div>
+    <!-- Actions -->
+    <div class="actions-row">
+      <button class="btn-undo" id="btn-undo" onclick="annulerDerniereCommande()" disabled title="Annuler dernière commande">↩</button>
+      <div class="pay-row" style="flex:1">
+        <button class="btn-pay btn-pay-cb" id="btn-cb" onclick="validerCommande('CB')" disabled>
+          <span>💳 CB</span>
+          <span class="pay-total" id="ca-cb-display">0,00 €</span>
+        </button>
+        <button class="btn-pay btn-pay-esp" id="btn-esp" onclick="ouvrirMonnaie()" disabled>
+          <span>💶 ESPÈCES</span>
+          <span class="pay-total" id="ca-esp-display">0,00 €</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ MODAL SETTINGS ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('modal-settings')">✕</button>
+    <div class="modal-title">⚙️ Configuration</div>
+    <div class="settings-form">
+      <div class="form-row">
+        <label class="form-label">Tablette</label>
+        <select class="form-input" id="sel-tab" onchange="updateStockInputs()">
+          <option>Tab. 1</option><option>Tab. 2</option><option>Tab. 3</option>
+          <option>Tab. 4</option><option>Tab. 5</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Nom du poste (affiché au bénévole)</label>
+        <input class="form-input" id="inp-poste" placeholder="ex: Entrée Nord, Stand Principal…" type="text">
+      </div>
+      <div class="form-row">
+        <label class="form-label">📞 Contact responsable buvette</label>
+        <input class="form-input" id="inp-contact" placeholder="ex: Sophie — 06 12 34 56 78" type="text">
+      </div>
+      <div class="form-row">
+        <label class="form-label">ID Match</label>
+        <input class="form-input" id="inp-match" placeholder="ex: M2025_14" type="text">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Date du match</label>
+        <input class="form-input" id="inp-date" type="date">
+      </div>
+      <div class="form-row">
+        <label class="form-label">URL Web App (Google Apps Script)</label>
+        <input class="form-input" id="inp-url" placeholder="https://script.google.com/..." type="url">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Stocks initiaux — <span id="stock-tab-label">Tab. 1</span></label>
+        <div id="stock-inputs-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">🔒 Code PIN responsable (4 chiffres)</label>
+        <input class="form-input" id="inp-pin" placeholder="ex: 1994 — laissez vide = pas de PIN" type="password" maxlength="4" pattern="[0-9]{4}">
+        <div style="font-size:11px;color:var(--text-2);margin-top:4px">Protège ⚙️ contre les modifications accidentelles</div>
+      </div>
+      <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer</button>
+      <button class="btn-link-cfg" onclick="genererLienConfig()">🔗 Générer lien de config (SMS/WhatsApp)</button>
+      <div id="lien-config-zone" style="display:none;margin-top:4px">
+        <div style="font-size:11px;color:var(--text-2);margin-bottom:6px">Envoie ce lien au bénévole — il configure la tablette en 1 clic :</div>
+        <div style="background:var(--surface-2);border-radius:10px;padding:10px 12px;font-size:11px;word-break:break-all;color:var(--text);line-height:1.5" id="lien-config-txt"></div>
+        <button onclick="copierLienConfig()" style="margin-top:8px;background:var(--navy);color:var(--gold);border-radius:10px;padding:8px 14px;font-family:var(--font-head);font-size:14px;font-weight:700;width:100%">📋 Copier le lien</button>
+      </div>
+      <button class="btn-primary" style="background:var(--surface-2);color:var(--text-2)" onclick="syncPreMatch()">📡 Synchro pré-match</button>
+      <div class="sync-status" id="sync-status-pre"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL RAPPORT ═════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-rapport">
+  <div class="modal" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('modal-rapport')">✕</button>
+    <div id="rapport-content"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL AIDE ═════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-aide">
+  <div class="modal" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('modal-aide')">✕</button>
+    <div class="modal-title">❓ Aide rapide</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+
+      <!-- Contact responsable -->
+      <div style="background:#fff8e1;border:1.5px solid #f5c518;border-radius:12px;padding:14px 16px">
+        <div style="font-size:11px;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">📞 Responsable buvette</div>
+        <div id="aide-contact" style="font-size:22px;font-weight:900;color:#1a2035">—</div>
+        <div style="font-size:11px;color:#9ba3b8;margin-top:2px">En cas de problème, appelez-le !</div>
+      </div>
+
+      <!-- Guide rapide -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2)">Comment ça marche</div>
+        <div style="background:var(--surface-2);border-radius:10px;padding:10px 14px;font-size:14px;line-height:1.6">
+          <b>1.</b> Tapez sur un produit pour l'ajouter<br>
+          <b>2.</b> Tapez encore pour en ajouter plusieurs<br>
+          <b>3.</b> Le bouton − retire un article<br>
+          <b>4.</b> Choisissez 💳 CB ou 💶 ESPÈCES pour valider<br>
+          <b>5.</b> Le flash vert = commande bien enregistrée ✅
+        </div>
+        <div style="background:var(--surface-2);border-radius:10px;padding:10px 14px;font-size:14px;line-height:1.6">
+          <b>Erreur ?</b> Le bouton ↩ en bas à gauche annule la dernière commande validée.<br>
+          <b>Mauvais article ?</b> Tapez le bouton − sur la carte avant de valider.
+        </div>
+        <div style="background:#e8f5e9;border-radius:10px;padding:10px 14px;font-size:14px;color:#2e7d32;line-height:1.6">
+          <b>Fin de match :</b> Appuyez sur "Rapport fin de match" et tapez "Envoyer au responsable". C'est tout !
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-monnaie">
+  <div class="modal monnaie-modal" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('modal-monnaie')">✕</button>
+
+    <div class="monnaie-total-due">
+      <div class="lbl">Total à encaisser</div>
+      <div class="val" id="monnaie-total">0,00 €</div>
+    </div>
+
+    <!-- Billets rapides -->
+    <div class="monnaie-billets" id="monnaie-billets"></div>
+
+    <!-- Saisie manuelle -->
+    <div class="monnaie-custom-row">
+      <input class="monnaie-custom-inp" id="monnaie-custom-inp" type="number" min="0" step="0.01" placeholder="Autre montant…" oninput="majMonnaie(this.value)">
+      <button class="btn-monnaie-custom" onclick="majMonnaie(document.getElementById('monnaie-custom-inp').value)">OK</button>
+    </div>
+
+    <!-- Montant reçu -->
+    <div class="monnaie-saisi-row">
+      <span class="monnaie-saisi-lbl">💶 Billet reçu</span>
+      <span class="monnaie-saisi-val" id="monnaie-saisi">—</span>
+    </div>
+
+    <!-- Rendu -->
+    <div class="monnaie-rendu-box zero" id="monnaie-rendu-box">
+      <div class="monnaie-rendu-lbl" id="monnaie-rendu-lbl">Choisissez le billet reçu</div>
+      <div class="monnaie-rendu-val" id="monnaie-rendu-val">—</div>
+    </div>
+
+    <button class="btn-valider-monnaie" id="btn-valider-monnaie" onclick="confirmerMonnaie()" disabled>
+      ✔ VALIDER EN ESPÈCES
+    </button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════
+const state = {
+  tab:'Tab. 1', poste:'', contact:'', pin:'', matchId:'', date:new Date().toISOString().slice(0,10), url:'',
+  stocks:{}, ventes:{}, commandes:[], totalVentes:{},
+  offresVentes:{}, totalOffres:{},
+  ecocups:{E01:0,E02:0}, rembs:{E01:0,E02:0},
+  ecocupsCmd:{E01:0,E02:0}, rembsCmd:{E01:0,E02:0},
+};
+let OFFRES = [];
+// Catalogue — bières et écocups fixes (structure fût spéciale)
+// Les softs/vins/snacks sont chargés dynamiquement depuis le Sheet via doGet()
+let CATALOGUE = [
+  {ref:'P01_33',nom:'Bière 33cl', cat:'biere',emoji:'🍺',pv:3.00, pv50:null,consigne:0,seuil:15},
+  {ref:'P01_50',nom:'Bière 50cl', cat:'biere',emoji:'🍺',pv:null, pv50:6.00,consigne:0,seuil:10},
+  {ref:'P02_CC',nom:'Coca-Cola',  cat:'soft', emoji:'🥤',pv:3.00, pv50:null,consigne:0,seuil:0 },
+  {ref:'P02_OA',nom:'Oasis',      cat:'soft', emoji:'🍊',pv:3.00, pv50:null,consigne:0,seuil:0 },
+  {ref:'P02_SU',nom:'Seven Up',   cat:'soft', emoji:'🟡',pv:3.00, pv50:null,consigne:0,seuil:0 },
+  {ref:'P03',   nom:'Eau Plate',  cat:'soft', emoji:'💧',pv:1.50, pv50:null,consigne:0,seuil:0 },
+  {ref:'P04',   nom:'Eau Pétil.',cat:'soft',  emoji:'💧',pv:1.50, pv50:null,consigne:0,seuil:0 },
+  {ref:'E01',   nom:'Écocup 33cl',cat:'eco',  emoji:'♻️',pv:0,   pv50:null,consigne:1.00,seuil:0},
+  {ref:'E02',   nom:'Écocup 50cl',cat:'eco',  emoji:'♻️',pv:0,   pv50:null,consigne:1.00,seuil:0},
+];
+const PARAMS = {rdt33:90,rdt50:60,seuil33:15,seuil50:10};
+
+// Emoji par défaut selon catégorie
+const CAT_EMOJI = {biere:'🍺',soft:'🥤',soda:'🥤',eau:'💧',vin:'🍷',wine:'🍷',snack:'🍿',cafe:'☕',boisson:'🥤'};
+function catEmoji(cat){ return CAT_EMOJI[String(cat).toLowerCase().trim()] || '🛒'; }
+
+// Reconstruit la partie dynamique du CATALOGUE depuis cfg.produits (Sheet)
+function rebuildCatalogueFromSheet(produits){
+  // Conserver bières + écocups hardcodés
+  const fixed = CATALOGUE.filter(p => p.cat==='biere' || p.cat==='eco');
+  // Construire les produits depuis le Sheet (tout sauf bières et écocups)
+  const fromSheet = produits
+    .filter(p => p.ref && !['P01_33','P01_50','E01','E02'].includes(p.ref))
+    .map(p => {
+      const cat = String(p.categorie||p.cat||'soft').toLowerCase().trim();
+      const existing = CATALOGUE.find(c => c.ref === p.ref);
+      return {
+        ref:      p.ref,
+        nom:      p.produit || (existing && existing.nom) || p.ref,
+        cat:      cat,
+        emoji:    (existing && existing.emoji) || catEmoji(cat),
+        pv:       Number(p.pv_33cl)||Number(p.pv)||0,
+        pv50:     Number(p.pv_50cl)||null,
+        consigne: Number(p.consigne)||0,
+        seuil:    (existing && existing.seuil)||0,
+      };
+    });
+  CATALOGUE = [...fixed, ...fromSheet];
+  // Initialiser les ventes pour les nouveaux refs
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{
+    if(state.ventes[p.ref]===undefined) state.ventes[p.ref]=0;
+    if(state.totalVentes[p.ref]===undefined) state.totalVentes[p.ref]=0;
+  });
+}
+
+function initDefaultStocks(){
+  for(let t=1;t<=5;t++){
+    if(!state.stocks['Tab. '+t]) state.stocks['Tab. '+t]={};
+    CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{
+      if(state.stocks['Tab. '+t][p.ref]===undefined) state.stocks['Tab. '+t][p.ref]=0;
+    });
+  }
+}
+initDefaultStocks();
+
+function resetVentes(){
+  state.ventes={};
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{state.ventes[p.ref]=0;});
+  state.ecocups={E01:0,E02:0}; state.rembs={E01:0,E02:0};
+  state.ecocupsCmd={E01:0,E02:0}; state.rembsCmd={E01:0,E02:0};
+  state.commandes=[]; state.totalVentes={};
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{state.totalVentes[p.ref]=0;});
+  state.offresVentes={}; state.totalOffres={};
+  OFFRES.forEach(o=>{state.offresVentes[o.ref]=0;state.totalOffres[o.ref]=0;});
+}
+resetVentes();
+
+// ── Persistance ────────────────────────────────────────────────────
+function sauvegarderState(){
+  try{
+    sessionStorage.setItem('buvette_state',JSON.stringify({
+      matchId:state.matchId,date:state.date,tab:state.tab,poste:state.poste,contact:state.contact,pin:state.pin,url:state.url,
+      stocks:state.stocks,commandes:state.commandes,
+      totalVentes:state.totalVentes,totalOffres:state.totalOffres,
+      ecocups:state.ecocups,rembs:state.rembs,
+    }));
+  }catch(e){}
+}
+function restaurerState(){
+  try{
+    const raw=sessionStorage.getItem('buvette_state');
+    if(!raw)return false;
+    const s=JSON.parse(raw);
+    state.matchId=s.matchId||''; state.date=s.date||state.date;
+    state.tab=s.tab||'Tab. 1'; state.poste=s.poste||''; state.contact=s.contact||''; state.pin=s.pin||''; state.url=s.url||'';
+    if(s.stocks)Object.entries(s.stocks).forEach(([k,v])=>{state.stocks[k]=v;});
+    state.commandes=s.commandes||[]; state.totalVentes=s.totalVentes||{};
+    state.totalOffres=s.totalOffres||{};
+    state.ecocups=s.ecocups||{E01:0,E02:0}; state.rembs=s.rembs||{E01:0,E02:0};
+    return state.commandes.length>0||Object.values(state.totalVentes).some(v=>v>0);
+  }catch(e){return false;}
+}
+restaurerState();
+
+// ═══════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════
+function fmt(n){return Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(o=>{
+  o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════════════════════════
+function toggleTheme(){
+  const t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',t);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STOCK DISPO
+// ═══════════════════════════════════════════════════════════════════
+function stockDispo(ref){
+  const s=state.stocks[state.tab]||{};
+  const total=(state.totalVentes[ref]||0)+(state.ventes[ref]||0);
+  const offerCons=OFFRES.reduce((sum,o)=>{
+    const comp=o.lignes?o.lignes.find(l=>l.ref===ref):null;
+    return sum+(comp?comp.qty*((state.totalOffres[o.ref]||0)+(state.offresVentes[o.ref]||0)):0);
+  },0);
+  return Math.max(0,(s[ref]||0)-total-offerCons);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CALCULS CA
+// ═══════════════════════════════════════════════════════════════════
+function calcCA(){
+  let ca=0;
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{
+    ca+=(state.totalVentes[p.ref]||0)*(p.pv||p.pv50||0);
+    ca+=(state.ventes[p.ref]||0)*(p.pv||p.pv50||0);
+  });
+  ca+=(state.ecocups.E01||0)*1-(state.rembs.E01||0)*1;
+  ca+=(state.ecocups.E02||0)*1-(state.rembs.E02||0)*1;
+  ca+=(state.ecocupsCmd.E01||0)*1-(state.rembsCmd.E01||0)*1;
+  ca+=(state.ecocupsCmd.E02||0)*1-(state.rembsCmd.E02||0)*1;
+  OFFRES.forEach(o=>{ca+=(state.totalOffres[o.ref]||0)*o.prix;ca+=(state.offresVentes[o.ref]||0)*o.prix;});
+  return ca;
+}
+function calcCACmd(){
+  let ca=0;
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{ca+=(state.ventes[p.ref]||0)*(p.pv||p.pv50||0);});
+  ca+=(state.ecocupsCmd.E01||0)*1-(state.rembsCmd.E01||0)*1;
+  ca+=(state.ecocupsCmd.E02||0)*1-(state.rembsCmd.E02||0)*1;
+  OFFRES.forEach(o=>{ca+=(state.offresVentes[o.ref]||0)*o.prix;});
+  return ca;
+}
+function nbArticlesCmd(){
+  const b=CATALOGUE.filter(p=>p.cat!=='eco').reduce((s,p)=>s+(state.ventes[p.ref]||0),0);
+  const e=(state.ecocupsCmd.E01||0)+(state.ecocupsCmd.E02||0)+(state.rembsCmd.E01||0)+(state.rembsCmd.E02||0);
+  const o=OFFRES.reduce((s,o)=>s+(state.offresVentes[o.ref]||0),0);
+  return b+e+o;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ACTIONS COMMANDE
+// ═══════════════════════════════════════════════════════════════════
+function changeQty(ref,delta){
+  const cur=state.ventes[ref]||0;
+  if(delta<0&&cur<=0)return;
+  if(delta>0){
+    const sc=Object.values(state.stocks[state.tab]||{}).some(v=>v>0);
+    if(sc&&stockDispo(ref)<1)return;
+  }
+  state.ventes[ref]=cur+delta;
+  renderAll();
+}
+function changeEcocupCmd(ref,delta){
+  const cur=state.ecocupsCmd[ref]||0;
+  if(delta<0&&cur<=0)return;
+  state.ecocupsCmd[ref]=cur+delta;
+  renderAll();
+}
+function changeRembCmd(ref,delta){
+  const cur=state.rembsCmd[ref]||0;
+  if(delta<0&&cur<=0)return;
+  state.rembsCmd[ref]=cur+delta;
+  renderAll();
+}
+function changeOffer(ref,delta){
+  const o=OFFRES.find(o=>o.ref===ref);if(!o)return;
+  const cur=state.offresVentes[ref]||0;
+  if(delta<0&&cur<=0)return;
+  if(delta>0){
+    const sc=Object.values(state.stocks[state.tab]||{}).some(v=>v>0);
+    if(sc){for(const c of(o.lignes||[])){if(c.ref==='E01'||c.ref==='E02')continue;if(stockDispo(c.ref)<c.qty)return;}}
+  }
+  state.offresVentes[ref]=cur+delta;
+  renderAll();
+}
+
+function validerCommande(paiement){
+  const lignes=CATALOGUE.filter(p=>p.cat!=='eco'&&(state.ventes[p.ref]||0)>0)
+    .map(p=>({ref:p.ref,nom:p.nom,qty:state.ventes[p.ref],pv:p.pv||p.pv50}));
+  if((state.ecocupsCmd.E01||0)>0)lignes.push({ref:'E01',nom:'Écocup 33cl',qty:state.ecocupsCmd.E01,pv:1});
+  if((state.ecocupsCmd.E02||0)>0)lignes.push({ref:'E02',nom:'Écocup 50cl',qty:state.ecocupsCmd.E02,pv:1});
+  if((state.rembsCmd.E01||0)>0)lignes.push({ref:'RE01',nom:'Remb. 33cl',qty:state.rembsCmd.E01,pv:-1});
+  if((state.rembsCmd.E02||0)>0)lignes.push({ref:'RE02',nom:'Remb. 50cl',qty:state.rembsCmd.E02,pv:-1});
+  OFFRES.forEach(o=>{const qty=state.offresVentes[o.ref]||0;if(qty>0)lignes.push({ref:o.ref,nom:o.emoji+' '+o.nom,qty,pv:o.prix});});
+  if(lignes.length===0)return;
+  const montant=lignes.reduce((s,l)=>s+l.qty*l.pv,0);
+  state.commandes.push({num:state.commandes.length+1,heure:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),lignes,montant,paiement:paiement||'CB'});
+  lignes.forEach(l=>{if(!l.ref.startsWith('RE')&&CATALOGUE.find(p=>p.ref===l.ref))state.totalVentes[l.ref]=(state.totalVentes[l.ref]||0)+l.qty;});
+  state.ecocups.E01=(state.ecocups.E01||0)+(state.ecocupsCmd.E01||0);
+  state.ecocups.E02=(state.ecocups.E02||0)+(state.ecocupsCmd.E02||0);
+  state.rembs.E01=(state.rembs.E01||0)+(state.rembsCmd.E01||0);
+  state.rembs.E02=(state.rembs.E02||0)+(state.rembsCmd.E02||0);
+  OFFRES.forEach(o=>{state.totalOffres[o.ref]=(state.totalOffres[o.ref]||0)+(state.offresVentes[o.ref]||0);});
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{state.ventes[p.ref]=0;});
+  state.ecocupsCmd={E01:0,E02:0}; state.rembsCmd={E01:0,E02:0};
+  state.offresVentes={}; OFFRES.forEach(o=>{state.offresVentes[o.ref]=0;});
+  sauvegarderState();
+  // Feedback visuel
+  const btnId = paiement==='Espèces' ? 'btn-esp' : 'btn-cb';
+  const btn=document.getElementById(btnId);
+  const label = paiement==='Espèces' ? '💶 VALIDÉE !' : '💳 VALIDÉE !';
+  btn.classList.add('success');
+  const oldHtml = btn.innerHTML;
+  btn.innerHTML=`<span>${label}</span>`;
+  if(navigator.vibrate)navigator.vibrate([60,30,60]);
+  setTimeout(()=>{btn.classList.remove('success');btn.innerHTML=oldHtml;renderAll();},700);
+  renderAll();
+}
+
+function annulerDerniereCommande(){
+  if(state.commandes.length===0)return;
+  const cmd=state.commandes[state.commandes.length-1];
+  const desc=cmd.lignes.map(l=>l.qty+'× '+l.nom).join(', ');
+  if(!confirm('Annuler la commande #'+cmd.num+' ?\n'+desc+'\n('+fmt(cmd.montant)+')'))return;
+  state.commandes.pop();
+  cmd.lignes.forEach(l=>{
+    if(l.ref==='RE01'){state.rembs.E01=Math.max(0,(state.rembs.E01||0)-l.qty);}
+    else if(l.ref==='RE02'){state.rembs.E02=Math.max(0,(state.rembs.E02||0)-l.qty);}
+    else if(l.ref==='E01'||l.ref==='E02'){state.ecocups[l.ref]=Math.max(0,(state.ecocups[l.ref]||0)-l.qty);}
+    else{state.totalVentes[l.ref]=Math.max(0,(state.totalVentes[l.ref]||0)-l.qty);}
+  });
+  sauvegarderState(); renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════
+function renderAll(){
+  renderTabs(); renderAlerts(); renderGridBiere();
+  renderGridSofts(); renderGridOffres(); renderEcocups();
+  renderOrderSummary(); renderCA();
+  // Match label
+  const ml=document.getElementById('match-label');
+  if(ml)ml.textContent=state.matchId||'Aucun match configuré';
+  // Poste label
+  const pl=document.getElementById('poste-label');
+  if(pl){
+    if(state.poste){pl.textContent='📍 '+state.poste;pl.style.display='';}
+    else pl.style.display='none';
+  }
+  // Banner accueil (visible si pas de matchId ni stocks)
+  const wb=document.getElementById('welcome-banner');
+  const hasConfig=state.matchId && Object.values(state.stocks[state.tab]||{}).some(v=>v>0);
+  if(wb)wb.style.display=hasConfig?'none':'';
+  // Barre dispo produits
+  renderDispoBar();
+}
+
+function renderDispoBar(){
+  const zone=document.getElementById('dispo-bar-zone');
+  const bar=document.getElementById('dispo-bar');
+  if(!zone||!bar)return;
+  const sc=state.stocks[state.tab]||{};
+  const hasStocks=Object.values(sc).some(v=>v>0);
+  if(!hasStocks){zone.style.display='none';return;}
+  zone.style.display='';
+  bar.innerHTML=CATALOGUE.filter(p=>p.cat!=='eco').map(p=>{
+    const dispo=stockDispo(p.ref);
+    const total=sc[p.ref]||0;
+    if(total===0)return '';
+    const cls=dispo===0?'out':dispo<=p.seuil&&p.seuil>0?'low':'ok';
+    const label=dispo===0?'ÉPUISÉ':dispo+'';
+    return `<div class="dispo-chip ${cls}">${p.emoji} ${p.nom} <b>${label}</b></div>`;
+  }).join('');
+}
+
+function renderTabs(){
+  const c=document.getElementById('tab-selector');
+  c.innerHTML='';
+  const tabs=Object.keys(state.stocks).filter(k=>Object.values(state.stocks[k]).some(v=>v>0));
+  (tabs.length===0?['Tab. 1','Tab. 2','Tab. 3']:tabs).forEach(t=>{
+    const b=document.createElement('button');
+    b.className='tab-btn'+(t===state.tab?' active':'');
+    b.textContent=t;
+    b.onclick=()=>{state.tab=t;document.getElementById('tab-badge').textContent=t;renderAll();};
+    c.appendChild(b);
+  });
+}
+
+function renderAlerts(){
+  const z=document.getElementById('alerts-zone');
+  z.innerHTML='';
+  const addAlert=(cls,msg)=>{const d=document.createElement('div');d.className='alert-banner '+cls;d.textContent=msg;z.appendChild(d);};
+  const b33=stockDispo('P01_33'), b50=stockDispo('P01_50');
+  const sc=(state.stocks[state.tab]||{});
+  if(sc.P01_33>0&&b33>0&&b33<=PARAMS.seuil33)addAlert('warn','⚠️ Bière 33cl : '+b33+' verres restants');
+  if(sc.P01_50>0&&b50>0&&b50<=PARAMS.seuil50)addAlert('warn','⚠️ Bière 50cl : '+b50+' verres restants');
+  if(sc.P01_33>0&&b33===0)addAlert('err','🚨 Bière 33cl ÉPUISÉE !');
+  if(sc.P01_50>0&&b50===0)addAlert('err','🚨 Bière 50cl ÉPUISÉE !');
+}
+
+// Carte produit générique
+function makeCard(ref,nom,emoji,prix,cat){
+  const qty=state.ventes[ref]||0;
+  const sc=(state.stocks[state.tab]||{})[ref]>0;
+  const dispo=stockDispo(ref);
+  const lowCls=sc?(dispo===0?'empty':dispo<=(CATALOGUE.find(p=>p.ref===ref)||{}).seuil?'low':''):'';
+  const stockTxt=sc?`<div class="prod-stock ${lowCls}">${dispo===0?'ÉPUISÉ':dispo+' restants'}</div>`:'';
+  return `
+    <div class="prod-card ${cat}${qty>0?' has-qty':''}" onclick="changeQty('${ref}',1)">
+      ${qty>0?`<span class="qty-badge">${qty}</span>`:''}
+      <div class="prod-emoji">${emoji}</div>
+      <div class="prod-name">${nom}</div>
+      <div class="prod-price">${fmt(prix)}</div>
+      ${stockTxt}
+      ${qty>0?`<button class="btn-minus-card" onclick="event.stopPropagation();changeQty('${ref}',-1)">−</button>`:''}
+    </div>`;
+}
+
+function renderGridBiere(){
+  document.getElementById('grid-biere').innerHTML=
+    CATALOGUE.filter(p=>p.cat==='biere').map(p=>makeCard(p.ref,p.nom,p.emoji,p.pv||p.pv50,'biere')).join('');
+}
+function renderGridSofts(){
+  // Récupérer toutes les catégories dynamiques (hors bière et écocup)
+  const cats=[...new Set(CATALOGUE.filter(p=>p.cat!=='biere'&&p.cat!=='eco').map(p=>p.cat))];
+  const container=document.getElementById('softs-container');
+  if(!container)return;
+  container.innerHTML='';
+  cats.forEach(cat=>{
+    const prods=CATALOGUE.filter(p=>p.cat===cat);
+    const label=cat.charAt(0).toUpperCase()+cat.slice(1);
+    const emoji=catEmoji(cat);
+    container.innerHTML+=`<div>
+      <div class="cat-label">${emoji} ${label}</div>
+      <div class="prod-grid" id="grid-cat-${cat}"></div>
+    </div>`;
+    setTimeout(()=>{
+      const g=document.getElementById('grid-cat-'+cat);
+      if(g)g.innerHTML=prods.map(p=>makeCard(p.ref,p.nom,p.emoji,p.pv,'soft')).join('');
+    },0);
+  });
+}
+function renderGridOffres(){
+  const section=document.getElementById('offres-section');
+  const g=document.getElementById('grid-offres');
+  if(!section||!g)return;
+  if(!OFFRES||OFFRES.length===0){section.style.display='none';return;}
+  section.style.display='';
+  g.innerHTML=OFFRES.map(o=>{
+    const qty=state.offresVentes[o.ref]||0;
+    const composStr=(o.lignes||[]).map(l=>{const p=CATALOGUE.find(x=>x.ref===l.ref);return l.qty+'×'+(p?p.nom:l.ref);}).join('+');
+    return `
+      <div class="prod-card${qty>0?' has-qty':''}" onclick="changeOffer('${o.ref}',1)">
+        ${qty>0?`<span class="qty-badge">${qty}</span>`:''}
+        <div class="prod-emoji">${o.emoji||'🎁'}</div>
+        <div class="prod-name">${o.nom}</div>
+        <div class="prod-price">${fmt(o.prix)}</div>
+        <div class="prod-stock">${composStr}</div>
+        ${qty>0?`<button class="btn-minus-card" onclick="event.stopPropagation();changeOffer('${o.ref}',-1)">−</button>`:''}
+      </div>`;
+  }).join('');
+}
+function renderEcocups(){
+  ['E01','E02'].forEach(ref=>{
+    const qe=state.ecocupsCmd[ref]||0;
+    const qr=state.rembsCmd[ref]||0;
+    const ce=document.getElementById('card-'+ref);
+    const cr=document.getElementById('card-R'+ref);
+    if(ce){
+      ce.classList.toggle('has-qty',qe>0);
+      const old=ce.querySelector('.qty-badge');if(old)old.remove();
+      if(qe>0){const b=document.createElement('span');b.className='qty-badge';b.textContent=qe;ce.prepend(b);}
+      const bm=ce.querySelector('.btn-minus-card');
+      if(qe>0&&!bm){const b=document.createElement('button');b.className='btn-minus-card';b.textContent='−';b.onclick=e=>{e.stopPropagation();changeEcocupCmd(ref,-1);};ce.appendChild(b);}
+      else if(qe===0&&bm)bm.remove();
+    }
+    if(cr){
+      cr.classList.toggle('has-qty',qr>0);
+      const old=cr.querySelector('.qty-badge');if(old)old.remove();
+      if(qr>0){const b=document.createElement('span');b.className='qty-badge';b.textContent=qr;cr.prepend(b);}
+      const bm=cr.querySelector('.btn-minus-card');
+      if(qr>0&&!bm){const b=document.createElement('button');b.className='btn-minus-card';b.textContent='−';b.onclick=e=>{e.stopPropagation();changeRembCmd(ref,-1);};cr.appendChild(b);}
+      else if(qr===0&&bm)bm.remove();
+    }
+  });
+}
+
+// Résumé commande en cours — affiché sous forme de tags
+function renderOrderSummary(){
+  const z=document.getElementById('order-summary');
+  const lignes=[];
+  CATALOGUE.filter(p=>p.cat!=='eco'&&(state.ventes[p.ref]||0)>0)
+    .forEach(p=>lignes.push({nom:p.nom,qty:state.ventes[p.ref]}));
+  ['E01','E02'].forEach(r=>{if((state.ecocupsCmd[r]||0)>0)lignes.push({nom:'Écocup '+r.slice(-2)+'cl',qty:state.ecocupsCmd[r]});});
+  ['E01','E02'].forEach(r=>{if((state.rembsCmd[r]||0)>0)lignes.push({nom:'Remb. '+r.slice(-2)+'cl',qty:state.rembsCmd[r]});});
+  OFFRES.forEach(o=>{if((state.offresVentes[o.ref]||0)>0)lignes.push({nom:o.nom,qty:state.offresVentes[o.ref]});});
+  if(lignes.length===0){
+    z.innerHTML='<span class="order-empty">Aucune commande en cours</span>';
+  }else{
+    z.innerHTML=lignes.map(l=>`<span class="order-tag"><span class="tag-qty">${l.qty}</span>${l.nom}</span>`).join('');
+  }
+}
+
+function renderCA(){
+  document.getElementById('ca-total-display').textContent=fmt(calcCA());
+  const caCmd=calcCACmd(); const nbCmd=nbArticlesCmd();
+  // Montant central
+  const montantBar=document.getElementById('montant-bar');
+  const cbDisp=document.getElementById('ca-cb-display');
+  const espDisp=document.getElementById('ca-esp-display');
+  if(montantBar)montantBar.style.display=nbCmd>0?'flex':'none';
+  const cmdDisp=document.getElementById('ca-cmd-display');
+  if(cmdDisp)cmdDisp.textContent=fmt(caCmd);
+  if(cbDisp)cbDisp.textContent=fmt(caCmd);
+  if(espDisp)espDisp.textContent=fmt(caCmd);
+  // Boutons paiement
+  const btnCB=document.getElementById('btn-cb');
+  const btnEsp=document.getElementById('btn-esp');
+  if(btnCB){btnCB.disabled=nbCmd===0;btnCB.style.opacity=nbCmd===0?'0.4':'1';}
+  if(btnEsp){btnEsp.disabled=nbCmd===0;btnEsp.style.opacity=nbCmd===0?'0.4':'1';}
+  // Bouton undo
+  const undo=document.getElementById('btn-undo');
+  if(undo){undo.disabled=state.commandes.length===0;undo.style.opacity=state.commandes.length===0?'0.35':'1';}
+  // Compteur commandes
+  const countEl=document.getElementById('ca-count-display');
+  if(countEl){
+    const n=state.commandes.length;
+    countEl.textContent=n>0?'✅ '+n+' commande'+(n>1?'s':'')+' validée'+(n>1?'s':''):'';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PIN RESPONSABLE
+// ═══════════════════════════════════════════════════════════════════
+let _pinSaisi = '';
+let _pinCallback = null;
+
+function afficherPIN(){
+  _pinSaisi = '';
+  document.getElementById('pin-err').textContent='';
+  majPinDots();
+  document.getElementById('pin-overlay').style.display='flex';
+}
+function majPinDots(){
+  for(let i=0;i<4;i++){
+    document.getElementById('pd'+i).classList.toggle('filled', i<_pinSaisi.length);
+  }
+}
+function pinKey(k){
+  const err=document.getElementById('pin-err');
+  if(k==='⌫'){ _pinSaisi=_pinSaisi.slice(0,-1); err.textContent=''; majPinDots(); return; }
+  if(k==='C'){ _pinSaisi=''; err.textContent=''; majPinDots(); return; }
+  if(_pinSaisi.length>=4) return;
+  _pinSaisi+=k;
+  majPinDots();
+  if(_pinSaisi.length===4){
+    if(_pinSaisi===state.pin){
+      document.getElementById('pin-overlay').style.display='none';
+      _pinSaisi='';
+      if(_pinCallback){ _pinCallback(); _pinCallback=null; }
+    } else {
+      err.textContent='Code incorrect ❌';
+      document.getElementById('pin-overlay').querySelectorAll('.pin-dot').forEach(d=>{
+        d.style.background='#e74c3c';
+        setTimeout(()=>d.style.background='',600);
+      });
+      setTimeout(()=>{ _pinSaisi=''; err.textContent=''; majPinDots(); }, 700);
+    }
+  }
+}
+function pinCancel(){
+  document.getElementById('pin-overlay').style.display='none';
+  _pinSaisi=''; _pinCallback=null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LIEN DE CONFIG — Clément envoie, Aurélien clique
+// ═══════════════════════════════════════════════════════════════════
+function genererLienConfig(){
+  const params = new URLSearchParams({
+    tab:   document.getElementById('sel-tab').value,
+    poste: document.getElementById('inp-poste').value.trim(),
+    contact: document.getElementById('inp-contact').value.trim(),
+    match: document.getElementById('inp-match').value.trim(),
+    date:  document.getElementById('inp-date').value,
+    url:   document.getElementById('inp-url').value.trim(),
+  });
+  const lien = window.location.origin + window.location.pathname + '?cfg=' + btoa(params.toString());
+  document.getElementById('lien-config-txt').textContent = lien;
+  document.getElementById('lien-config-zone').style.display = '';
+}
+function copierLienConfig(){
+  const txt = document.getElementById('lien-config-txt').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const btn = document.querySelector('[onclick="copierLienConfig()"]');
+    btn.textContent='✅ Copié !';
+    setTimeout(()=>btn.textContent='📋 Copier le lien',2000);
+  });
+}
+function appliquerConfigLien(){
+  try{
+    const params = new URLSearchParams(atob(new URLSearchParams(location.search).get('cfg')||''));
+    if(params.get('match')){
+      state.tab     = params.get('tab')     || state.tab;
+      state.poste   = params.get('poste')   || state.poste;
+      state.contact = params.get('contact') || state.contact;
+      state.matchId = params.get('match')   || state.matchId;
+      state.date    = params.get('date')    || state.date;
+      state.url     = params.get('url')     || state.url;
+      document.getElementById('tab-badge').textContent=state.tab;
+      const posteEl=document.getElementById('poste-label');
+      if(posteEl&&state.poste){posteEl.textContent='📍 '+state.poste;posteEl.style.display='';}
+      sauvegarderState();
+      // Nettoyer l'URL
+      history.replaceState({},'',location.pathname);
+    }
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CHECKLIST DÉMARRAGE
+// ═══════════════════════════════════════════════════════════════════
+function afficherChecklist(){
+  majChecklist();
+  document.getElementById('checklist-overlay').style.display='flex';
+}
+function majChecklist(){
+  const chkConfig   = document.getElementById('chk-config');
+  const chkSynchro  = document.getElementById('chk-synchro');
+  const chkStocks   = document.getElementById('chk-stocks');
+  const stConfig    = document.getElementById('chk-config-status');
+  const stSynchro   = document.getElementById('chk-synchro-status');
+  const stStocks    = document.getElementById('chk-stocks-status');
+  const btnStart    = document.getElementById('btn-checklist-start');
+
+  // Étape 1 : config
+  const configOk = !!(state.matchId && state.url && state.tab);
+  chkConfig.classList.toggle('done', configOk);
+  chkConfig.querySelector('.check-icon').textContent = configOk ? '✅' : '⚙️';
+  stConfig.className = 'check-status '+(configOk?'ok':'warn');
+  stConfig.textContent = configOk
+    ? 'Match : '+state.matchId+' — '+state.tab
+    : '⚠️ Appuie sur ⚙️ pour configurer';
+  // Rendre cliquable si pas ok
+  chkConfig.onclick = configOk ? null : openSettings;
+  chkConfig.style.cursor = configOk ? 'default' : 'pointer';
+
+  // Étape 2 : synchro (dépend de étape 1)
+  const synchroOk = configOk && Object.values(state.stocks[state.tab]||{}).some(v=>v>0);
+  chkSynchro.classList.toggle('done', synchroOk);
+  chkSynchro.classList.toggle('blocked', !configOk);
+  chkSynchro.querySelector('.check-icon').textContent = synchroOk ? '✅' : '📡';
+  stSynchro.className = 'check-status '+(synchroOk?'ok':configOk?'warn':'');
+  stSynchro.textContent = synchroOk
+    ? 'Stocks reçus !'
+    : configOk ? '⚠️ Lance la synchro depuis ⚙️' : 'En attente de la configuration';
+  if(configOk && !synchroOk){
+    chkSynchro.onclick = ()=>{ closeChecklistGoSettings(); };
+    chkSynchro.style.cursor='pointer';
+  }
+
+  // Étape 3 : stocks (dépend de étape 2)
+  const stocksOk = synchroOk;
+  chkStocks.classList.toggle('done', stocksOk);
+  chkStocks.classList.toggle('blocked', !synchroOk);
+  chkStocks.querySelector('.check-icon').textContent = stocksOk ? '✅' : '📦';
+  stStocks.className = 'check-status '+(stocksOk?'ok':'');
+  const totalStocks = Object.values(state.stocks[state.tab]||{}).reduce((s,v)=>s+v,0);
+  stStocks.textContent = stocksOk
+    ? totalStocks+' unités disponibles'
+    : 'En attente de la synchro';
+
+  btnStart.disabled = !configOk || !synchroOk;
+}
+function checklistOuvrirSettings(){
+  // Fermer la checklist d'abord pour que la modal settings soit accessible
+  document.getElementById('checklist-overlay').style.display='none';
+  // Ouvrir settings (avec PIN si configuré)
+  if(state.pin){
+    _pinCallback = ()=>{
+      _ouvrirSettingsInterne();
+      // Revenir à la checklist après fermeture des settings
+      const origClose = window._origCloseSettings;
+    };
+    afficherPIN();
+  } else {
+    _ouvrirSettingsInterne();
+  }
+  // Après fermeture des settings, rouvrir la checklist si pas encore prêt
+  const origSave = window._savedSaveSettings;
+}
+
+function demarrerBuvette(){
+  document.getElementById('checklist-overlay').style.display='none';
+  renderAll();
+}
+
+// Relancer la checklist si pas de config au démarrage
+function verifierDemarrage(){
+  const hasConfig = state.matchId && state.url;
+  const hasStocks = Object.values(state.stocks[state.tab]||{}).some(v=>v>0);
+  if(!hasConfig || !hasStocks){
+    afficherChecklist();
+  }
+}
+let _monnaieTotal = 0;
+let _monnaieSaisi = 0;
+
+function ouvrirMonnaie(){
+  _monnaieTotal = calcCACmd();
+  // Total négatif ou nul = uniquement remboursements → valider directement
+  if(_monnaieTotal <= 0){
+    validerCommande('Espèces');
+    return;
+  }
+  _monnaieSaisi = 0;
+  document.getElementById('monnaie-total').textContent = fmt(_monnaieTotal);
+  document.getElementById('monnaie-saisi').textContent = '—';
+  document.getElementById('monnaie-custom-inp').value = '';
+  // Réinitialiser affichage rendu
+  const box = document.getElementById('monnaie-rendu-box');
+  box.className = 'monnaie-rendu-box zero';
+  document.getElementById('monnaie-rendu-lbl').textContent = 'Choisissez le billet reçu';
+  document.getElementById('monnaie-rendu-val').textContent = '—';
+  document.getElementById('btn-valider-monnaie').disabled = true;
+  // Générer les boutons billets intelligents
+  const billets = billetsSuggeres(_monnaieTotal);
+  const grid = document.getElementById('monnaie-billets');
+  grid.innerHTML = billets.map(b =>
+    `<button class="btn-billet" onclick="majMonnaie(${b})">${b % 1 === 0 ? b : b.toFixed(2)} €</button>`
+  ).join('');
+  openModal('modal-monnaie');
+}
+
+// Génère les billets/pièces pertinents selon le total
+function billetsSuggeres(total){
+  const tous = [1, 2, 5, 10, 20, 50, 100];
+  // Billets >= total + quelques en dessous pour la monnaie exacte
+  const superieurs = tous.filter(b => b >= total);
+  const inferieurs = tous.filter(b => b < total).slice(-2);
+  const selection = [...inferieurs, ...superieurs].slice(0, 6);
+  // Toujours ajouter le montant exact si pas déjà là
+  const exactRound = Math.ceil(total);
+  if(!selection.includes(exactRound) && tous.includes(exactRound)) selection.push(exactRound);
+  return [...new Set(selection)].sort((a,b) => a-b);
+}
+
+function majMonnaie(billetStr){
+  const billet = parseFloat(billetStr) || 0;
+  _monnaieSaisi = billet;
+  const rendu = billet - _monnaieTotal;
+  // Mettre à jour boutons billets
+  document.querySelectorAll('.btn-billet').forEach(b => {
+    b.classList.toggle('sel', parseFloat(b.textContent) === billet);
+  });
+  document.getElementById('monnaie-saisi').textContent = billet > 0 ? fmt(billet) : '—';
+  const box = document.getElementById('monnaie-rendu-box');
+  const lbl = document.getElementById('monnaie-rendu-lbl');
+  const val = document.getElementById('monnaie-rendu-val');
+  const btn = document.getElementById('btn-valider-monnaie');
+  if(billet <= 0){
+    box.className='monnaie-rendu-box zero'; lbl.textContent='Choisissez le billet reçu'; val.textContent='—'; btn.disabled=true;
+  } else if(rendu < 0){
+    box.className='monnaie-rendu-box negatif'; lbl.textContent='⚠️ Billet insuffisant'; val.textContent=fmt(Math.abs(rendu))+' manque'; btn.disabled=true;
+  } else if(rendu === 0){
+    box.className='monnaie-rendu-box zero'; lbl.textContent='✅ Montant exact !'; val.textContent='0,00 €'; btn.disabled=false;
+  } else {
+    box.className='monnaie-rendu-box positif'; lbl.textContent='À rendre au client'; val.textContent=fmt(rendu); btn.disabled=false;
+  }
+}
+
+function confirmerMonnaie(){
+  closeModal('modal-monnaie');
+  setTimeout(()=>{ validerCommande('Espèces'); }, 50);
+}
+function openSettings(){
+  // PIN requis si configuré
+  if(state.pin){
+    _pinCallback = ()=>{ _ouvrirSettingsInterne(); };
+    afficherPIN();
+    return;
+  }
+  _ouvrirSettingsInterne();
+}
+function _ouvrirSettingsInterne(){
+  document.getElementById('sel-tab').value=state.tab;
+  document.getElementById('inp-poste').value=state.poste||'';
+  document.getElementById('inp-contact').value=state.contact||'';
+  document.getElementById('inp-pin').value=state.pin||'';
+  document.getElementById('inp-match').value=state.matchId;
+  document.getElementById('inp-date').value=state.date;
+  document.getElementById('inp-url').value=state.url;
+  document.getElementById('lien-config-zone').style.display='none';
+  updateStockInputs();
+  openModal('modal-settings');
+}
+function updateStockInputs(){
+  const tab=document.getElementById('sel-tab').value;
+  document.getElementById('stock-tab-label').textContent=tab;
+  const s=state.stocks[tab]||{};
+  const grid=document.getElementById('stock-inputs-grid');
+  grid.innerHTML='';
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{
+    const unit = p.cat==='biere' ? 'verres' : 'unités';
+    const label = `${p.emoji} ${p.nom}${p.cat==='biere'?' ('+unit+')':''}`;
+    grid.innerHTML+=`<div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:4px">${label}</div>
+      <input class="form-input" id="stk-${p.ref}" type="number" min="0" placeholder="0" value="${s[p.ref]||0}">
+    </div>`;
+  });
+}
+function saveSettings(){
+  state.tab=document.getElementById('sel-tab').value;
+  state.poste=document.getElementById('inp-poste').value.trim();
+  state.contact=document.getElementById('inp-contact').value.trim();
+  state.pin=document.getElementById('inp-pin').value.trim();
+  state.matchId=document.getElementById('inp-match').value.trim();
+  state.date=document.getElementById('inp-date').value;
+  state.url=document.getElementById('inp-url').value.trim();
+  if(!state.stocks[state.tab])state.stocks[state.tab]={};
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(r=>{
+    const el=document.getElementById('stk-'+r.ref);
+    if(el)state.stocks[state.tab][r.ref]=parseInt(el.value,10)||0;
+  });
+  document.getElementById('tab-badge').textContent=state.tab;
+  const posteEl=document.getElementById('poste-label');
+  if(posteEl){
+    if(state.poste){posteEl.textContent='📍 '+state.poste;posteEl.style.display='';}
+    else posteEl.style.display='none';
+  }
+  sauvegarderState();
+  closeModal('modal-settings');
+  // Mettre à jour la checklist si elle est visible
+  const chk = document.getElementById('checklist-overlay');
+  if(chk && chk.style.display !== 'none') majChecklist();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SYNCHRO PRÉ-MATCH
+// ═══════════════════════════════════════════════════════════════════
+async function syncPreMatch(){
+  const url=state.url; const statusEl=document.getElementById('sync-status-pre');
+  if(!url){statusEl.className='sync-status err';statusEl.textContent='❌ URL non configurée.';return;}
+  statusEl.className='sync-status';statusEl.textContent='⏳ Synchro…';statusEl.style.display='block';
+  try{
+    const r=await fetch(url+'?tab='+encodeURIComponent(state.tab)+'&matchId='+encodeURIComponent(state.matchId));
+    const cfg=await r.json();
+    applyTabletConfig(cfg);
+    statusEl.className='sync-status ok';
+    statusEl.textContent='✅ Synchro OK — '+new Date().toLocaleTimeString('fr-FR');
+    closeModal('modal-settings');
+    majChecklist();
+    renderAll();
+  }catch(e){statusEl.className='sync-status err';statusEl.textContent='❌ Erreur : '+e.message;}
+}
+function applyTabletConfig(cfg){
+  if(cfg.matchId)state.matchId=cfg.matchId;
+  if(cfg.params_fut){
+    PARAMS.rdt33=cfg.params_fut.rdt33||90; PARAMS.rdt50=cfg.params_fut.rdt50||60;
+    PARAMS.seuil33=cfg.params_fut.seuil_alerte_33cl||15; PARAMS.seuil50=cfg.params_fut.seuil_alerte_50cl||10;
+  }
+  if(cfg.stocks_tablettes&&cfg.stocks_tablettes[state.tab]){
+    if(!state.stocks[state.tab])state.stocks[state.tab]={};
+    cfg.stocks_tablettes[state.tab].forEach(item=>{
+      if(item.type==='biere_33')state.stocks[state.tab].P01_33=item.qty_verres||0;
+      else if(item.type==='biere_50')state.stocks[state.tab].P01_50=item.qty_verres||0;
+      else{const local=CATALOGUE.find(c=>c.ref===item.ref);if(local)state.stocks[state.tab][item.ref]=item.qty_unites||0;}
+    });
+  }
+  if(cfg.produits && cfg.produits.length > 0){
+    rebuildCatalogueFromSheet(cfg.produits);
+    initDefaultStocks();
+  } else if(cfg.produits){
+    // Mise à jour des prix uniquement (fallback)
+    cfg.produits.forEach(p=>{
+      const local=CATALOGUE.find(c=>c.ref===p.ref);
+      if(local){if(p.pv_33cl)local.pv=p.pv_33cl;if(p.pv_50cl)local.pv50=p.pv_50cl;}
+    });
+  }
+  if(cfg.offres)OFFRES=cfg.offres;
+  sauvegarderState();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RAPPORT FIN DE MATCH
+// ═══════════════════════════════════════════════════════════════════
+function openRapport(){
+  const totaux={};
+  CATALOGUE.filter(p=>p.cat!=='eco').forEach(p=>{totaux[p.ref]=(state.totalVentes[p.ref]||0)+(state.ventes[p.ref]||0);});
+  const ventesExport=CATALOGUE.filter(p=>p.cat!=='eco'&&totaux[p.ref]>0)
+    .map(p=>({ref:p.ref,produit:p.nom,qty:totaux[p.ref],pv:p.pv||p.pv50,consigne:p.consigne}));
+  OFFRES.forEach(o=>{const qt=(state.totalOffres[o.ref]||0)+(state.offresVentes[o.ref]||0);if(qt>0)ventesExport.push({ref:o.ref,produit:o.nom,qty:qt,pv:o.prix,consigne:0});});
+  const remboursements=[];
+  if((state.ecocups.E01||0)>0)remboursements.push({ref:'E01',qty:state.ecocups.E01,montant:state.ecocups.E01});
+  if((state.ecocups.E02||0)>0)remboursements.push({ref:'E02',qty:state.ecocups.E02,montant:state.ecocups.E02});
+  const caCB = state.commandes.filter(c=>c.paiement==='CB').reduce((s,c)=>s+c.montant,0);
+  const caEsp = state.commandes.filter(c=>c.paiement==='Espèces').reduce((s,c)=>s+c.montant,0);
+  const json={matchId:state.matchId,dateMatch:state.date,tablette:state.tab,ventes:ventesExport,remboursements_consigne:remboursements,ca_total:calcCA(),ca_cb:caCB,ca_especes:caEsp,nb_commandes:state.commandes.length};
+  let out=`<div style="font-family:var(--font-head);font-size:22px;font-weight:800;margin-bottom:16px">📊 Rapport fin de match</div>`;
+  // Bandeau offline
+  if(!navigator.onLine){
+    out+=`<div style="background:#fff3e0;border:2px solid #f39c12;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;font-weight:600;color:#e65100">📵 Pas de Wi-Fi — Le rapport est sauvegardé sur la tablette.<br><span style="font-weight:400">Utilise ⬇️ Télécharger ou 📱 QR Code ci-dessous, puis envoie plus tard.</span></div>`;
+  }
+  // KPIs
+  out+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">`;
+  out+=`<div style="background:var(--surface-2);border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--text-2)">Match</div><div style="font-weight:700">${state.matchId||'—'}</div></div>`;
+  out+=`<div style="background:var(--surface-2);border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--text-2)">Tablette</div><div style="font-weight:700">${state.tab}</div></div>`;
+  out+=`<div style="background:var(--surface-2);border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--text-2)">CA Total</div><div style="font-weight:900;color:var(--green);font-family:var(--font-head);font-size:20px">${fmt(calcCA())}</div></div>`;
+  out+=`<div style="background:var(--surface-2);border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--text-2)">Commandes</div><div style="font-weight:700">${state.commandes.length}</div></div>`;
+  out+=`<div style="background:#e8f4fd;border-radius:10px;padding:12px"><div style="font-size:11px;color:#1565c0">💳 CB</div><div style="font-weight:900;color:#1565c0;font-family:var(--font-head);font-size:18px">${fmt(caCB)}</div></div>`;
+  out+=`<div style="background:#e8f5e9;border-radius:10px;padding:12px"><div style="font-size:11px;color:#2e7d32">💶 Espèces</div><div style="font-weight:900;color:#2e7d32;font-family:var(--font-head);font-size:18px">${fmt(caEsp)}</div></div>`;
+  out+=`</div>`;
+  // Détail ventes
+  out+=`<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em">Détail ventes</div>`;
+  out+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">`;
+  ventesExport.forEach(v=>{out+=`<div style="background:var(--surface-2);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center"><span>${v.produit}</span><span style="font-weight:700">${v.qty}× = ${fmt(v.qty*v.pv)}</span></div>`;});
+  out+=`</div>`;
+  // QR code compact (pour scan par le responsable avec son téléphone)
+  const mini={m:json.matchId,t:json.tablette,d:json.dateMatch,ca:json.ca_total.toFixed(2),cb:json.ca_cb.toFixed(2),esp:json.ca_especes.toFixed(2),nb:json.nb_commandes,v:json.ventes.map(x=>({r:x.ref,q:x.qty,p:x.pv}))};
+  const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(JSON.stringify(mini))}`;
+  out+=`<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em">📱 QR Code — Scanne avec le téléphone du responsable</div>`;
+  out+=`<div style="text-align:center;margin-bottom:16px"><img src="${qrUrl}" style="border-radius:10px;width:180px;height:180px" onerror="this.style.display='none'"></div>`;
+  // Boutons
+  out+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">`;
+  out+=`<button class="btn-primary" onclick="envoyerSheet()" style="background:var(--green);height:52px;font-size:16px">📤 Envoyer au responsable</button>`;
+  out+=`<div style="display:flex;gap:8px">`;
+  out+=`<button class="btn-copy" style="flex:1" onclick="copyJson()">📋 Copier JSON</button>`;
+  out+=`<button class="btn-primary" style="flex:1;background:var(--navy)" onclick="telechargerJSON(document.getElementById('rapport-content')._json||{})">⬇️ Télécharger</button>`;
+  out+=`</div></div>`;
+  out+=`<div class="sync-status" id="sync-status-post"></div>`;
+  // Sauvegarder en local pour envoi différé
+  try{localStorage.setItem('buvette_rapport_pending',JSON.stringify({json,savedAt:new Date().toISOString()}));}catch(e){}
+  const c=document.getElementById('rapport-content');
+  c.innerHTML=out; c._json=json;
+  openModal('modal-rapport');
+}
+function copyJson(){
+  const txt=document.querySelector('.json-block').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const btn=document.querySelector('.btn-copy');
+    btn.textContent='✅ Copié !';setTimeout(()=>btn.textContent='📋 Copier le JSON',2000);
+  });
+}
+function telechargerJSON(data){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='rapport_'+state.matchId+'_'+state.tab+'_'+state.date+'.json'; a.click();
+}
+async function envoyerSheet(){
+  const url=state.url; const statusEl=document.getElementById('sync-status-post');
+  const content=document.getElementById('rapport-content')._json;
+  if(!url){statusEl.className='sync-status err';statusEl.textContent='❌ URL non configurée dans ⚙️.';statusEl.style.display='block';return;}
+  if(!navigator.onLine){
+    statusEl.className='sync-status err';
+    statusEl.textContent='📵 Pas de Wi-Fi — Le rapport est sauvegardé. Télécharge le JSON ou réessaie plus tard.';
+    statusEl.style.display='block';
+    return;
+  }
+  statusEl.className='sync-status';statusEl.textContent='⏳ Envoi en cours…';statusEl.style.display='block';
+  try{
+    const r=await fetch(url,{method:'POST',body:JSON.stringify(content),headers:{'Content-Type':'application/json'}});
+    const res=await r.json();
+    if(res.status==='ok'){
+      statusEl.className='sync-status ok';
+      statusEl.textContent='✅ Rapport envoyé ! Vous pouvez fermer l\'app.';
+      try{localStorage.removeItem('buvette_rapport_pending');}catch(e){}
+    }else throw new Error(res.message||'Erreur serveur');
+  }catch(e){
+    statusEl.className='sync-status err';
+    statusEl.textContent='❌ Envoi échoué — Télécharge le JSON et donne-le au responsable.';
+    statusEl.style.display='block';
+  }
+}
+
+function verifierRapportEnAttente(){
+  try{
+    const p=localStorage.getItem('buvette_rapport_pending');
+    if(!p)return;
+    const {json,savedAt}=JSON.parse(p);
+    if(!json||!json.matchId)return;
+    if(navigator.onLine&&state.url){
+      const d=new Date(savedAt).toLocaleString('fr-FR');
+      if(confirm('Un rapport non envoyé a été trouvé ('+json.matchId+' — '+d+').\nL\'envoyer maintenant au responsable ?')){
+        fetch(state.url,{method:'POST',body:JSON.stringify(json),headers:{'Content-Type':'application/json'}})
+          .then(r=>r.json()).then(res=>{if(res.status==='ok')localStorage.removeItem('buvette_rapport_pending');})
+          .catch(()=>{});
+      }
+    }
+  }catch(e){}
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+document.getElementById('inp-date').value=state.date;
+appliquerConfigLien();   // applique le lien de config si présent dans l'URL
+renderAll();
+verifierDemarrage();     // affiche la checklist si pas configuré
+verifierRapportEnAttente(); // propose d'envoyer un rapport en attente si Wi-Fi disponible
+
+// Protection fermeture accidentelle
+window.addEventListener('beforeunload', e => {
+  if(state.commandes.length > 0 || Object.values(state.totalVentes).some(v=>v>0)){
+    e.preventDefault();
+    e.returnValue = 'Des ventes sont enregistrées. Vous avez envoyé le rapport au responsable ?';
+  }
+});
+
+// Fonction aide
+function openAide(){
+  const contactEl = document.getElementById('aide-contact');
+  if(contactEl) contactEl.textContent = state.contact || 'Non configuré — voir le responsable';
+  openModal('modal-aide');
+}
+
+// ══════════════════════════════════════════════
+// SERVICE WORKER (inline blob — même méthode que Spacer's Boutique)
+// ══════════════════════════════════════════════
+function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  const swCode = `
+const CACHE = 'buvette-v2';
+const ASSETS = [self.location.pathname];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+  self.clients.claim();
+});
+self.addEventListener('fetch', e => {
+  if(e.request.method !== 'GET') return;
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(()=>caches.match(e.request))));
+});`;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(url).catch(() => {});
+}
+
+// ══════════════════════════════════════════════
+// MANIFEST (inline blob — même méthode que Spacer's Boutique)
+// ══════════════════════════════════════════════
+function injectManifest() {
+  const manifest = {
+    name: "Spacer's Buvette",
+    short_name: "Buvette",
+    start_url: "https://spacers-buvette.spacersytb.workers.dev/",
+    scope: "https://spacers-buvette.spacersytb.workers.dev/",
+    display: "standalone",
+    background_color: "#0b0e14",
+    theme_color: "#0d1f35",
+    orientation: "portrait",
+    icons: [
+      { src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%230d1f35'/><text y='120' x='96' font-size='100' text-anchor='middle' fill='%23f5c518' font-family='sans-serif' font-weight='900'>B</text></svg>", sizes: "192x192", type: "image/svg+xml" }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+  document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+}
+
+injectManifest();
+registerSW();
+</script>
+</body>
+</html>
