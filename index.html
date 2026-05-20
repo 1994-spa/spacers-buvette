@@ -2228,39 +2228,23 @@ function verifierRapportEnAttente(){
 let _interTimer = null;
 
 function afficherClientSuivant(montant){
-  // Afficher l'écran interstitiel
   const el = document.getElementById('interstitiel');
   const montantEl = document.getElementById('inter-montant');
   const countEl = document.getElementById('inter-countdown');
   if(!el) return;
   montantEl.textContent = fmt(montant);
+  countEl.textContent = '';
   el.style.display = 'flex';
-
-  // Compte à rebours 4s puis vendre directement
-  let t = 4;
-  countEl.textContent = `Passage automatique dans ${t}s…`;
-  clearInterval(_interTimer);
-  _interTimer = setInterval(()=>{
-    t--;
-    if(t <= 0){
-      clearInterval(_interTimer);
-      interDirect();
-    } else {
-      countEl.textContent = `Passage automatique dans ${t}s…`;
-    }
-  }, 1000);
 }
 
 function interScan(){
-  clearInterval(_interTimer);
   document.getElementById('interstitiel').style.display='none';
   ouvrirScanner();
 }
 
 function interDirect(){
-  clearInterval(_interTimer);
   document.getElementById('interstitiel').style.display='none';
-  effacerBilletActif(); // s'assurer qu'aucun ancien billet ne traine
+  effacerBilletActif();
 }
 let _scannerStream    = null;
 let _scannerInterval  = null;
