@@ -1042,9 +1042,15 @@ pre.json-block{
       <span class="montant-label">Total</span>
       <span class="montant-value" id="ca-cmd-display">0,00 €</span>
     </div>
+    <!-- Badge billet actif -->
+    <div id="ticket-actif-badge" style="display:none;background:#e8f4fd;border:1.5px solid #1565c0;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:600;color:#1565c0;display:flex;align-items:center;gap:8px">
+      <span>🎫</span><span id="ticket-actif-nom"></span>
+      <button onclick="effacerBilletActif()" style="background:none;color:#1565c0;font-size:16px;padding:0 4px">✕</button>
+    </div>
     <!-- Actions -->
     <div class="actions-row">
       <button class="btn-undo" id="btn-undo" onclick="annulerDerniereCommande()" disabled title="Annuler dernière commande">↩</button>
+      <button class="btn-icon" id="btn-scanner" onclick="ouvrirScanner()" title="Scanner un billet" style="width:52px;height:56px;border-radius:14px;background:var(--surface-2);border:1.5px solid var(--border);font-size:22px;flex-shrink:0">🎫</button>
       <div class="pay-row" style="flex:1">
         <button class="btn-pay btn-pay-cb" id="btn-cb" onclick="validerCommande('CB')" disabled>
           <span>💳 CB</span>
@@ -1093,6 +1099,10 @@ pre.json-block{
       <div class="form-row">
         <label class="form-label">URL Web App (Google Apps Script)</label>
         <input class="form-input" id="inp-url" placeholder="https://script.google.com/..." type="url">
+      </div>
+      <div class="form-row">
+        <label class="form-label">🎫 URL Proxy Tickie (scan billets)</label>
+        <input class="form-input" id="inp-tickie" placeholder="https://tickie-proxy.spacersytb.workers.dev" type="url">
       </div>
       <div class="form-row">
         <label class="form-label">Stocks initiaux — <span id="stock-tab-label">Tab. 1</span></label>
@@ -1161,6 +1171,34 @@ pre.json-block{
     </div>
   </div>
 </div>
+
+<!-- ══ MODAL SCANNER BILLET ══════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-scanner">
+  <div class="modal" style="position:relative;max-width:480px;padding:20px">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="fermerScanner()">✕</button>
+    <div class="modal-title">🎫 Scanner le billet</div>
+    <div id="scanner-zone">
+      <div style="position:relative;border-radius:14px;overflow:hidden;background:#000;margin-bottom:12px">
+        <video id="scanner-video" style="width:100%;display:block;border-radius:14px" playsinline autoplay muted></video>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+          <div style="width:200px;height:200px;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.4)"></div>
+        </div>
+      </div>
+      <div id="scanner-status" style="text-align:center;font-size:13px;color:var(--text-2);margin-bottom:12px">📷 Place le QR code du billet dans le cadre</div>
+      <canvas id="scanner-canvas" style="display:none"></canvas>
+    </div>
+    <div id="scanner-result" style="display:none">
+      <div id="ticket-card" style="border-radius:14px;padding:16px;margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" style="flex:1;background:var(--green);height:52px;font-size:16px" onclick="utiliserBillet()">✔ Utiliser ce billet</button>
+        <button class="btn-primary" style="background:var(--surface-2);color:var(--text-2);height:52px" onclick="rescannerBillet()">🔄</button>
+      </div>
+    </div>
+    <button onclick="fermerScanner()" style="background:none;color:var(--text-3);font-size:12px;padding:8px;width:100%;text-align:center;margin-top:8px">Continuer sans scanner →</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-monnaie">
   <div class="modal monnaie-modal" style="position:relative">
     <div class="modal-handle"></div>
@@ -1203,7 +1241,7 @@ pre.json-block{
 // STATE
 // ═══════════════════════════════════════════════════════════════════
 const state = {
-  tab:'Tab. 1', poste:'', contact:'', pin:'', matchId:'', date:new Date().toISOString().slice(0,10), url:'',
+  tab:'Tab. 1', poste:'', contact:'', pin:'', matchId:'', date:new Date().toISOString().slice(0,10), url:'', tickieUrl:'',
   stocks:{}, ventes:{}, commandes:[], totalVentes:{},
   offresVentes:{}, totalOffres:{},
   ecocups:{E01:0,E02:0}, rembs:{E01:0,E02:0},
@@ -1284,7 +1322,7 @@ resetVentes();
 function sauvegarderState(){
   try{
     sessionStorage.setItem('buvette_state',JSON.stringify({
-      matchId:state.matchId,date:state.date,tab:state.tab,poste:state.poste,contact:state.contact,pin:state.pin,url:state.url,
+      matchId:state.matchId,date:state.date,tab:state.tab,poste:state.poste,contact:state.contact,pin:state.pin,url:state.url,tickieUrl:state.tickieUrl,
       stocks:state.stocks,commandes:state.commandes,
       totalVentes:state.totalVentes,totalOffres:state.totalOffres,
       ecocups:state.ecocups,rembs:state.rembs,
@@ -1297,7 +1335,7 @@ function restaurerState(){
     if(!raw)return false;
     const s=JSON.parse(raw);
     state.matchId=s.matchId||''; state.date=s.date||state.date;
-    state.tab=s.tab||'Tab. 1'; state.poste=s.poste||''; state.contact=s.contact||''; state.pin=s.pin||''; state.url=s.url||'';
+    state.tab=s.tab||'Tab. 1'; state.poste=s.poste||''; state.contact=s.contact||''; state.pin=s.pin||''; state.url=s.url||''; state.tickieUrl=s.tickieUrl||'';
     if(s.stocks)Object.entries(s.stocks).forEach(([k,v])=>{state.stocks[k]=v;});
     state.commandes=s.commandes||[]; state.totalVentes=s.totalVentes||{};
     state.totalOffres=s.totalOffres||{};
@@ -1416,7 +1454,9 @@ function validerCommande(paiement){
   OFFRES.forEach(o=>{const qty=state.offresVentes[o.ref]||0;if(qty>0)lignes.push({ref:o.ref,nom:o.emoji+' '+o.nom,qty,pv:o.prix});});
   if(lignes.length===0)return;
   const montant=lignes.reduce((s,l)=>s+l.qty*l.pv,0);
-  state.commandes.push({num:state.commandes.length+1,heure:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),lignes,montant,paiement:paiement||'CB'});
+  state.commandes.push({num:state.commandes.length+1,heure:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),lignes,montant,paiement:paiement||'CB',ticket:_currentTicket?{ticket_id:_currentTicket.ticket_id,email:_currentTicket.email,nom:_currentTicket.nom_complet||_currentTicket.nom,tarif:_currentTicket.tarif,tribune:_currentTicket.tribune}:null});
+  // Réinitialiser le billet actif après validation
+  effacerBilletActif();
   lignes.forEach(l=>{if(!l.ref.startsWith('RE')&&CATALOGUE.find(p=>p.ref===l.ref))state.totalVentes[l.ref]=(state.totalVentes[l.ref]||0)+l.qty;});
   state.ecocups.E01=(state.ecocups.E01||0)+(state.ecocupsCmd.E01||0);
   state.ecocups.E02=(state.ecocups.E02||0)+(state.ecocupsCmd.E02||0);
@@ -1913,6 +1953,7 @@ function _ouvrirSettingsInterne(){
   document.getElementById('inp-match').value=state.matchId;
   document.getElementById('inp-date').value=state.date;
   document.getElementById('inp-url').value=state.url;
+  document.getElementById('inp-tickie').value=state.tickieUrl||'';
   document.getElementById('lien-config-zone').style.display='none';
   updateStockInputs();
   openModal('modal-settings');
@@ -1940,6 +1981,7 @@ function saveSettings(){
   state.matchId=document.getElementById('inp-match').value.trim();
   state.date=document.getElementById('inp-date').value;
   state.url=document.getElementById('inp-url').value.trim();
+  state.tickieUrl=document.getElementById('inp-tickie').value.trim();
   if(!state.stocks[state.tab])state.stocks[state.tab]={};
   CATALOGUE.filter(p=>p.cat!=='eco').forEach(r=>{
     const el=document.getElementById('stk-'+r.ref);
@@ -2019,7 +2061,8 @@ function openRapport(){
   if((state.ecocups.E02||0)>0)remboursements.push({ref:'E02',qty:state.ecocups.E02,montant:state.ecocups.E02});
   const caCB = state.commandes.filter(c=>c.paiement==='CB').reduce((s,c)=>s+c.montant,0);
   const caEsp = state.commandes.filter(c=>c.paiement==='Espèces').reduce((s,c)=>s+c.montant,0);
-  const json={matchId:state.matchId,dateMatch:state.date,tablette:state.tab,ventes:ventesExport,remboursements_consigne:remboursements,ca_total:calcCA(),ca_cb:caCB,ca_especes:caEsp,nb_commandes:state.commandes.length};
+  const ticketsScannés = state.commandes.filter(c=>c.ticket).map(c=>({...c.ticket,montant:c.montant,heure:c.heure,paiement:c.paiement}));
+  const json={matchId:state.matchId,dateMatch:state.date,tablette:state.tab,ventes:ventesExport,remboursements_consigne:remboursements,ca_total:calcCA(),ca_cb:caCB,ca_especes:caEsp,nb_commandes:state.commandes.length,tickets_scannés:ticketsScannés};
   let out=`<div style="font-family:var(--font-head);font-size:22px;font-weight:800;margin-bottom:16px">📊 Rapport fin de match</div>`;
   // Bandeau offline
   if(!navigator.onLine){
@@ -2111,6 +2154,139 @@ function verifierRapportEnAttente(){
       }
     }
   }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SCANNER BILLET TICKIE
+// ═══════════════════════════════════════════════════════════════════
+let _scannerStream    = null;
+let _scannerInterval  = null;
+let _currentTicket    = null; // billet scanné et validé pour la commande en cours
+
+// Charger jsQR dynamiquement
+function chargerJsQR(cb){
+  if(window.jsQR){ cb(); return; }
+  const s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+  s.onload=cb; s.onerror=()=>alert('Impossible de charger le scanner. Vérifiez votre connexion.');
+  document.head.appendChild(s);
+}
+
+function ouvrirScanner(){
+  chargerJsQR(()=>{
+    document.getElementById('scanner-zone').style.display='';
+    document.getElementById('scanner-result').style.display='none';
+    document.getElementById('scanner-status').textContent='📷 Place le QR code du billet dans le cadre';
+    openModal('modal-scanner');
+    demarrerCamera();
+  });
+}
+
+async function demarrerCamera(){
+  try{
+    _scannerStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
+    const video = document.getElementById('scanner-video');
+    video.srcObject = _scannerStream;
+    await video.play();
+    _scannerInterval = setInterval(lireQR, 200);
+  }catch(e){
+    document.getElementById('scanner-status').textContent = '❌ Caméra inaccessible : '+e.message;
+  }
+}
+
+function lireQR(){
+  const video  = document.getElementById('scanner-video');
+  const canvas = document.getElementById('scanner-canvas');
+  if(!video.videoWidth) return;
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts:'dontInvert' });
+  if(code && code.data){
+    arreterCamera();
+    document.getElementById('scanner-status').textContent = '✅ QR code détecté — Recherche du billet…';
+    rechercherBillet(code.data.trim());
+  }
+}
+
+function arreterCamera(){
+  clearInterval(_scannerInterval); _scannerInterval=null;
+  if(_scannerStream){ _scannerStream.getTracks().forEach(t=>t.stop()); _scannerStream=null; }
+}
+
+async function rechercherBillet(barcode){
+  const url = state.tickieUrl || 'https://tickie-proxy.spacersytb.workers.dev';
+  const statusEl = document.getElementById('scanner-status');
+  statusEl.textContent = '⏳ Recherche du billet '+barcode+' …';
+  try{
+    const r = await fetch(`${url.replace(/\/$/,'')}/ticket/${encodeURIComponent(barcode)}`);
+    if(!r.ok){ throw new Error('Billet non trouvé ('+r.status+')'); }
+    const ticket = await r.json();
+    if(ticket.error){ throw new Error(ticket.error); }
+    afficherFicheClient(ticket);
+  }catch(e){
+    statusEl.textContent = '❌ '+e.message;
+    document.getElementById('scanner-zone').style.display='';
+    document.getElementById('scanner-result').style.display='none';
+    // Relancer la caméra après 2s
+    setTimeout(()=>{ demarrerCamera(); statusEl.textContent='📷 Place le QR code du billet dans le cadre'; }, 2000);
+  }
+}
+
+function afficherFicheClient(ticket){
+  document.getElementById('scanner-zone').style.display='none';
+  document.getElementById('scanner-result').style.display='';
+  const valide = ticket.valide !== false;
+  const couleur = valide ? '#e8f5e9' : '#fce8e6';
+  const bordure = valide ? '#2ecc71' : '#e74c3c';
+  const statut  = valide ? '✅ BILLET VALIDE' : '❌ BILLET INVALIDE';
+  document.getElementById('ticket-card').style.cssText = `background:${couleur};border:2px solid ${bordure};border-radius:14px;padding:16px`;
+  document.getElementById('ticket-card').innerHTML = `
+    <div style="font-family:var(--font-head);font-size:11px;font-weight:800;letter-spacing:.08em;color:${bordure};margin-bottom:10px">${statut}</div>
+    <div style="font-size:18px;font-weight:900;color:var(--navy);margin-bottom:6px">${ticket.nom_complet||ticket.nom||'—'}</div>
+    <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text-2)">
+      <div>🎟️ <b>${ticket.tarif||'—'}</b></div>
+      ${ticket.tribune?`<div>📍 <b>${ticket.tribune}</b></div>`:''}
+      ${ticket.email?`<div>✉️ ${ticket.email}</div>`:''}
+    </div>`;
+  // Stocker le billet en attente de confirmation
+  document.getElementById('ticket-card')._ticket = ticket;
+}
+
+function utiliserBillet(){
+  const card = document.getElementById('ticket-card');
+  _currentTicket = card._ticket;
+  // Afficher badge dans la bottom bar
+  const badge = document.getElementById('ticket-actif-badge');
+  const nom   = document.getElementById('ticket-actif-nom');
+  if(badge && nom){
+    nom.textContent = _currentTicket.nom_complet || _currentTicket.nom || _currentTicket.tarif || 'Billet scanné';
+    badge.style.display='flex';
+  }
+  fermerScanner();
+  if(navigator.vibrate) navigator.vibrate(60);
+}
+
+function rescannerBillet(){
+  document.getElementById('scanner-zone').style.display='';
+  document.getElementById('scanner-result').style.display='none';
+  document.getElementById('scanner-status').textContent='📷 Place le QR code du billet dans le cadre';
+  demarrerCamera();
+}
+
+function fermerScanner(){
+  arreterCamera();
+  closeModal('modal-scanner');
+}
+
+function effacerBilletActif(){
+  _currentTicket=null;
+  const badge=document.getElementById('ticket-actif-badge');
+  if(badge) badge.style.display='none';
 }
 
 // ── Init ─────────────────────────────────────────────────────────────
