@@ -657,6 +657,50 @@ pre.json-block{
 }
 
 /* ════════════════════════════════════════════════════
+   INTERSTITIEL CLIENT SUIVANT
+════════════════════════════════════════════════════ */
+.interstitiel{
+  position:fixed;inset:0;z-index:300;
+  background:var(--bg);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:16px;padding:28px;
+  animation:fadeIn .2s ease;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.inter-check{font-size:64px;animation:popIn .4s cubic-bezier(.34,1.56,.64,1)}
+.inter-montant{
+  font-family:var(--font-head);font-size:44px;font-weight:900;
+  color:var(--green);font-variant-numeric:tabular-nums;
+}
+.inter-label{font-size:14px;color:var(--text-2);font-weight:600;margin-top:-10px}
+.inter-question{
+  font-family:var(--font-head);font-size:17px;font-weight:800;
+  color:var(--text);text-align:center;margin-top:4px;
+}
+.inter-btns{display:flex;flex-direction:column;gap:10px;width:100%;max-width:380px}
+.btn-inter-scan{
+  height:64px;border-radius:16px;
+  background:var(--navy);color:var(--gold);
+  font-family:var(--font-head);font-size:20px;font-weight:900;
+  letter-spacing:.04em;border:2.5px solid var(--gold);
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  transition:all .15s;
+}
+.btn-inter-scan:active{transform:scale(.97)}
+.btn-inter-direct{
+  height:76px;border-radius:16px;
+  background:var(--green);color:#fff;
+  font-family:var(--font-head);font-size:24px;font-weight:900;
+  letter-spacing:.04em;
+  box-shadow:0 4px 18px rgba(46,204,113,.35);
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  transition:all .15s;
+}
+.btn-inter-direct:active{transform:scale(.97);background:var(--green-dk)}
+.inter-countdown{font-size:12px;color:var(--text-3);font-weight:600}
+
+/* ════════════════════════════════════════════════════
    PIN RESPONSABLE
 ════════════════════════════════════════════════════ */
 .pin-overlay{
@@ -844,6 +888,23 @@ pre.json-block{
 </head>
 <body>
 <div id="app">
+
+  <!-- ══ INTERSTITIEL CLIENT SUIVANT ══════════════════════════════ -->
+  <div class="interstitiel" id="interstitiel" style="display:none">
+    <div class="inter-check">✅</div>
+    <div class="inter-montant" id="inter-montant">0,00 €</div>
+    <div class="inter-label">encaissé</div>
+    <div class="inter-question">Client suivant :</div>
+    <div class="inter-btns">
+      <button class="btn-inter-scan" onclick="interScan()">
+        🎫 Scanner son billet
+      </button>
+      <button class="btn-inter-direct" onclick="interDirect()">
+        ➡️ Vendre directement
+      </button>
+    </div>
+    <div class="inter-countdown" id="inter-countdown"></div>
+  </div>
 
   <!-- ══ PIN RESPONSABLE ═══════════════════════════════════════════ -->
   <div class="pin-overlay" id="pin-overlay" style="display:none">
@@ -1050,7 +1111,6 @@ pre.json-block{
     <!-- Actions -->
     <div class="actions-row">
       <button class="btn-undo" id="btn-undo" onclick="annulerDerniereCommande()" disabled title="Annuler dernière commande">↩</button>
-      <button class="btn-icon" id="btn-scanner" onclick="ouvrirScanner()" title="Scanner un billet" style="width:52px;height:56px;border-radius:14px;background:var(--surface-2);border:1.5px solid var(--border);font-size:22px;flex-shrink:0">🎫</button>
       <div class="pay-row" style="flex:1">
         <button class="btn-pay btn-pay-cb" id="btn-cb" onclick="validerCommande('CB')" disabled>
           <span>💳 CB</span>
@@ -1475,7 +1535,13 @@ function validerCommande(paiement){
   const oldHtml = btn.innerHTML;
   btn.innerHTML=`<span>${label}</span>`;
   if(navigator.vibrate)navigator.vibrate([60,30,60]);
-  setTimeout(()=>{btn.classList.remove('success');btn.innerHTML=oldHtml;renderAll();},700);
+  setTimeout(()=>{
+    btn.classList.remove('success');
+    btn.innerHTML=oldHtml;
+    renderAll();
+    // Afficher l'interstitiel "client suivant" si proxy Tickie configuré
+    if(state.tickieUrl || true) afficherClientSuivant(montant);
+  },700);
   renderAll();
 }
 
@@ -2157,8 +2223,45 @@ function verifierRapportEnAttente(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SCANNER BILLET TICKIE
+// INTERSTITIEL CLIENT SUIVANT
 // ═══════════════════════════════════════════════════════════════════
+let _interTimer = null;
+
+function afficherClientSuivant(montant){
+  // Afficher l'écran interstitiel
+  const el = document.getElementById('interstitiel');
+  const montantEl = document.getElementById('inter-montant');
+  const countEl = document.getElementById('inter-countdown');
+  if(!el) return;
+  montantEl.textContent = fmt(montant);
+  el.style.display = 'flex';
+
+  // Compte à rebours 4s puis vendre directement
+  let t = 4;
+  countEl.textContent = `Passage automatique dans ${t}s…`;
+  clearInterval(_interTimer);
+  _interTimer = setInterval(()=>{
+    t--;
+    if(t <= 0){
+      clearInterval(_interTimer);
+      interDirect();
+    } else {
+      countEl.textContent = `Passage automatique dans ${t}s…`;
+    }
+  }, 1000);
+}
+
+function interScan(){
+  clearInterval(_interTimer);
+  document.getElementById('interstitiel').style.display='none';
+  ouvrirScanner();
+}
+
+function interDirect(){
+  clearInterval(_interTimer);
+  document.getElementById('interstitiel').style.display='none';
+  effacerBilletActif(); // s'assurer qu'aucun ancien billet ne traine
+}
 let _scannerStream    = null;
 let _scannerInterval  = null;
 let _currentTicket    = null; // billet scanné et validé pour la commande en cours
