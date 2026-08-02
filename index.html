@@ -2128,7 +2128,10 @@ function openRapport(){
   const caCB = state.commandes.filter(c=>c.paiement==='CB').reduce((s,c)=>s+c.montant,0);
   const caEsp = state.commandes.filter(c=>c.paiement==='Espèces').reduce((s,c)=>s+c.montant,0);
   const ticketsScannés = state.commandes.filter(c=>c.ticket).map(c=>({...c.ticket,montant:c.montant,heure:c.heure,paiement:c.paiement}));
-  const json={matchId:state.matchId,dateMatch:state.date,tablette:state.tab,ventes:ventesExport,remboursements_consigne:remboursements,ca_total:calcCA(),ca_cb:caCB,ca_especes:caEsp,nb_commandes:state.commandes.length,tickets_scannés:ticketsScannés};
+  // ── FIDELITE : 1 entrée par commande rattachée à un billet scanné (points crédités serveur) ──
+  const fidelite = state.commandes.filter(c=>c.ticket && (c.ticket.email||c.ticket.ticket_id))
+    .map(c=>({carte:(c.ticket.email||c.ticket.ticket_id), nom:c.ticket.nom||'', montant:c.montant}));
+  const json={matchId:state.matchId,dateMatch:state.date,tablette:state.tab,ventes:ventesExport,remboursements_consigne:remboursements,ca_total:calcCA(),ca_cb:caCB,ca_especes:caEsp,nb_commandes:state.commandes.length,tickets_scannés:ticketsScannés,fidelite:fidelite};
   let out=`<div style="font-family:var(--font-head);font-size:22px;font-weight:800;margin-bottom:16px">📊 Rapport fin de match</div>`;
   // Bandeau offline
   if(!navigator.onLine){
