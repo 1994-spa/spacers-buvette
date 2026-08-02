@@ -1514,7 +1514,7 @@ function validerCommande(paiement){
   OFFRES.forEach(o=>{const qty=state.offresVentes[o.ref]||0;if(qty>0)lignes.push({ref:o.ref,nom:o.emoji+' '+o.nom,qty,pv:o.prix});});
   if(lignes.length===0)return;
   const montant=lignes.reduce((s,l)=>s+l.qty*l.pv,0);
-  state.commandes.push({num:state.commandes.length+1,heure:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),lignes,montant,paiement:paiement||'CB',ticket:_currentTicket?{ticket_id:_currentTicket.ticket_id,email:_currentTicket.email,nom:_currentTicket.nom_complet||_currentTicket.nom,tarif:_currentTicket.tarif,tribune:_currentTicket.tribune}:null});
+  state.commandes.push({num:state.commandes.length+1,heure:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),lignes,montant,paiement:paiement||'CB',ticket:_currentTicket?{ticket_id:_currentTicket.ticket_id,email:_currentTicket.email,nom:_currentTicket.nom_complet||_currentTicket.nom,tarif:_currentTicket.tarif,tribune:_currentTicket.tribune}:null,recompenseUtilisee:(_currentTicket&&_currentReward)?true:false});
   // Réinitialiser le billet actif après validation
   effacerBilletActif();
   lignes.forEach(l=>{if(!l.ref.startsWith('RE')&&CATALOGUE.find(p=>p.ref===l.ref))state.totalVentes[l.ref]=(state.totalVentes[l.ref]||0)+l.qty;});
@@ -2078,6 +2078,7 @@ async function syncPreMatch(){
     const r=await fetch(url+'?tab='+encodeURIComponent(state.tab)+'&matchId='+encodeURIComponent(state.matchId));
     const cfg=await r.json();
     applyTabletConfig(cfg);
+    chargerFidelite();
     statusEl.className='sync-status ok';
     statusEl.textContent='✅ Synchro OK — '+new Date().toLocaleTimeString('fr-FR');
     closeModal('modal-settings');
@@ -2130,7 +2131,7 @@ function openRapport(){
   const ticketsScannés = state.commandes.filter(c=>c.ticket).map(c=>({...c.ticket,montant:c.montant,heure:c.heure,paiement:c.paiement}));
   // ── FIDELITE : 1 entrée par commande rattachée à un billet scanné (points crédités serveur) ──
   const fidelite = state.commandes.filter(c=>c.ticket && (c.ticket.email||c.ticket.ticket_id))
-    .map(c=>({carte:(c.ticket.email||c.ticket.ticket_id), nom:c.ticket.nom||'', montant:c.montant}));
+    .map(c=>({carte:(c.ticket.email||c.ticket.ticket_id), nom:c.ticket.nom||'', montant:c.montant, recompenseUtilisee:!!c.recompenseUtilisee}));
   const json={matchId:state.matchId,dateMatch:state.date,tablette:state.tab,ventes:ventesExport,remboursements_consigne:remboursements,ca_total:calcCA(),ca_cb:caCB,ca_especes:caEsp,nb_commandes:state.commandes.length,tickets_scannés:ticketsScannés,fidelite:fidelite};
   let out=`<div style="font-family:var(--font-head);font-size:22px;font-weight:800;margin-bottom:16px">📊 Rapport fin de match</div>`;
   // Bandeau offline
@@ -2253,6 +2254,43 @@ let _scannerStream    = null;
 let _scannerInterval  = null;
 let _currentTicket    = null; // billet scanné et validé pour la commande en cours
 
+// ── FIDELITE ABONNES (affichage points + récompense) ──────────────────
+let _fidelite   = {};    // cache {email:{points,niveau,pointsTotal,visits}}
+let _fidPalier  = 100;   // points pour 1 récompense (chargé depuis le serveur)
+let _fidPtsEuro = 1;
+let _currentReward = false; // récompense armée pour la prochaine commande
+
+async function chargerFidelite(){
+  if(!state.url) return;
+  try{
+    const u = state.url + (state.url.includes('?')?'&':'?') + 'action=fidelite';
+    const r = await fetch(u); const d = await r.json();
+    if(d){ _fidelite = d.members || {}; if(d.config){ _fidPalier = d.config.palier||100; _fidPtsEuro = d.config.pointsParEuro||1; } }
+  }catch(e){ /* silencieux : la fidélité reste optionnelle */ }
+}
+function _fidMembre(email){ const k=((email||'')+'').trim().toLowerCase(); return k?_fidelite[k]:null; }
+function _fidBlocHtml(m){
+  if(!m){ return `<div style="margin-top:12px;padding:10px;border-radius:10px;background:#f4f6fa;font-size:12px;color:var(--text-2)">⭐ Fidélité : cet abonné gagnera ${_fidPtsEuro} pt/€ dès cet achat.</div>`; }
+  const dispo = Math.floor((m.points||0)/_fidPalier);
+  let h = `<div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:#fff8e1;border:1px solid #ffe082">`;
+  h += `<div style="font-weight:800;color:var(--navy)">⭐ Abonné ${m.niveau||'Bronze'} — ${m.points||0} pts</div>`;
+  h += `<div style="font-size:12px;color:var(--text-2);margin-top:2px">${m.visits||0} passage(s) · cumul ${m.pointsTotal||0} pts</div>`;
+  if(dispo>0){
+    h += `<button id="fid-reward-btn" onclick="armerRecompense()" style="margin-top:8px;width:100%;height:44px;border:none;border-radius:10px;background:#2ecc71;color:#fff;font-weight:800;font-size:14px">🎁 Utiliser 1 récompense (−${_fidPalier} pts)</button>`;
+  } else {
+    h += `<div style="font-size:12px;color:var(--text-3);margin-top:6px">Encore ${_fidPalier-((m.points||0)%_fidPalier)} pts avant une récompense</div>`;
+  }
+  return h + `</div>`;
+}
+function armerRecompense(){
+  _currentReward = !_currentReward;
+  const b=document.getElementById('fid-reward-btn');
+  if(b){
+    if(_currentReward){ b.textContent='✅ Récompense activée (1 conso offerte)'; b.style.background='#1b8f4d'; }
+    else { b.textContent=`🎁 Utiliser 1 récompense (−${_fidPalier} pts)`; b.style.background='#2ecc71'; }
+  }
+}
+
 // Charger jsQR dynamiquement
 function chargerJsQR(cb){
   if(window.jsQR){ cb(); return; }
@@ -2343,6 +2381,9 @@ function afficherFicheClient(ticket){
       ${ticket.tribune?`<div>📍 <b>${ticket.tribune}</b></div>`:''}
       ${ticket.email?`<div>✉️ ${ticket.email}</div>`:''}
     </div>`;
+  // Bloc fidélité (points, niveau, récompense)
+  _currentReward=false;
+  document.getElementById('ticket-card').innerHTML += _fidBlocHtml(_fidMembre(ticket.email));
   // Stocker le billet en attente de confirmation
   document.getElementById('ticket-card')._ticket = ticket;
 }
@@ -2375,6 +2416,7 @@ function fermerScanner(){
 
 function effacerBilletActif(){
   _currentTicket=null;
+  _currentReward=false;
   const badge=document.getElementById('ticket-actif-badge');
   if(badge) badge.style.display='none';
 }
@@ -2385,6 +2427,7 @@ appliquerConfigLien();   // applique le lien de config si présent dans l'URL
 renderAll();
 verifierDemarrage();     // affiche la checklist si pas configuré
 verifierRapportEnAttente(); // propose d'envoyer un rapport en attente si Wi-Fi disponible
+chargerFidelite();          // charge les points des abonnés (si URL configurée)
 
 // Protection fermeture accidentelle
 window.addEventListener('beforeunload', e => {
