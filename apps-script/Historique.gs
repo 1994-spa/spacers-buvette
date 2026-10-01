@@ -27,7 +27,7 @@ function importerHistoriqueBuvette() {
   // 0. Figer le mode des matchs existants (sinon ils suivraient PILOTAGE!B8)
   const mSh = ss.getSheetByName('10_MATCHS');
   let mh = mSh.getRange(1, 1, 1, mSh.getLastColumn()).getValues()[0].map(String);
-  ['MODE_BUVETTE', 'SOURCE'].forEach(function (c) {
+  ['MODE_BUVETTE'].forEach(function (c) {
     if (mh.indexOf(c) < 0) { mSh.getRange(1, mh.length + 1).setValue(c).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold'); mh.push(c); }
   });
   const cId = mh.indexOf('ID_MATCH'), cMode = mh.indexOf('MODE_BUVETTE');
@@ -65,7 +65,6 @@ function importerHistoriqueBuvette() {
         case 'STATUT': return 'HISTORIQUE';
         case 'ID_SAISON': return h[0];
         case 'MODE_BUVETTE': return 'DIRECT';
-        case 'SOURCE': return HISTO_TAG;
         default: return '';
       }
     }));
