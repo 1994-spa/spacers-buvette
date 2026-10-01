@@ -56,6 +56,8 @@ const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_
 // ── Menu (ajouté à onOpen de Code.gs) ───────────────────────────────────
 function pilotageMenu_(ui) {
   return ui.createMenu('📡 Pilotage live')
+    .addItem('📊 Ouvrir le tableau de bord + liens tablettes', 'pilotageOuvrir')
+    .addSeparator()
     .addItem('⚙️ Initialiser le pilotage', 'pilotageInitialiser')
     .addItem('🔑 Afficher le jeton', 'pilotageAfficherJeton')
     .addItem('🔄 Synchroniser les matchs Tickie', 'pilotageSyncMatchs')
@@ -149,6 +151,7 @@ function pilotageGet_(e) {
     if (p.action === 'dashboard') return pilJson_(Object.assign({ status: 'ok' }, pilDashboard_(p.eventId)));
     if (p.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilLirePrepa_(p.eventId)));
     if (p.action === 'tablette') return pilJson_(Object.assign({ status: 'ok' }, pilChargerTablette_(p.buvette)));
+    if (p.action === 'commande') return pilJson_(Object.assign({ status: 'ok' }, pilDonneesCommande_(p.eventId)));
     return pilJson_({ status: 'error', message: 'Action inconnue' });
   } catch (err) { return pilJson_({ status: 'error', message: String(err && err.message || err) }); }
 }
@@ -504,4 +507,88 @@ function pilotageTraiterBillets() {
   });
   rg.setValues(data);
   try { SpreadsheetApp.getActiveSpreadsheet().toast(relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'); } catch (e) {}
+}
+
+// ── Commande conseillée : données pour le tableau de bord ────────────────
+// Le calcul (prévision, marge de sécurité, colisage) est fait dans pilotage.html ;
+// le script fournit la billetterie, les consommations réelles par match 26-27 et le stock restant.
+function pilDonneesCommande_(eventId) {
+  const ev = pilEvent_(eventId);
+  if (!ev) throw new Error('Match introuvable dans Tickie');
+  const b = pilCompterBillets_(ev.id, 300);
+  let abonnes = 0;
+  try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+  const idm = pilIdMatch_(ev, false);
+
+  // Matchs 26-27 déjà joués : quantités vendues et affluence (10_MATCHS.AFFLUENCE = entrées si connues)
+  const m10 = pilSheet_('10_MATCHS');
+  const d10 = m10.getDataRange().getValues(), h10 = d10[0].map(String);
+  const cId = h10.indexOf('ID_MATCH'), cAff = h10.indexOf('AFFLUENCE'), cEv = h10.indexOf('TICKIE_EVENT_ID');
+  const aff = {}, evDe = {};
+  d10.slice(1).forEach(function (r) { aff[String(r[cId])] = Number(r[cAff]) || 0; if (cEv >= 0 && r[cEv]) evDe[String(r[cId])] = String(r[cEv]); });
+  const live = pilSheet_(PIL.SH_LIVE);
+  const parMatch = {};
+  if (live && live.getLastRow() > 1) {
+    live.getRange(2, 1, live.getLastRow() - 1, PIL_NB + PIL.PRODUITS.length).getValues().forEach(function (r) {
+      const m = String(r[PIL_I['ID_MATCH']]); if (!m || m === idm) return;
+      const o = parMatch[m] = parMatch[m] || { qte: {}, parBuvette: {} };
+      PIL.PRODUITS.forEach(function (p, i) { o.qte[p[0]] = (o.qte[p[0]] || 0) + (Number(r[PIL_NB + i]) || 0); });
+      const bv = r[PIL_I['Buvette']]; o.parBuvette[bv] = (o.parBuvette[bv] || 0) + (Number(r[PIL_I['Total €']]) || 0);
+    });
+  }
+  const observes = Object.keys(parMatch).filter(function (m) { return aff[m] > 0; })
+    .map(function (m) { return { idMatch: m, presents: aff[m], qte: parMatch[m].qte, parBuvette: parMatch[m].parBuvette }; });
+
+  // Taux de présence appris : entrées scannées / (billets + abonnés) sur les matchs passés
+  const taux = [];
+  Object.keys(evDe).forEach(function (m) {
+    if (!parMatch[m]) return;
+    try {
+      const e = pilCompterEntrees_(evDe[m]);
+      if (e > 0) { const bb = pilCompterBillets_(evDe[m], 3600).total; if (bb + abonnes > 0) taux.push(e / (bb + abonnes)); }
+    } catch (err) {}
+  });
+
+  // Stock restant en fin de dernier match (remonté par les tablettes)
+  const st = pilProp_('PIL_STOCK', {}), reste = { FUT: 0 };
+  Object.keys(st).forEach(function (bv) {
+    Object.keys(st[bv]).forEach(function (ref) {
+      const r = Number(st[bv][ref].restant) || 0;
+      if (ref === 'FUT_L') reste.FUT += Math.floor(r / PIL.FUT_LITRES + 1e-9);   // seuls les fûts non entamés se gardent
+      else if (ref !== 'P01_25' && ref !== 'P01_50') reste[ref] = (reste[ref] || 0) + r;
+    });
+  });
+
+  return { event: ev, idMatch: idm,
+    billetterie: { billets: b.total, payants: b.payants, invitations: b.invitations, abonnes: abonnes, jauge: ev.jauge },
+    presence: taux.length ? taux.reduce(function (a, x) { return a + x; }, 0) / taux.length : null, presenceN: taux.length,
+    observes: observes, reste: reste, futLitres: PIL.FUT_LITRES, buvettes: PIL.BUVETTES };
+}
+
+// ── Accès sans saisie : tableau de bord et tablettes configurés par lien / QR ──
+const PIL_APP_URL = 'https://spacers-buvette.spacersytb.workers.dev/';
+function pilLienConfig_(page, extra) {
+  const p = PropertiesService.getScriptProperties();
+  const url = ScriptApp.getService().getUrl() || p.getProperty('PIL_WEBAPP_URL');
+  if (!url) throw new Error("Application web non déployée");
+  const cfg = Object.assign({ url: url, token: p.getProperty('PILOTAGE_TOKEN') }, extra || {});
+  return PIL_APP_URL + page + '?cfg=' + encodeURIComponent(Utilities.base64Encode(JSON.stringify(cfg), Utilities.Charset.UTF_8));
+}
+function pilotageOuvrir() {
+  if (!PropertiesService.getScriptProperties().getProperty('PILOTAGE_TOKEN')) pilotageInitialiser();
+  const dash = pilLienConfig_('pilotage.html');
+  const tabs = PIL.BUVETTES.map(function (b) { return { nom: b, url: pilLienConfig_('', { tab: b }) }; });
+  const esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
+  const html = '<style>body{font-family:Arial,sans-serif;margin:0;padding:4px 6px;color:#0d1726}' +
+    'a.big{display:block;text-align:center;background:#1a2e4a;color:#fff;padding:14px;border-radius:10px;font-weight:bold;text-decoration:none;font-size:16px}' +
+    '.g{display:flex;gap:14px;margin-top:16px;justify-content:space-between}.c{flex:1;text-align:center;font-size:13px}.c b{display:block;margin-bottom:6px}' +
+    '.q{display:inline-block;padding:6px;background:#fff;border:1px solid #ddd;border-radius:8px}p{font-size:12px;color:#4b5970}</style>' +
+    '<a class="big" href="' + esc(dash) + '" target="_blank">📊 Ouvrir le tableau de bord</a>' +
+    '<p>Tablettes : scanner le QR code avec la tablette (ou lui envoyer le lien). Elle se configure seule, puis charge le match et le stock dès qu\'elle a le wifi.</p>' +
+    '<div class="g">' + tabs.map(function (t, i) {
+      return '<div class="c"><b>' + esc(t.nom) + '</b><div class="q" id="q' + i + '"></div><br><a href="' + esc(t.url) + '" target="_blank">lien</a></div>';
+    }).join('') + '</div>' +
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
+    JSON.stringify(tabs.map(function (t) { return t.url; })) + '.forEach(function(u,i){new QRCode(document.getElementById("q"+i),{text:u,width:150,height:150,correctLevel:QRCode.CorrectLevel.L});});</script>';
+  SpreadsheetApp.getUi().showModelessDialog(HtmlService.createHtmlOutput(html).setWidth(560).setHeight(380), 'Pilotage buvette');
 }
