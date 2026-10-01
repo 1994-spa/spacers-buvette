@@ -92,6 +92,17 @@ th:first-child,td:first-child{text-align:left}
 .tab-state.ok{color:var(--good)}.tab-state.wait{color:var(--warn)}
 .tbl{overflow-x:auto}
 .err:empty{display:none}
+.cmd-params{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;margin-bottom:12px}
+.cmd-aff{flex:1 1 320px;font-size:.9rem;color:var(--muted);line-height:1.45}
+.cmd-aff b{color:var(--text)}
+.cmd-field{display:flex;flex-direction:column;gap:5px;font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cmd-field input,.cmd-field select{font-size:1rem;font-weight:700;text-transform:none;letter-spacing:0;color:var(--text);padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2)}
+.cmd-field input{width:130px;text-align:right}
+.cmd-tbl td.go{font-weight:800;color:var(--text)}
+.cmd-tbl td.zero{color:var(--faint)}
+.cmd-tbl input{width:64px;text-align:right;padding:5px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2)}
+.cmd-tbl .big{font-size:1.05rem}
+.btn.btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
 .err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:12px 14px;font-weight:700}
 .setup{max-width:560px;margin:40px auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
 .setup h2{font-size:1.2rem}
@@ -127,6 +138,29 @@ th:first-child,td:first-child{text-align:left}
 
 <main class="wrap" id="dash" hidden>
   <div id="err"></div>
+  <section class="panel cmd" aria-label="Commande conseillée">
+    <h2>Commande conseillée <span id="cmd-base">selon l'affluence attendue</span></h2>
+    <div class="cmd-params">
+      <div class="cmd-aff" id="cmd-aff"></div>
+      <label class="cmd-field">Présents prévus
+        <input type="number" id="cmd-presents" min="0" step="10" inputmode="numeric">
+      </label>
+      <label class="cmd-field">Marge de sécurité
+        <select id="cmd-niveau">
+          <option value="1.28">Au plus juste (≈ 1 risque de rupture sur 10)</option>
+          <option value="1.65" selected>Recommandée (≈ 1 sur 20)</option>
+          <option value="2.05">Gros match (≈ 1 sur 50)</option>
+        </select>
+      </label>
+    </div>
+    <div class="tbl"><table class="cmd-tbl" id="cmd-tbl"></table></div>
+    <div class="prepa-foot">
+      <button class="btn" type="button" id="cmd-repartir">Reporter dans le stock des buvettes ↓</button>
+      <button class="btn btn-ghost" type="button" id="cmd-copier">Copier la commande</button>
+      <span class="note" id="cmd-status" role="status"></span>
+    </div>
+    <p class="note" id="cmd-note"></p>
+  </section>
   <section class="panel prepa" aria-label="Préparation du match">
     <h2>Préparation du match <span>stock de départ envoyé aux tablettes</span></h2>
     <form id="prepa-form">
@@ -160,7 +194,8 @@ const PRODUITS_SEUIL = { P01_25:15, P01_50:10, FUT_L:5 };   // verres / litres ;
 // CA boissons moyen par match (hors food), calculé depuis les reportings
 const HIST = { saisons:{"22-23":1371,"23-24":1755,"24-25":2191,"25-26":1771},
   adversaires:{"Nice":2080,"Sète":1762,"Narbonne":1414,"Tours":1444,"Chaumont":1981,"Tourcoing":1873,"Paris":1697,"Montpellier":2190,"Cambrai":1128,"Poitiers":1889,"Saint-Nazaire":1839,"Nantes":1238,"Plessis-Robinson":1730,"Saint-Jean-d'Illac":1948,"Cannes":1476,"Ajaccio":1987} };
-let cfg = { url:'', token:'' };
+const APPS_SCRIPT_URL = '';  // fourni par le lien de configuration (menu du Sheet)
+let cfg = { url: APPS_SCRIPT_URL, token:'' };
 let events = [], current = '', timer = null, lastOk = 0;
 const $ = id => document.getElementById(id);
 const eur = (n, d=0) => (n==null||isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d}) + ' €';
@@ -188,11 +223,11 @@ async function api(params){
   return j;
 }
 
-function showSetup(){ $('setup').hidden = false; $('dash').hidden = true; $('cfg-url').value = cfg.url||''; $('cfg-token').value = cfg.token||''; }
+function showSetup(){ $('setup').hidden = false; $('dash').hidden = true; $('cfg-url').value = cfg.url||APPS_SCRIPT_URL; $('cfg-token').value = cfg.token||''; }
 $('setup').addEventListener('submit', e => { e.preventDefault(); cfg = { url: $('cfg-url').value.trim(), token: nettoyerJeton($('cfg-token').value) }; saveCfg(); renderLinks(); start(); });
 $('btn-config').onclick = showSetup;
 $('btn-refresh').onclick = () => { refresh(); refreshTabState(); };
-$('ev-select').onchange = e => { current = e.target.value; loadPrepa(); refresh(); };
+$('ev-select').onchange = e => { current = e.target.value; loadPrepa(); loadCommande(); refresh(); };
 
 async function start(){
   if (!cfg.url || !cfg.token) return showSetup();
@@ -208,6 +243,7 @@ async function start(){
     $('err').innerHTML = `<div class="err">Connexion impossible : ${esc(e.message)}. Vérifie l'URL et le jeton (⚙︎).</div>`;
   }
   loadPrepa();
+  loadCommande();
   refresh();
   clearInterval(timer); timer = setInterval(() => { refresh(); refreshTabState(); }, 30000);
 }
@@ -309,6 +345,123 @@ function render(d){
   }</tbody></table><p class="note" style="margin-top:8px">Les reportings précédents ne comptaient pas l'affluence : la recette par spectateur se compare à partir de cette saison.</p>`;
 }
 
+// ── Commande conseillée ──
+// Consommation par personne présente, calée sur les reportings 24-25 et 25-26
+// (22 matchs, ≈ 1 480 présents d'après 10_MATCHS), puis affinée par les matchs 26-27 joués.
+const PRIOR = {
+  litres: 0.0965, cvL: 0.18,                  // bière : litres tirés par présent (25cl + 50cl)
+  partBiere: { P01_25: 0.26, P01_50: 0.74 },  // part des verres (en nombre) — sert à la répartition 25/50
+  P02_COCA: 0.039, P02_ICET: 0.0215, P02_ORAN: 0.013, P02_SCHW: 0.013,   // softs : 0,086 / présent
+  P03: 0.0285, P04: 0.0095,                                               // eaux : 0,038 / présent
+  cv: { P02_COCA: 0.28, P02_ICET: 0.32, P02_ORAN: 0.35, P02_SCHW: 0.35, P03: 0.33, P04: 0.40 },
+};
+const POIDS_PRIOR = 3;       // l'historique compte comme 3 matchs, puis les vrais matchs 26-27 prennent le dessus
+const PERTE_BIERE = 0.05;    // mousse, purge, fond de fût
+const CV_AFFLUENCE = 0.08;   // incertitude sur le nombre de présents
+const PRODUITS_CMD = [['P02_COCA','Coca-Cola'],['P02_ORAN','Orangina'],['P02_ICET','Ice Tea'],['P02_SCHW','Schweppes Agrumes'],['P03','Eau plate 50cl'],['P04','Eau gazeuse 50cl']];
+const COLIS_DEF = { P02_COCA:24, P02_ORAN:24, P02_ICET:24, P02_SCHW:24, P03:24, P04:24 };
+let cmdData = null, cmdCalc = null;
+function colis(){ try { return Object.assign({}, COLIS_DEF, JSON.parse(localStorage.getItem('pilotage_colis')||'{}')); } catch(e){ return Object.assign({}, COLIS_DEF); } }
+function setColis(ref, n){ try { const c = colis(); c[ref] = n; localStorage.setItem('pilotage_colis', JSON.stringify(c)); } catch(e){} }
+
+async function loadCommande(){
+  if (!current) return;
+  $('cmd-status').textContent = 'Calcul…';
+  try { cmdData = await api({ action:'commande', eventId: current }); $('cmd-status').textContent = ''; initCommande(); }
+  catch(e) { $('cmd-status').textContent = 'Données indisponibles : ' + e.message; }
+}
+function apprendre(){
+  const obs = cmdData.observes || [];
+  const n = obs.length, mean = a => a.reduce((x,y)=>x+y,0) / (a.length||1);
+  const sd = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x-m)*(x-m)))); };
+  const out = { n };
+  const rL = obs.map(o => ((o.qte.P01_25||0)*0.25 + (o.qte.P01_50||0)*0.5) / o.presents);
+  out.litres = (PRIOR.litres*POIDS_PRIOR + rL.reduce((a,b)=>a+b,0)) / (POIDS_PRIOR + n);
+  out.cvL = n >= 3 ? Math.max(0.12, (sd(rL)/mean(rL) + PRIOR.cvL)/2) : PRIOR.cvL;
+  PRODUITS_CMD.forEach(([ref]) => {
+    const r = obs.map(o => (o.qte[ref]||0) / o.presents);
+    out[ref] = (PRIOR[ref]*POIDS_PRIOR + r.reduce((a,b)=>a+b,0)) / (POIDS_PRIOR + n);
+    out['cv_'+ref] = n >= 3 && mean(r) > 0 ? Math.max(0.15, (sd(r)/mean(r) + PRIOR.cv[ref])/2) : PRIOR.cv[ref];
+  });
+  // Répartition entre buvettes : parts de CA observées, sinon un tiers chacune
+  const parts = {}; let tot = 0;
+  obs.forEach(o => Object.entries(o.parBuvette||{}).forEach(([b,v]) => { parts[b] = (parts[b]||0) + v; tot += v; }));
+  out.parts = {}; (cmdData.buvettes||[]).forEach(b => out.parts[b] = tot ? (parts[b]||0)/tot : 1/(cmdData.buvettes.length||3));
+  return out;
+}
+function initCommande(){
+  const b = cmdData.billetterie, pres = cmdData.presence || 0.80;
+  const attendus = b.billets + b.abonnes;
+  $('cmd-presents').value = Math.round(attendus * pres / 10) * 10;
+  $('cmd-aff').innerHTML = `<b>${int(b.billets)}</b> billets (dont ${int(b.invitations)} invitations) + <b>${int(b.abonnes)}</b> abonnés = <b>${int(attendus)}</b> attendus.<br>Taux de présence ${cmdData.presence ? 'constaté sur ' + cmdData.presenceN + ' match(s)' : 'estimé'} : <b>${Math.round(pres*100)} %</b>. Ajuste les présents prévus si des ventes de dernière minute sont attendues.`;
+  calculerCommande();
+}
+function calculerCommande(){
+  if (!cmdData) return;
+  const t = apprendre(), z = Number($('cmd-niveau').value), P = Number($('cmd-presents').value) || 0;
+  const reste = cmdData.reste || {}, c = colis(), lignes = [];
+  const marge = cv => 1 + z * Math.sqrt(cv*cv + CV_AFFLUENCE*CV_AFFLUENCE);
+  // Bière : en litres, puis en fûts entiers
+  const L = P * t.litres * (1 + PERTE_BIERE), Ls = L * marge(t.cvL);
+  const futsBesoin = Math.ceil(Ls / cmdData.futLitres), futsCmd = Math.max(0, futsBesoin - (reste.FUT||0));
+  lignes.push({ ref:'FUT', nom:'Bière (fûts 30 L)', prevu: (L/cmdData.futLitres).toFixed(1).replace('.',',') + ' fût' + (L > 60 ? 's' : '') + ` (${Math.round(L)} L)`,
+    marge: futsBesoin, reste: reste.FUT||0, cmd: futsCmd, unites: futsCmd, colis: null, dispo: futsBesoin > (reste.FUT||0) ? futsBesoin : (reste.FUT||0) });
+  PRODUITS_CMD.forEach(([ref, nom]) => {
+    const prevu = P * t[ref], m = Math.ceil(prevu * marge(t['cv_'+ref]));
+    const r = Math.round(reste[ref]||0), besoin = Math.max(0, m - r), k = c[ref] || 1, nb = Math.ceil(besoin / k);
+    lignes.push({ ref, nom, prevu: Math.round(prevu), marge: m, reste: r, cmd: nb, unites: nb * k, colis: k, dispo: r + nb * k });
+  });
+  cmdCalc = { lignes, parts: t.parts, presents: P };
+  $('cmd-tbl').innerHTML = `<thead><tr><th>Produit</th><th>Conso prévue</th><th>Avec marge</th><th>Déjà en stock</th><th>À commander</th><th>Colisage</th></tr></thead><tbody>${
+    lignes.map(l => `<tr><td>${esc(l.nom)}</td><td>${l.prevu}</td><td>${l.marge}</td><td>${l.reste}</td>
+      <td class="${l.cmd ? 'go big' : 'zero'}">${l.ref === 'FUT' ? l.cmd + ' fût' + (l.cmd > 1 ? 's' : '') : l.cmd + ' colis (' + l.unites + ')'}</td>
+      <td>${l.colis == null ? '30 L' : `<input type="number" min="1" step="1" value="${l.colis}" data-ref="${l.ref}" aria-label="Colisage ${esc(l.nom)}">`}</td></tr>`).join('')
+  }</tbody>`;
+  $('cmd-tbl').querySelectorAll('input').forEach(i => i.addEventListener('change', () => { setColis(i.dataset.ref, Math.max(1, Number(i.value)||1)); calculerCommande(); }));
+  $('cmd-base').textContent = `${int(P)} présents prévus`;
+  autoRepartir();
+  $('cmd-note').textContent = (t.n ? `Consommation calée sur l'historique et affinée par ${t.n} match(s) 26-27.` : `Consommation calée sur les reportings 24-25 et 25-26 ; elle s'affinera après chaque match 26-27.`) +
+    ' « Déjà en stock » = invendus remontés par les tablettes au dernier match (fûts non entamés seulement). À lancer idéalement à J-3, quand la billetterie est presque définitive.';
+}
+// Répartit le stock disponible (en stock + commande) entre les buvettes, selon leur part de ventes
+let autoRepartiFait = '';
+function autoRepartir(){
+  // Match pas encore préparé : on propose directement le stock issu de la commande conseillée
+  if (!prepa || !cmdCalc || autoRepartiFait === current) return;
+  const vide = !prepa.stocks || Object.values(prepa.stocks).every(o => Object.values(o).every(v => !Number(v)));
+  if (!vide) return;
+  autoRepartiFait = current;
+  repartir(true);
+}
+function repartir(auto){
+  if (!cmdCalc || !prepa) return;
+  const B = prepa.buvettes, parts = cmdCalc.parts;
+  const split = (total, entier) => {
+    const brut = B.map(b => total * (parts[b] || 1/B.length));
+    const base = brut.map(x => Math.floor(x));
+    let resteU = total - base.reduce((a,b)=>a+b,0);
+    brut.map((x,i) => [x - base[i], i]).sort((a,b) => b[0]-a[0]).forEach(([,i]) => { if (resteU > 0) { base[i]++; resteU--; } });
+    return base;
+  };
+  cmdCalc.lignes.forEach(l => {
+    const tot = l.ref === 'FUT' ? (l.reste + l.cmd) : (l.reste + l.unites);
+    split(tot).forEach((q, i) => { const el = $('pp-' + B[i].replace(/\D/g,'') + '-' + l.ref); if (el) el.value = q; });
+  });
+  totaux();
+  $('prepa-status').textContent = (auto === true ? 'Stock proposé automatiquement à partir de la commande conseillée' : 'Stock réparti à partir de la commande') + ' : vérifie puis « Enregistrer le stock ».';
+  if (auto !== true) document.querySelector('.prepa').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+$('cmd-presents').addEventListener('input', calculerCommande);
+$('cmd-niveau').addEventListener('change', calculerCommande);
+$('cmd-repartir').onclick = repartir;
+$('cmd-copier').onclick = () => {
+  if (!cmdCalc) return;
+  const ev = events.find(e => e.id === current);
+  const txt = `Commande buvette — ${ev ? ev.nom : ''} (${int(cmdCalc.presents)} présents prévus)\n` +
+    cmdCalc.lignes.filter(l => l.cmd).map(l => l.ref === 'FUT' ? `- Bière : ${l.cmd} fût(s) de 30 L` : `- ${l.nom} : ${l.cmd} colis de ${l.colis} (${l.unites})`).join('\n');
+  navigator.clipboard.writeText(txt).then(() => $('cmd-status').textContent = 'Commande copiée ✓').catch(() => $('cmd-status').textContent = txt);
+};
+
 // ── Préparation du match ──
 let prepa = null;
 async function loadPrepa(){
@@ -328,7 +481,7 @@ function renderPrepa(){
   });
   $('prepa-tbl').innerHTML = h + '</tbody>';
   $('prepa-tbl').querySelectorAll('input').forEach(i => i.addEventListener('input', totaux));
-  totaux(); renderTabState();
+  totaux(); renderTabState(); autoRepartir();
   const ev = events.find(e => e.id === current);
   $('prepa-status').textContent = prepa.idMatch ? `Match ${prepa.idMatch}` + (prepa.actif && prepa.actif.eventId === current ? ' · match actif des tablettes' : ' · pas encore envoyé aux tablettes') : 'Pas encore préparé' + (ev ? ' : ' + ev.nom : '');
 }

@@ -11,16 +11,15 @@ Les tablettes et le tableau de bord utilisent la même URL de déploiement que l
 5. Enregistrer, recharger le Sheet → menu **🏐 Matchday → 📡 Pilotage live → ⚙️ Initialiser le pilotage**. Autoriser le script, noter le **jeton** affiché. Les matchs Spacer's de Tickie sont recopiés dans 10_MATCHS avec leur affluence.
 6. Menu **📡 Pilotage live → ⏱️ Activer le traitement auto** (billets/fidélité toutes les 10 min, matchs et affluences Tickie toutes les heures).
 7. **Déployer → Gérer les déploiements → ✏️ → Version : Nouvelle version → Déployer**. L'URL `…/exec` ne change pas.
-8. Ouvrir `https://spacers-buvette.spacersytb.workers.dev/pilotage.html`, coller l'URL `…/exec` et le jeton.
-9. En bas du tableau de bord : envoyer à chaque bénévole le lien de sa buvette (il configure la tablette d'un clic).
+8. Menu **📡 Pilotage live → 📊 Ouvrir le tableau de bord + liens tablettes** : le tableau de bord s'ouvre déjà connecté (aucune saisie), et chaque tablette se configure en scannant son QR code.
 
 ## Jour de match
-1. **Tableau de bord** : choisir le match, saisir le stock par buvette (bière en fûts de 30 L), « Enregistrer le stock ».
+1. **Tableau de bord** : la commande conseillée est calculée selon l'affluence Tickie et l'historique ; le stock des 3 buvettes est pré-rempli à partir d'elle. Vérifier puis « Enregistrer le stock ».
    → le match est créé dans 10_MATCHS s'il n'existe pas (ex. `NAR-10-10`) et devient le match actif (PILOTAGE!B9).
-2. **Chaque tablette, en wifi** : ⚙️ → « Charger le match ». Le tableau de bord affiche « ✓ tablette chargée ».
+2. **Tablettes** : rien à faire. Dès qu'elles ont le wifi (ouverture de l'app, puis toutes les 5 min), elles chargent le match, leur stock et les billets. Le tableau de bord affiche « ✓ tablette chargée ».
 3. **En buvette** : la tablette fonctionne hors ligne. Ventes et billets scannés sont gardés sur la tablette.
 4. **Retour du wifi** : tout repart seul. Les ventes arrivent dans `51_VENTES_LIVE` (détail) et `50_VENTES_DIRECTES` (lignes produits, lues par les KPI).
-5. **Réassort pendant le match** : modifier le stock au tableau de bord, puis « Charger le match » sur la tablette concernée (les compteurs sont conservés).
+5. **Réassort pendant le match** : modifier le stock au tableau de bord ; la tablette le prend en compte seule dans les 5 minutes si elle a du réseau (compteurs conservés).
 
 Le mode buvette est maintenant **par match** (colonne MODE_BUVETTE de 10_MATCHS) : les matchs préparés au tableau de bord passent en DIRECT, les matchs 25-26 gardent LOCATION. PILOTAGE!B8 ne sert plus que de valeur par défaut.
 

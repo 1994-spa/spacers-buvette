@@ -371,8 +371,8 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
       <section class="match-box">
         <div class="form-label">Match sur cette tablette</div>
         <div id="match-state" class="match-state"></div>
-        <button class="btn-validate" onclick="chargerMatch()">📥 Charger le match (en wifi)</button>
-        <p class="hint">Récupère le match, le stock de cette buvette et la liste des billets préparés au tableau de bord. Ensuite la tablette fonctionne sans réseau. À refaire en cas de réassort.</p>
+        <button class="btn-validate" onclick="chargerMatch()">📥 Recharger maintenant</button>
+        <p class="hint">Automatique : dès qu'elle a le wifi, la tablette récupère le match, le stock de cette buvette et la liste des billets préparés au tableau de bord (à l'ouverture puis toutes les 5 minutes). Ensuite elle fonctionne sans réseau.</p>
         <div class="sync-status" id="load-status"></div>
         <div class="reset-confirm" id="reset-confirm" hidden>
           <p></p>
@@ -397,7 +397,7 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
         <input class="form-input" id="inp-token" type="text" autocomplete="off">
       </div>
       <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer</button>
-      <p class="hint" style="text-align:center">Version 2026.10.01-c</p>
+      <p class="hint" style="text-align:center">Version 2026.10.01-d</p>
     </div>
   </div>
 </div>
@@ -445,6 +445,7 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 const NB_BUVETTES = 3;
 const TICKIE_PROXY_URL = 'https://tickie-proxy.spacersytb.workers.dev';
 const STORE_KEY = 'buvette_etat_v2';
+const APPS_SCRIPT_URL = '';  // fourni par le lien de configuration (menu du Sheet)   // Apps Script « Buvette » du Sheet Matchday Business
 
 const CATS = {
   biere: { label:'🍺 Bières pression', order:1 },
@@ -480,7 +481,7 @@ const state = {
   tab:      'Buvette 1',
   matchId:  '',
   date:     new Date().toISOString().slice(0,10),
-  url:      '',            // Apps Script « Buvette » (Matchday Business) : chargement + ventes en direct
+  url:      APPS_SCRIPT_URL, // Apps Script « Buvette » (Matchday Business) : chargement + ventes en direct
   token:    '',            // jeton pilotage
   match:    null,          // { eventId, idMatch, nom, date, charge } — chargé depuis le tableau de bord
   futLitres: 30,
@@ -515,7 +516,7 @@ function load() {
     const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
     if (!s) return;
     ['tab','url','token','match','futLitres','stocks','billets','cumul','outbox','envoyees'].forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
-    if (!state.url && s.pilotage) state.url = s.pilotage;
+    if (!state.url) state.url = s.pilotage || APPS_SCRIPT_URL;
   } catch(e) {}
 }
 
@@ -629,9 +630,16 @@ function renderMatchBanner() {
   const m = state.match;
   document.getElementById('match-label').textContent = m ? m.nom : 'Aucun match chargé';
   const b = document.getElementById('match-banner');
+  if (chargementEnAttente) {
+    b.hidden = false;
+    b.innerHTML = `<b>Nouveau match prêt : ${esc(chargementEnAttente.match.nom)}.</b> Les compteurs actuels seront remis à zéro (ventes non envoyées gardées). <button onclick="confirmerNouveauMatch()">Passer à ce match</button>`;
+    return;
+  }
   if (m) { b.hidden = true; return; }
   b.hidden = false;
-  b.innerHTML = `<b>Aucun match chargé sur cette tablette.</b> Connecte-la au wifi puis <button onclick="chargerMatch()">📥 Charger le match</button>`;
+  b.innerHTML = state.url && state.token
+    ? `<b>Aucun match chargé.</b> Il se charge tout seul dès que la tablette a le wifi. <button onclick="chargerMatch()">📥 Charger maintenant</button>`
+    : `<b>Tablette non configurée.</b> Ouvre le lien de configuration envoyé par Clément (ou scanne son QR code).`;
 }
 
 function renderProducts() {
@@ -818,7 +826,8 @@ async function envoyerVentes() {
     if (state.outbox.length && navigator.onLine !== false) setTimeout(envoyerVentes, 20000);
   }
 }
-window.addEventListener('online', () => { renderFooter(); envoyerVentes(); });
+window.addEventListener('online', () => { renderFooter(); envoyerVentes(); chargerMatch(true); });
+setInterval(() => chargerMatch(true), 5 * 60000);   // réassort et changement de match pris en compte automatiquement
 window.addEventListener('offline', renderFooter);
 setInterval(() => { if (state.outbox.length) envoyerVentes(); }, 60000);
 
@@ -984,12 +993,15 @@ function normTab(raw) {
 
 // ── Chargement du match préparé au tableau de bord (à faire en wifi) ──
 let chargementEnAttente = null;
-async function chargerMatch() {
+// auto = true : appel automatique (ouverture de l'app, toutes les 5 min, retour du réseau) — silencieux sauf changement
+async function chargerMatch(auto) {
+  auto = auto === true;
   const st = document.getElementById('load-status');
-  const dire = (cls, t) => { st.className = 'sync-status ' + cls; st.textContent = t; st.style.display = 'block'; };
-  if (!state.url || !state.token) { openSettings(); dire('err', '❌ Renseigne l\'URL et le jeton, puis recommence.'); return; }
-  if (!panierVide()) { toast('Valide ou annule la vente en cours d\'abord'); return; }
-  toast('⏳ Chargement du match…');
+  const dire = (cls, t) => { if (auto) return; st.className = 'sync-status ' + cls; st.textContent = t; st.style.display = 'block'; };
+  if (!state.url || !state.token) { if (!auto) { openSettings(); dire('err', '❌ Tablette non configurée : ouvre le lien envoyé par Clément.'); } return; }
+  if (auto && (navigator.onLine === false || chargementEnAttente)) return;
+  if (!panierVide()) { if (!auto) toast('Valide ou annule la vente en cours d\'abord'); return; }
+  if (!auto) toast('⏳ Chargement du match…');
   dire('', '⏳ Chargement du match, du stock et des billets…');
   try {
     const u = new URL(state.url);
@@ -1001,6 +1013,7 @@ async function chargerMatch() {
     const ventesEnCours = Object.values(state.cumul).reduce((a, c) => a + (c.ventes || 0), 0);
     if (nouveau && ventesEnCours > 0) {
       chargementEnAttente = d;
+      if (auto) { renderMatchBanner(); return; }
       const box = document.getElementById('reset-confirm');
       box.hidden = false;
       box.querySelector('p').textContent = `Nouveau match : ${d.match.nom}. Les compteurs du match précédent (${ventesEnCours} ventes) seront remis à zéro. Les ventes pas encore envoyées sont gardées et partiront au retour du réseau.`;
@@ -1008,27 +1021,34 @@ async function chargerMatch() {
       dire('', 'Confirme le changement de match ci-dessous.');
       return;
     }
-    appliquerChargement(d, nouveau);
+    if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {   // rien de neuf : on rafraîchit juste la liste des billets
+      if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; save(); }
+      return;
+    }
+    appliquerChargement(d, nouveau, auto);
     dire('ok', '✅ ' + d.match.nom + ' chargé' + (d.billetsOk ? ` · ${d.billets.length} billets en mémoire` : ' · liste des billets indisponible, les scans seront vérifiés plus tard'));
   } catch(e) {
+    if (auto) return;
     dire('err', '❌ Chargement impossible : ' + e.message + '. Vérifie le wifi, puis recommence.');
     toast('❌ Chargement impossible');
   }
 }
-function appliquerChargement(d, nouveau) {
-  state.match = { eventId: d.match.eventId, idMatch: d.match.idMatch, nom: d.match.nom, date: d.match.date, charge: d.charge };
+function appliquerChargement(d, nouveau, auto) {
+  const reassort = !nouveau && state.match && state.match.prepa !== d.match.prepa;
+  state.match = { eventId: d.match.eventId, idMatch: d.match.idMatch, nom: d.match.nom, date: d.match.date, charge: d.charge, prepa: d.match.prepa };
   state.futLitres = d.futLitres || 30;
   state.stocks[state.tab] = d.stock || {};
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; }
   if (nouveau) { state.cumul = {}; panier = { lignes:{}, consigne:0, rendue:0 }; billet = null; }
   save(); renderAll(); renderEtatMatch();
-  toast('✅ Match chargé : stock à jour');
+  toast(nouveau ? '✅ ' + d.match.nom + ' chargé' : reassort ? '📦 Stock mis à jour depuis le tableau de bord' : '✅ Match chargé : stock à jour');
 }
 function confirmerNouveauMatch() {
   document.getElementById('reset-confirm').hidden = true;
   if (chargementEnAttente) {
     const d = chargementEnAttente; chargementEnAttente = null;
     appliquerChargement(d, true);
+    renderMatchBanner();
     const st = document.getElementById('load-status'); st.className = 'sync-status ok'; st.textContent = '✅ ' + d.match.nom + ' chargé';
   }
 }
@@ -1086,6 +1106,7 @@ initDefaultStocks();
 save();
 renderAll();
 envoyerVentes();
+setTimeout(() => chargerMatch(true), 1500);
 
 // Hors ligne : l'app reste disponible même sans réseau (service worker)
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
