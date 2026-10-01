@@ -1,7 +1,7 @@
 // Service worker — Spacer's Buvette : l'app s'ouvre même sans réseau.
 // Pages : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
 // Fichiers statiques (icônes, polices, lecteur QR) : cache d'abord.
-const CACHE = 'buvette-v7';
+const CACHE = 'buvette-v8';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './logo-spacers.png', './icon-192.png', './icon-512.png',
   'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'];
 
