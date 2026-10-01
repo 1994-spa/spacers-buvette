@@ -7,40 +7,41 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="icon-192.png" type="image/png">
 <title>Pilotage Buvette Spacers</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
 <style>
+/* Charte 26-27 : WHITE · DAY #91BEE6 · NIGHT #001E2D — Sansation */
+@font-face{font-family:'Sansation';src:url('fonts/Sansation_Light.ttf') format('truetype');font-weight:300;font-display:swap}
+@font-face{font-family:'Sansation';src:url('fonts/Sansation_Regular.ttf') format('truetype');font-weight:400 600;font-display:swap}
+@font-face{font-family:'Sansation';src:url('fonts/Sansation_Bold.ttf') format('truetype');font-weight:700 900;font-display:swap}
 /* Layout : bandeau d'indicateurs du match, puis 3 buvettes, puis rythme / produits / clientèle */
 :root{
-  --bg:#eef1f8;--surface:#ffffff;--surface-2:#f4f6fa;--border:rgba(16,32,56,.14);--divider:rgba(16,32,56,.09);
-  --text:#0d1726;--muted:#3f4b5e;--faint:#6b7689;
-  --navy:#001E2D;--gold:#FFFF00;--accent:#001E2D;
+  --bg:#e8f1fa;--surface:#ffffff;--surface-2:#f1f6fb;--border:rgba(0,30,45,.14);--divider:rgba(0,30,45,.09);
+  --text:#001E2D;--muted:#33495a;--faint:#64778a;
+  --navy:#001E2D;--night:#001E2D;--day:#91BEE6;--accent:#001E2D;
   --good:#1d7a32;--good-bg:#e3f4e7;--warn:#a85a00;--warn-bg:#fff1dc;--bad:#c0262d;--bad-bg:#fde6e7;
-  --bar:#233764;--bar-2:#c99a06;
+  --bar:#001E2D;--bar-2:#91BEE6;
   --shadow:0 1px 2px rgba(16,32,56,.06),0 6px 18px rgba(16,32,56,.08);
-  --font:'Inter','Helvetica Neue',Arial,sans-serif;
+  --font:'Sansation','Helvetica Neue',Arial,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#141922;--surface:#1f2530;--surface-2:#28303d;--border:rgba(255,255,255,.14);--divider:rgba(255,255,255,.08);
-  --text:#f3f5f8;--muted:#c0c7d2;--faint:#9099a8;--accent:#FFFF00;
+  --bg:#00141f;--surface:#062a3d;--surface-2:#0b3550;--border:rgba(255,255,255,.14);--divider:rgba(255,255,255,.08);
+  --text:#f3f5f8;--muted:#c0c7d2;--faint:#9099a8;--accent:#91BEE6;
   --good:#5fd07a;--good-bg:rgba(95,208,122,.14);--warn:#ffb547;--warn-bg:rgba(255,181,71,.14);--bad:#ff6b72;--bad-bg:rgba(255,107,114,.14);
-  --bar:#8fb0d8;--bar-2:#FFFF00;--shadow:0 4px 16px rgba(0,0,0,.35);color-scheme:dark}}
+  --bar:#91BEE6;--bar-2:#ffffff;--shadow:0 4px 16px rgba(0,0,0,.35);color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#141922;--surface:#1f2530;--surface-2:#28303d;--border:rgba(255,255,255,.14);--divider:rgba(255,255,255,.08);
-  --text:#f3f5f8;--muted:#c0c7d2;--faint:#9099a8;--accent:#FFFF00;
+  --bg:#00141f;--surface:#062a3d;--surface-2:#0b3550;--border:rgba(255,255,255,.14);--divider:rgba(255,255,255,.08);
+  --text:#f3f5f8;--muted:#c0c7d2;--faint:#9099a8;--accent:#91BEE6;
   --good:#5fd07a;--good-bg:rgba(95,208,122,.14);--warn:#ffb547;--warn-bg:rgba(255,181,71,.14);--bad:#ff6b72;--bad-bg:rgba(255,107,114,.14);
-  --bar:#8fb0d8;--bar-2:#FFFF00;--shadow:0 4px 16px rgba(0,0,0,.35);color-scheme:dark}
+  --bar:#91BEE6;--bar-2:#ffffff;--shadow:0 4px 16px rgba(0,0,0,.35);color-scheme:dark}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
 body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;-webkit-font-smoothing:antialiased}
 button,select,input{font:inherit;color:inherit}
-.top{background:linear-gradient(90deg,transparent 0 46%,rgba(145,190,230,.10) 50%,transparent 54%),linear-gradient(180deg,#001E2D,#19233C);color:#fff;padding:12px 20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:5}
+.top{background:var(--night);color:#fff;padding:12px 20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:5}
 .brand{display:flex;align-items:center;gap:12px}
-.logo-badge{width:44px;height:44px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 2px var(--gold)}
-.logo-badge img{display:block}
-.top{border-bottom:3px solid var(--gold)}
-.top h1{font-family:'Chakra Petch',Inter,Arial,sans-serif;font-size:1.3rem;font-weight:700;letter-spacing:.02em}
+.logo{height:40px;width:auto;display:block}
+.brand>div{padding-left:14px;border-left:2px solid rgba(145,190,230,.35)}
+.top{border-bottom:3px solid var(--day)}
+.top h1{font-size:1.2rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--day)}
 .top small{display:block;font-size:.8rem;color:rgba(255,255,255,.75);font-weight:500}
 .top-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .top select{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:8px;padding:8px 10px;max-width:340px}
@@ -53,13 +54,13 @@ button,select,input{font:inherit;color:inherit}
 .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:4px;min-width:0}
 .kpi .l{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.kpi .v{font-family:'Chakra Petch',Inter,Arial,sans-serif;font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .v{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
 .kpi .s{font-size:.82rem;color:var(--muted);font-weight:600}
-.kpi.hero{background:linear-gradient(160deg,#001E2D,#233764);color:#fff;border-color:transparent}
+.kpi.hero{background:linear-gradient(180deg,#001E2D 0 55%,#0b3047 85%,#2f5f82);color:#fff;border-color:transparent}
 .kpi.hero .l,.kpi.hero .s{color:rgba(255,255,255,.78)}
 .meter{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin-top:4px}
 .meter div{height:100%;background:var(--good)}
-.kpi.hero .meter{background:rgba(255,255,255,.18)}.kpi.hero .meter div{background:var(--gold)}
+.kpi.hero .meter{background:rgba(255,255,255,.18)}.kpi.hero .meter div{background:var(--day)}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);min-width:0}
 .panel h2{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;gap:8px}
@@ -113,14 +114,14 @@ th:first-child,td:first-child{text-align:left}
 .setup label{font-size:.85rem;font-weight:700;color:var(--muted)}
 .setup input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2)}
 .btn{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer}
-:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+:focus-visible{outline:2px solid var(--day);outline-offset:2px}
 @media (max-width:1150px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:800px){.grid3,.two{grid-template-columns:minmax(0,1fr)}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="logo-badge"><img src="logo-spacers.png" alt="Spacer's Toulouse Volley" width="38" height="38"></span><div><h1>Pilotage buvette</h1><small id="ev-sub">Spacer's Toulouse Volley · Palais des Sports André-Brouat</small></div></div>
+  <div class="brand"><img class="logo" src="charte/logo-panoramic-fonce.svg" alt="Spacer's Toulouse Volley" width="194" height="40"><div><h1>Pilotage buvette</h1><small id="ev-sub">Spacer's Toulouse Volley · Palais des Sports André-Brouat</small></div></div>
   <div class="top-r">
     <select id="ev-select" aria-label="Match"></select>
     <span class="live" id="live">—</span>

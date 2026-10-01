@@ -1,8 +1,10 @@
 // Service worker — Spacer's Buvette : l'app s'ouvre même sans réseau.
 // Pages : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
 // Fichiers statiques (icônes, polices, lecteur QR) : cache d'abord.
-const CACHE = 'buvette-v8';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './logo-spacers.png', './icon-192.png', './icon-512.png',
+const CACHE = 'buvette-v9';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
+  './charte/logo-panoramic-fonce.svg', './charte/logo-panoramic-clair.svg',
+  './fonts/Sansation_Light.ttf', './fonts/Sansation_Regular.ttf', './fonts/Sansation_Bold.ttf',
   'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'];
 
 self.addEventListener('install', e => {
@@ -13,7 +15,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-const STATIQUES = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+const STATIQUES = ['cdn.jsdelivr.net'];
 
 self.addEventListener('fetch', e => {
   const req = e.request;
