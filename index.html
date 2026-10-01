@@ -83,14 +83,18 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .tile .top::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(0,0,0,.10))}
 .tile .top .plate{position:relative;z-index:1;width:78%;height:72%;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;padding:8%;box-shadow:0 2px 10px rgba(0,0,0,.18)}
 .tile .top .plate img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.tile .top .big{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;line-height:1;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.3)}
+.tile .top .big i{font-style:normal;font-size:clamp(1.6rem,4vh,2.4rem)}
+.tile .top{container-type:size}
+.tile .top .big b{font-family:var(--font-display);font-weight:700;font-size:min(3.2rem,15cqi,22cqh);letter-spacing:.04em;margin-top:4px}
 .tile .bot{padding:8px 12px 10px;display:flex;flex-direction:column;gap:2px}
 .tile .nom{font-size:clamp(1rem,2.4vh,1.25rem);font-weight:900;line-height:1.1;color:var(--text)}
 .tile .prix{font-family:var(--font-display);font-size:clamp(1.25rem,3vh,1.7rem);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1}
 .tile .reste{font-size:.8rem;font-weight:800;color:var(--warn)}
-.tile .qty{position:absolute;top:8px;right:8px;min-width:54px;height:54px;padding:0 10px;border-radius:999px;background:var(--day);color:var(--night);font-family:var(--font-display);font-size:1.9rem;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:3px solid var(--night)}
+.tile .qty{z-index:3;position:absolute;top:8px;right:8px;min-width:54px;height:54px;padding:0 10px;border-radius:999px;background:var(--day);color:var(--night);font-family:var(--font-display);font-size:1.9rem;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:3px solid var(--night)}
 .tile.on{border-color:var(--night);box-shadow:0 0 0 4px var(--day),var(--shadow)}
 [data-theme="dark"] .tile.on{border-color:var(--day)}
-.tile .moins{position:absolute;top:8px;left:8px;width:54px;height:54px;border-radius:999px;background:rgba(255,255,255,.95);color:var(--navy);font-size:2rem;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);line-height:1}
+.tile .moins{z-index:3;position:absolute;top:8px;left:8px;width:54px;height:54px;border-radius:999px;background:rgba(255,255,255,.95);color:var(--navy);font-size:2rem;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);line-height:1}
 .tile.vide{opacity:.45;filter:grayscale(.7)}
 .tile.vide .top::before{content:'ÉPUISÉ';position:absolute;z-index:1;font-family:var(--font-display);font-size:1.4rem;color:#fff;background:rgba(192,38,45,.92);padding:4px 14px;border-radius:8px;transform:rotate(-8deg)}
 .tile.absent .top::before{content:'PAS ICI';background:rgba(60,70,90,.9)}
@@ -364,7 +368,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
           <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
         </div>
       </details>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-charte</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-logos</p>
     </div>
   </div>
 </div>
@@ -386,10 +390,10 @@ const CONSIGNE = 1.00;
 // La consigne écocup n'est jamais automatique : le bénévole l'ajoute (bouton « + Gobelet »)
 // seulement si le client n'a pas déjà son verre.
 const CATALOGUE = [
-  { ref:'P01_25',   nom:'Bière 25cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺'},
-  { ref:'P01_50',   nom:'Bière 50cl',        pv:6.00, seuil:10, color:'#a86400', icon:'🍺'},
-  { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧' },
-  { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧' },
+  { ref:'P01_25',   nom:'Bière 25cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺', big:'25 cl' },
+  { ref:'P01_50',   nom:'Bière 50cl',        pv:6.00, seuil:10, color:'#a86400', icon:'🍺', big:'50 cl' },
+  { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧', big:'PLATE' },
+  { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧', big:'GAZEUSE' },
   { ref:'P02_COCA', nom:'Coca-Cola',         pv:3.00, seuil:5,  color:'#d7141f', icon:'🥤' },
   { ref:'P02_ORAN', nom:'Orangina',          pv:3.00, seuil:5,  color:'#ef7d00', icon:'🍊' },
   { ref:'P02_ICET', nom:'Ice Tea',           pv:3.00, seuil:5,  color:'#8a5a12', icon:'🍑' },
@@ -536,7 +540,7 @@ function renderTiles() {
     const vide = suivi && d <= 0 && q === 0;
     const bas = suivi && !absent && d > 0 && d <= p.seuil;
     return `<button class="tile${q ? ' on' : ''}${vide ? ' vide' : ''}${absent ? ' absent' : ''}" style="--c:${p.color}" onclick="ajouter('${p.ref}')" aria-label="Ajouter ${esc(p.nom)}">
-      <div class="top" aria-hidden="true">${p.img ? `<span class="plate"><img src="${p.img}" alt=""></span>` : p.icon}</div>
+      <div class="top" aria-hidden="true">${p.img ? `<span class="plate"><img src="${p.img}" alt=""></span>` : p.big ? `<span class="big"><i>${p.icon}</i><b>${p.big}</b></span>` : p.icon}</div>
       <div class="bot"><span class="nom">${esc(p.nom)}</span><span class="prix">${fmt(p.pv)}</span>${bas ? `<span class="reste">⚠️ plus que ${d}</span>` : ''}</div>
       ${q ? `<span class="qty" id="q-${p.ref}">${q}</span><span class="moins" role="button" aria-label="Retirer ${esc(p.nom)}" onclick="event.stopPropagation();retirer('${p.ref}')">−</span>` : ''}
     </button>`;
