@@ -202,6 +202,12 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .rows div:last-child{border-bottom:none}
 .rows b{font-variant-numeric:tabular-nums}
 .rows .barre{text-decoration:line-through;color:var(--faint)}
+.caisse{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:stretch}
+.caisse label{display:flex;flex-direction:column;gap:6px;font-size:.75rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.caisse .input{font-size:1.4rem;font-weight:700;text-align:right}
+.k.juste{background:var(--ok-bg)}.k.juste b{color:var(--ok)}
+.k.leger{background:var(--warn-bg)}.k.leger b{color:var(--warn)}
+.k.fort{background:var(--err-bg)}.k.fort b{color:var(--err)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}
 .msg{border-radius:12px;padding:10px 14px;font-weight:800;margin-top:12px}
 .msg.ok{background:var(--ok-bg);color:var(--ok)}
@@ -260,8 +266,8 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <img class="logo" src="charte/logo-panoramic-fonce.svg" alt="Spacer's Toulouse Volley" width="213" height="44">
     <div class="who"><b id="h-buvette">Buvette 1</b><span id="h-match">Aucun match chargé</span></div>
     <div class="net" id="net" role="status"><span id="net-txt">…</span></div>
-    <button class="hbtn" onclick="openBilan()" aria-label="Bilan de la buvette">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>Bilan
+    <button class="hbtn" onclick="openBilan()" aria-label="Rapport de fin de match (code responsable)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>Rapport
     </button>
     <button class="hbtn" onclick="openAide()" aria-label="Aide">?</button>
     <button class="hbtn" onclick="openSettings()" aria-label="Réglages">
@@ -368,7 +374,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 <div class="overlay" id="m-code">
   <div class="modal" style="max-width:420px;text-align:center">
     <button class="x" onclick="fermer('m-code')" aria-label="Fermer">✕</button>
-    <h3 style="padding:0">🔒 Réglages réservés au responsable</h3>
+    <h3 style="padding:0">🔒 Réservé au responsable</h3>
     <div class="code-pts" id="code-pts"></div>
     <div class="msg err" id="code-err" hidden>Code incorrect</div>
     <div class="pad" id="pad"></div>
@@ -399,7 +405,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
           <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
         </div>
       </details>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-code</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-rapport</p>
     </div>
   </div>
 </div>
@@ -461,6 +467,8 @@ const state = {
   outbox:[],         // ventes pas encore reçues par le Sheet
   envoyees:0,
   historique:[],     // dernières ventes de la tablette (pour annuler / bilan)
+  clotures:{},       // { 'Buvette 1': { fond, compte, attendu, ecart, ts, envoyee } } clôture de caisse du match
+  fond:{},           // fond de caisse par buvette (mémorisé d'un match à l'autre)
 };
 let panier = nouveauPanier();
 let billet = null;   // { ticket_id, barcode, tarif, prenom, nonVerifie }
@@ -470,11 +478,11 @@ function initDefaultStocks() { for (let t = 1; t <= NB_BUVETTES; t++) { const k 
 function cumulTab(tab) {
   tab = tab || state.tab;
   const c = state.cumul[tab] = state.cumul[tab] || {};
-  ['consigne','rendue','ventes','ca','cb','esp'].forEach(k => { if (typeof c[k] !== 'number') c[k] = 0; });
+  ['consigne','rendue','ventes','ca','cb','esp','nbCb','nbEsp'].forEach(k => { if (typeof c[k] !== 'number') c[k] = 0; });
   c.lignes = c.lignes || {};
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond'];
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); } catch(e) {} }
 function load() {
   try {
@@ -483,6 +491,7 @@ function load() {
     CLES.forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
     if (!state.url) state.url = s.pilotage || APPS_SCRIPT_URL;
     if (!Array.isArray(state.historique)) state.historique = [];
+    state.clotures = state.clotures || {}; state.fond = state.fond || {};
   } catch(e) {}
 }
 
@@ -646,6 +655,7 @@ function renderNet() {
   if (!state.url || !state.token) { n.className = 'net off'; t.textContent = 'Non configurée'; }
   else if (off) { n.className = 'net wait'; t.textContent = att ? `Hors ligne · ${att} vente${att > 1 ? 's' : ''} gardée${att > 1 ? 's' : ''}` : 'Hors ligne · tout est à jour'; }
   else if (att) { n.className = 'net wait'; t.textContent = `Envoi en cours (${att})`; }
+  else if (Object.values(state.clotures || {}).some(x => !x.envoyee)) { n.className = 'net wait'; t.textContent = 'Envoi du rapport…'; }
   else { n.className = 'net ok'; t.textContent = 'Connectée · tout est envoyé'; }
 }
 
@@ -741,6 +751,7 @@ function appliquerCumul(v, sens) {
   c.ca = Math.round((c.ca + sens * v.total) * 100) / 100;
   const k = v.paiement === 'CB' ? 'cb' : 'esp';
   c[k] = Math.round((c[k] + sens * v.total) * 100) / 100;
+  c[k === 'cb' ? 'nbCb' : 'nbEsp'] += sens;
 }
 
 // ── Annulation ──────────────────────────────────────────────────────
@@ -764,7 +775,7 @@ function annulerVente(id) {
   save(); renderAll();
   fermer('m-cash');
   snack('↶ Vente annulée (' + fmt(Math.abs(h.total)) + (h.paiement === 'CB' ? ' CB' : ' espèces') + ')', false);
-  if (document.getElementById('m-bilan').classList.contains('open')) openBilan();
+  if (document.getElementById('m-bilan').classList.contains('open')) afficherRapport();
   envoyerVentes();
 }
 
@@ -774,7 +785,7 @@ function annulerVente(id) {
 let envoiEnCours = false;
 async function envoyerVentes() {
   const pretes = state.outbox.filter(v => Date.now() - Date.parse(v.ts) >= DELAI_ANNUL);
-  if (envoiEnCours || !state.url || !state.token || !pretes.length) { renderNet(); return; }
+  if (envoiEnCours || !state.url || !state.token || !pretes.length) { renderNet(); if (!envoiEnCours) envoyerCloture(); return; }
   envoiEnCours = true;
   try {
     const lot = pretes.slice(0, 50);
@@ -790,13 +801,15 @@ async function envoyerVentes() {
   finally {
     envoiEnCours = false;
     renderNet();
+    envoyerCloture();
     if (state.outbox.length && navigator.onLine !== false) setTimeout(envoyerVentes, 20000);
   }
 }
 window.addEventListener('online', () => { renderNet(); envoyerVentes(); chargerMatch(true); });
 window.addEventListener('offline', renderNet);
 setInterval(() => chargerMatch(true), 5 * 60000);
-setInterval(() => { if (state.outbox.length) envoyerVentes(); }, 30000);
+setInterval(() => { if (state.outbox.length || Object.values(state.clotures || {}).some(x => !x.envoyee)) envoyerVentes(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyerVentes(); });   // tablette rallumée au bureau
 
 // ═══════════════════════════════════════════════════════════════════
 // BILLET / CARTE ABONNÉ — caméra, douchette ou saisie
@@ -898,13 +911,25 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════════════
 // BILAN (pour le responsable et la fermeture de caisse)
 // ═══════════════════════════════════════════════════════════════════
-function openBilan() {
-  const c = cumulTab();
-  document.getElementById('bilan-titre').textContent = '📊 Bilan ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
+function openBilan() { avecCode(afficherRapport); }
+function afficherRapport() {
+  const c = cumulTab(), cl = state.clotures[state.tab];
+  const fond = cl ? cl.fond : (state.fond[state.tab] ?? 0);
+  document.getElementById('bilan-titre').textContent = '📊 Rapport ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
   let h = `<div class="kpis">
     <div class="k"><span>Total</span><b>${fmt(c.ca)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}</small></div>
-    <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>à rapprocher du TPE</small></div>
-    <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>+ fond de caisse</small></div></div>`;
+    <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · à comparer au ticket TPE</small></div>
+    <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div></div>`;
+  h += `<div class="sec">Clôture de la caisse espèces</div>
+    <div class="caisse">
+      <label>Fond de caisse<input class="input" id="cl-fond" inputmode="decimal" value="${fond}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
+      <div class="k"><span>Espèces attendues</span><b id="cl-attendu">—</b><small>fond + ventes espèces</small></div>
+      <label>Espèces comptées<input class="input" id="cl-compte" inputmode="decimal" placeholder="compter le tiroir" value="${cl ? cl.compte : ''}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
+      <div class="k" id="cl-ecart-box"><span>Écart</span><b id="cl-ecart">—</b><small id="cl-ecart-s"></small></div>
+    </div>`
+    + (cl ? `<div class="msg ${cl.envoyee ? 'ok' : 'warn'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })} — ${cl.envoyee ? 'rapport arrivé dans le Sheet ✅' : 'rapport gardé dans la tablette, il partira au retour du wifi 📶'}</div>
+          <button class="btn small" style="margin-top:8px" onclick="rouvrirCaisse()">Rouvrir la caisse (corriger le comptage)</button>`
+         : `<button class="btn prim" style="width:100%;margin-top:10px;min-height:60px" onclick="cloturerCaisse()">🔒 Clôturer la caisse et envoyer le rapport</button>`);
   h += `<div class="grid2"><div><div class="sec">Vendu</div><div class="rows">`;
   const vendus = CATALOGUE.filter(p => (c.lignes[p.ref] || 0) > 0);
   h += vendus.length ? vendus.map(p => `<div><span>${esc(p.nom)} × ${c.lignes[p.ref]}</span><b>${fmt(c.lignes[p.ref] * p.pv)}</b></div>`).join('') : '<div><span>Aucune vente</span><b>—</b></div>';
@@ -930,7 +955,51 @@ function openBilan() {
     : `<div class="msg ok">✅ Toutes les ventes sont arrivées dans le Sheet.</div>`;
   if (state.outbox.length) h += `<button class="btn prim" style="width:100%;margin-top:10px" onclick="envoyerVentes()">📤 Réessayer l'envoi maintenant</button>`;
   document.getElementById('bilan').innerHTML = h;
+  majEcart();
   ouvrir('m-bilan');
+}
+const lireEuros = id => { const v = String(document.getElementById(id).value).replace(/\s/g, '').replace(',', '.'); return v === '' ? null : Number(v); };
+function majEcart() {
+  const c = cumulTab(), fond = lireEuros('cl-fond') || 0, compte = lireEuros('cl-compte');
+  const attendu = Math.round((fond + c.esp) * 100) / 100;
+  document.getElementById('cl-attendu').textContent = fmt(attendu);
+  const e = document.getElementById('cl-ecart'), box = document.getElementById('cl-ecart-box'), sub = document.getElementById('cl-ecart-s');
+  if (compte == null || isNaN(compte)) { e.textContent = '—'; box.className = 'k'; sub.textContent = 'saisir le comptage'; return; }
+  const ecart = Math.round((compte - attendu) * 100) / 100;
+  e.textContent = (ecart > 0 ? '+' : ecart < 0 ? '−' : '') + fmt(Math.abs(ecart));
+  box.className = 'k ' + (ecart === 0 ? 'juste' : Math.abs(ecart) <= 2 ? 'leger' : 'fort');
+  sub.textContent = ecart === 0 ? 'caisse juste 👍' : ecart > 0 ? 'en trop dans la caisse' : 'manque dans la caisse';
+}
+function cloturerCaisse() {
+  const c = cumulTab(), fond = lireEuros('cl-fond') || 0, compte = lireEuros('cl-compte');
+  if (compte == null || isNaN(compte)) { info('Saisis d\'abord les espèces comptées'); document.getElementById('cl-compte').focus(); return; }
+  const attendu = Math.round((fond + c.esp) * 100) / 100;
+  state.fond[state.tab] = fond;
+  state.clotures[state.tab] = {
+    id: state.tab.replace(/\D/g, '') + '-CL-' + Date.now().toString(36), ts: new Date().toISOString(),
+    matchId: state.match ? state.match.idMatch : '', buvette: state.tab,
+    ventes: c.ventes, ca: c.ca, cb: c.cb, nbCb: c.nbCb, esp: c.esp, nbEsp: c.nbEsp,
+    fond, attendu, compte, ecart: Math.round((compte - attendu) * 100) / 100,
+    gobeletsSortis: c.consigne, gobeletsRendus: c.rendue, lignes: Object.assign({}, c.lignes),
+    stock: stockSuivi() ? stockSnapshot() : {}, envoyee: false };
+  save();
+  envoyerVentes();
+  afficherRapport();
+  info('🔒 Caisse clôturée');
+}
+function rouvrirCaisse() { delete state.clotures[state.tab]; save(); afficherRapport(); }
+async function envoyerCloture() {
+  const cl = Object.values(state.clotures || {}).find(x => !x.envoyee);
+  if (!cl || !state.url || !state.token || state.outbox.length) return;   // les ventes partent d'abord
+  try {
+    const r = await fetch(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'cloture', token: state.token, cloture: cl }) });
+    const res = await r.json();
+    if (res.status !== 'ok') throw new Error(res.message || 'refus');
+    cl.envoyee = true; save(); renderNet();
+    if (document.getElementById('m-bilan').classList.contains('open')) afficherRapport();
+    envoyerCloture();
+  } catch(e) {}
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -941,9 +1010,11 @@ function fermerAide() { try { localStorage.setItem('buvette_aide_vue', '1'); } c
 
 // Réglages protégés par un code à 4 chiffres (déverrouillés 2 min après la saisie)
 let deverrouilleJusqua = 0, codeSaisi = '';
-function openSettings() {
-  if (state.pin && Date.now() > deverrouilleJusqua) { demanderCode(); return; }
-  ouvrirReglages();
+let apresCode = null;
+function openSettings() { avecCode(ouvrirReglages); }
+function avecCode(fn) {
+  if (state.pin && Date.now() > deverrouilleJusqua) { apresCode = fn; demanderCode(); return; }
+  fn();
 }
 function demanderCode() {
   codeSaisi = '';
@@ -958,7 +1029,7 @@ function toucheCode(k) {
   if (k === '⌫') codeSaisi = codeSaisi.slice(0, -1); else if (codeSaisi.length < 4) codeSaisi += k;
   majPoints();
   if (codeSaisi.length < 4) return;
-  if (codeSaisi === state.pin) { deverrouilleJusqua = Date.now() + 120000; fermer('m-code'); ouvrirReglages(); }
+  if (codeSaisi === state.pin) { deverrouilleJusqua = Date.now() + 120000; fermer('m-code'); const f = apresCode; apresCode = null; (f || ouvrirReglages)(); }
   else { vibre([80, 60, 80]); document.getElementById('code-err').hidden = false; codeSaisi = ''; setTimeout(majPoints, 300); }
 }
 function ouvrirReglages() {
@@ -1038,7 +1109,7 @@ function appliquerChargement(d, nouveau) {
   state.futLitres = d.futLitres || 30;
   state.stocks[state.tab] = d.stock || {};
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; }
-  if (nouveau) { state.cumul = {}; state.historique = []; panier = nouveauPanier(); billet = null; }
+  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; panier = nouveauPanier(); billet = null; }
   save(); renderAll(); renderEtatMatch();
   info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
 }
