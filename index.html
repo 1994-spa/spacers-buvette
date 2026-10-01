@@ -13,428 +13,355 @@
 <title>Spacer's Buvette</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
 <style>
-/* ── Tokens ───────────────────────────────────────────────────────────── */
-:root {
-  --text-xs:   0.8125rem;
-  --text-sm:   0.9375rem;
-  --text-base: 1.0625rem;
-  --text-lg:   1.375rem;
-  --text-xl:   2rem;
-  --space-1:.25rem;--space-2:.5rem;--space-3:.75rem;--space-4:1rem;
-  --space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;
-  --radius-sm:.375rem;--radius-md:.625rem;--radius-lg:.875rem;--radius-xl:1.125rem;--radius-full:9999px;
-  --transition:160ms cubic-bezier(0.16,1,0.3,1);
+/* ── Charte 26-27 ─────────────────────────────────────────────────────── */
+:root{
+  --navy:#001E2D;--bleu:#233764;--bleu-f:#19233C;--gold:#FFFF00;--day:#91BEE6;--periclair:#C8D2EB;
   --font-body:'Inter','Helvetica Neue',Arial,sans-serif;
   --font-display:'Chakra Petch','Inter',Arial,sans-serif;
-  --day:#91BEE6;--periclair:#C8D2EB;
-  --sidebar-w: 360px;
-  --navy:#001E2D;--navy-2:#233764;--gold:#FFFF00;
+  --r:14px;--r-lg:18px;--side-w:390px;
+  --ease:160ms cubic-bezier(.16,1,.3,1);
 }
-/* Thème clair (par défaut) : fond lumineux, texte très contrasté, cartes blanches en relief */
-[data-theme="light"] {
-  --bg:#eef1f8;--surface:#ffffff;--surface-2:#f4f6fa;--surface-3:#e6eaf1;
-  --border:rgba(35,55,100,.18);--divider:rgba(16,32,56,.09);
-  --text:#0d1726;--text-muted:#3f4b5e;--text-faint:#6b7689;
-  --primary:#233764;--primary-hover:#19233C;--on-primary:#ffffff;
-  --success:#1d7a32;--success-bg:#e3f4e7;
-  --warning:#a85a00;--warning-bg:#fff1dc;
-  --error:#c0262d;--error-bg:#fde6e7;
-  --card-shadow:0 1px 2px rgba(16,32,56,.06),0 6px 18px rgba(16,32,56,.10);
-  --card-shadow-active:0 2px 4px rgba(16,32,56,.08),0 10px 26px rgba(16,32,56,.16);
-  --shadow:0 10px 30px rgba(16,32,56,.18);
+[data-theme="light"]{
+  --bg:#e9edf5;--surface:#fff;--surface-2:#f3f5f9;--surface-3:#e3e8f0;
+  --border:rgba(35,55,100,.20);--divider:rgba(16,32,56,.10);
+  --text:#0b1524;--muted:#3f4b5e;--faint:#6b7689;
+  --primary:#233764;--on-primary:#fff;
+  --ok:#157a2e;--ok-bg:#e1f3e5;--warn:#9a5200;--warn-bg:#fff0d6;--err:#c0262d;--err-bg:#fde5e6;
+  --cash:#157a2e;--card:#233764;
+  --shadow:0 1px 2px rgba(16,32,56,.08),0 6px 16px rgba(16,32,56,.10);
+  --shadow-lg:0 12px 36px rgba(16,32,56,.25);
 }
-[data-theme="dark"] {
-  --bg:#171a20;--surface:#262a33;--surface-2:#2f343f;--surface-3:#3a404c;
-  --border:rgba(255,255,255,.14);--divider:rgba(255,255,255,.08);
-  --text:#f6f7f9;--text-muted:#c3c8d2;--text-faint:#9299a6;
-  --primary:#FFFF00;--primary-hover:#FFFF66;--on-primary:#001E2D;
-  --success:#5fd07a;--success-bg:rgba(95,208,122,.15);
-  --warning:#ffb547;--warning-bg:rgba(255,181,71,.15);
-  --error:#ff6b72;--error-bg:rgba(255,107,114,.15);
-  --card-shadow:0 4px 16px rgba(0,0,0,.35);
-  --card-shadow-active:0 8px 24px rgba(0,0,0,.5);
-  --shadow:0 10px 30px rgba(0,0,0,.5);
+[data-theme="dark"]{
+  --bg:#12161d;--surface:#232833;--surface-2:#2c323e;--surface-3:#384050;
+  --border:rgba(255,255,255,.16);--divider:rgba(255,255,255,.09);
+  --text:#f6f7f9;--muted:#c3c8d2;--faint:#9299a6;
+  --primary:#FFFF00;--on-primary:#001E2D;
+  --ok:#5fd07a;--ok-bg:rgba(95,208,122,.16);--warn:#ffb547;--warn-bg:rgba(255,181,71,.16);--err:#ff6b72;--err-bg:rgba(255,107,114,.16);
+  --cash:#1d8f3a;--card:#2f4a86;
+  --shadow:0 4px 14px rgba(0,0,0,.4);--shadow-lg:0 12px 36px rgba(0,0,0,.6);
 }
 
-/* ── Reset ────────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
 html{height:100%;overflow:hidden;-webkit-text-size-adjust:none;text-size-adjust:none}
-body{height:100%;font-family:var(--font-body);font-size:var(--text-base);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+body{height:100%;font-family:var(--font-body);font-size:16px;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;overscroll-behavior:none}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;touch-action:manipulation}
 button:disabled{cursor:not-allowed}
 input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
+:focus-visible{outline:3px solid var(--day);outline-offset:2px}
 
-/* ── Layout paysage : produits à gauche, caisse à droite ──────────────── */
-#app{display:grid;grid-template-rows:auto 1fr;grid-template-columns:1fr var(--sidebar-w);grid-template-areas:"header header" "main side";height:100dvh;background:var(--bg)}
-.header{grid-area:header}
-.main{grid-area:main}
-.side{grid-area:side}
+/* ── Mise en page : produits à gauche, caisse à droite, rien ne défile ── */
+#app{display:grid;grid-template-rows:auto 1fr;grid-template-columns:1fr var(--side-w);grid-template-areas:"header header" "main side";height:100dvh}
 
-/* ── Header ───────────────────────────────────────────────────────────── */
-.header{background:linear-gradient(90deg,transparent 0 46%,rgba(145,190,230,.10) 50%,transparent 54%),linear-gradient(180deg,#001E2D,#19233C);border-bottom:3px solid var(--gold);padding:var(--space-2) var(--space-5);display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);z-index:20;box-shadow:0 2px 10px rgba(0,0,0,.18)}
-.header-left{display:flex;align-items:center;gap:var(--space-4);min-width:0}
-.logo{display:flex;align-items:center;gap:var(--space-3)}
+/* ── En-tête ──────────────────────────────────────────────────────────── */
+.header{grid-area:header;background:linear-gradient(180deg,var(--navy),var(--bleu-f));border-bottom:3px solid var(--gold);padding:8px 16px;display:flex;align-items:center;gap:14px;color:#fff;z-index:20}
 .logo-badge{width:46px;height:46px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 2px var(--gold)}
-.logo-icon{width:40px;height:40px;display:block}
-.logo-text{font-family:var(--font-display);letter-spacing:.02em;font-size:1.15rem;font-weight:700;color:#fff;line-height:1.15}
-.logo-sub{font-size:var(--text-xs);color:rgba(255,255,255,.75);font-weight:500}
-.tab-selector{display:flex;gap:var(--space-2);overflow-x:auto;scrollbar-width:none}
-.tab-selector::-webkit-scrollbar{display:none}
-.tab-btn{flex-shrink:0;padding:var(--space-2) var(--space-4);border-radius:var(--radius-full);font-size:var(--text-sm);font-weight:700;background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.18);transition:all var(--transition);min-height:40px}
-.tab-btn.active{background:var(--gold);color:var(--navy);border-color:transparent}
-.header-right{display:flex;align-items:center;gap:var(--space-2)}
-.match-badge{background:rgba(255,255,0,.18);border:1px solid rgba(255,255,0,.45);border-radius:var(--radius-full);padding:var(--space-1) var(--space-3);font-size:var(--text-xs);color:var(--gold);font-weight:700;white-space:nowrap}
-.btn-icon{width:42px;height:42px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);color:#fff;transition:background var(--transition)}
-.btn-icon:hover{background:rgba(255,255,255,.22)}
-.btn-icon svg{width:20px;height:20px}
+.logo-badge img{width:40px;height:40px;display:block}
+.who{min-width:0;flex:1;display:flex;flex-direction:column;line-height:1.1}
+.who b{font-family:var(--font-display);font-size:1.45rem;color:var(--gold);letter-spacing:.04em;text-transform:uppercase}
+.who span{font-size:.85rem;color:rgba(255,255,255,.8);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.net{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;font-size:.85rem;font-weight:800;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);white-space:nowrap}
+.net::before{content:'';width:10px;height:10px;border-radius:50%;background:#9aa3b2}
+.net.ok::before{background:#4ade80}
+.net.wait{color:#ffd28a}.net.wait::before{background:#ffb547}
+.net.off::before{background:#ff6b72}
+.hbtn{height:46px;min-width:46px;padding:0 14px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,.12);color:#fff;font-weight:800;font-size:.95rem}
+.hbtn:active{background:rgba(255,255,255,.25)}
+.hbtn svg{width:21px;height:21px}
 
-/* ── Zone produits ────────────────────────────────────────────────────── */
-.main{overflow-y:auto;overscroll-behavior:contain;padding:var(--space-3) var(--space-4) var(--space-6);display:flex;flex-direction:column;gap:var(--space-4)}
-.section-title{font-family:var(--font-display);font-size:var(--text-base);font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--space-2);display:flex;align-items:center;gap:var(--space-2)}
-.section-title::after{content:'';flex:1;height:2px;background:var(--divider);border-radius:2px}
-.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:var(--space-3)}
+/* ── Produits ─────────────────────────────────────────────────────────── */
+.main{grid-area:main;display:flex;flex-direction:column;gap:12px;padding:12px;min-height:0}
+.banner{border-radius:var(--r);padding:10px 14px;font-size:.95rem;font-weight:600;display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:var(--warn-bg);color:var(--text);border:2px solid color-mix(in srgb,var(--warn) 45%,transparent)}
+.banner button{background:var(--primary);color:var(--on-primary);border-radius:10px;padding:8px 16px;font-weight:800;min-height:44px}
+.tiles{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px}
+.tile{--c:#233764;position:relative;border-radius:var(--r-lg);background:var(--surface);border:2px solid var(--border);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:stretch;overflow:hidden;text-align:left;transition:transform 90ms ease,box-shadow var(--ease),border-color var(--ease)}
+.tile:active{transform:scale(.97)}
+.tile .top{flex:1;min-height:0;background:var(--c);display:flex;align-items:center;justify-content:center;font-size:clamp(2.2rem,5.2vh,3.4rem);position:relative}
+.tile .top::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(0,0,0,.10))}
+.tile .bot{padding:8px 12px 10px;display:flex;flex-direction:column;gap:2px}
+.tile .nom{font-size:clamp(1rem,2.4vh,1.25rem);font-weight:900;line-height:1.1;color:var(--text)}
+.tile .prix{font-family:var(--font-display);font-size:clamp(1.25rem,3vh,1.7rem);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1}
+.tile .reste{font-size:.8rem;font-weight:800;color:var(--warn)}
+.tile .qty{position:absolute;top:8px;right:8px;min-width:54px;height:54px;padding:0 10px;border-radius:999px;background:var(--gold);color:var(--navy);font-family:var(--font-display);font-size:1.9rem;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:3px solid var(--navy)}
+.tile.on{border-color:var(--navy);box-shadow:0 0 0 3px var(--gold),var(--shadow)}
+[data-theme="dark"] .tile.on{border-color:var(--gold)}
+.tile .moins{position:absolute;top:8px;left:8px;width:54px;height:54px;border-radius:999px;background:rgba(255,255,255,.95);color:var(--navy);font-size:2rem;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);line-height:1}
+.tile.vide{opacity:.45;filter:grayscale(.7)}
+.tile.vide .top::before{content:'ÉPUISÉ';position:absolute;z-index:1;font-family:var(--font-display);font-size:1.4rem;color:#fff;background:rgba(192,38,45,.92);padding:4px 14px;border-radius:8px;transform:rotate(-8deg)}
+.tile.absent .top::before{content:'PAS ICI';background:rgba(60,70,90,.9)}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.25)}100%{transform:scale(1)}}
+.qty.pop{animation:pop .22s ease}
 
-.product-card{--accent:#001E2D;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);display:flex;flex-direction:column;overflow:hidden;position:relative;transition:box-shadow var(--transition),border-color var(--transition),transform var(--transition)}
-.product-card.has-sale{border-color:var(--accent);box-shadow:var(--card-shadow-active),0 0 0 2px var(--accent) inset}
-.product-card.is-empty{opacity:.55}
-.card-band{height:6px;background:var(--accent)}
-.card-body{padding:.625rem .75rem;display:flex;flex-direction:column;gap:var(--space-2);flex:1}
-.product-head{display:flex;align-items:center;gap:var(--space-3)}
-.product-icon{width:36px;height:36px;border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:1.35rem;flex-shrink:0;background:color-mix(in srgb,var(--accent) 16%,transparent);border:1.5px solid color-mix(in srgb,var(--accent) 40%,transparent)}
-.product-name{font-size:1rem;font-weight:800;line-height:1.15;color:var(--text)}
-.product-price{font-family:var(--font-display);font-size:1.3rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1;margin-top:2px}
-.product-price small{font-size:var(--text-xs);font-weight:600;color:var(--text-muted)}
-.qty-control{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin-top:auto}
-.qty-btn{flex:1 1 0;min-width:40px;max-width:56px;height:50px;border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:1.75rem;font-weight:700;line-height:1;transition:transform var(--transition),background var(--transition);flex-shrink:0}
-.qty-btn:active{transform:scale(.94)}
-.qty-btn.minus{background:var(--surface-2);border:1.5px solid var(--border);color:var(--text)}
-.qty-btn.plus{background:var(--primary);color:var(--on-primary)}
-.qty-btn:disabled{opacity:.35}
-.qty-display{flex:0 0 auto;font-size:1.75rem;font-weight:800;font-variant-numeric:tabular-nums;min-width:36px;text-align:center;color:var(--text)}
-.stock-remaining{font-size:var(--text-xs);font-weight:600;color:var(--text-muted)}
-.stock-remaining.low{color:var(--warning)}
-.stock-remaining.empty{color:var(--error)}
+.utils{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ubtn{min-height:70px;border-radius:var(--r-lg);background:var(--surface);border:2px solid var(--border);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;gap:12px;font-weight:900;font-size:1.1rem;padding:0 14px}
+.ubtn small{display:block;font-size:.8rem;font-weight:700;color:var(--muted)}
+.ubtn .ico{font-size:1.9rem}
+.ubtn:active{transform:scale(.98)}
+.ubtn.eco{border-color:color-mix(in srgb,var(--ok) 55%,transparent)}
+.ubtn.scan{border:2px dashed var(--primary);background:color-mix(in srgb,var(--day) 22%,var(--surface))}
+.ubtn.scan.lie{border:2px solid var(--ok);background:var(--ok-bg)}
 
-/* ── Colonne caisse (droite) ──────────────────────────────────────────── */
-.side{background:var(--surface);border-left:1.5px solid var(--border);display:flex;flex-direction:column;min-height:0}
-.side-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-4)}
-.side-title{font-size:var(--text-xs);font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
+/* ── Caisse ───────────────────────────────────────────────────────────── */
+.side{grid-area:side;background:var(--surface);border-left:2px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.alerts{display:flex;flex-direction:column;gap:6px;padding:10px 12px 0}
+.alert{border-radius:10px;padding:8px 12px;font-size:.88rem;font-weight:800}
+.alert.warn{background:var(--warn-bg);color:var(--warn)}
+.alert.err{background:var(--err-bg);color:var(--err)}
+.cart-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px}
+.cart-head h2{font-size:.8rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.vider{font-size:.9rem;font-weight:800;color:var(--err);padding:8px 10px;border-radius:10px}
+.vider:disabled{opacity:.3;color:var(--muted)}
+.billet{margin:0 12px 6px;display:flex;align-items:center;gap:10px;background:var(--ok-bg);border:2px solid var(--ok);border-radius:12px;padding:8px 10px}
+.billet .i{font-size:1.5rem}
+.billet div{flex:1;line-height:1.2;min-width:0}
+.billet b{display:block;font-size:.95rem}
+.billet small{font-size:.8rem;color:var(--muted);font-weight:700}
+.billet button{width:40px;height:40px;border-radius:999px;background:var(--surface);color:var(--muted);font-weight:900}
+.lines{flex:1;min-height:0;overflow-y:auto;padding:0 12px;display:flex;flex-direction:column;gap:6px}
+.line{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;background:var(--surface-2);border-radius:12px;padding:6px 6px 6px 12px}
+.line .n{font-weight:800;font-size:1rem;line-height:1.15}
+.line .n small{display:block;font-size:.78rem;color:var(--muted);font-weight:700}
+.line .m{font-weight:900;font-variant-numeric:tabular-nums;min-width:64px;text-align:right}
+.line.neg .m{color:var(--err)}
+.step{display:flex;align-items:center;gap:4px}
+.step button{width:44px;height:44px;border-radius:10px;background:var(--surface);border:2px solid var(--border);font-size:1.4rem;font-weight:900;line-height:1}
+.step b{min-width:28px;text-align:center;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.empty{margin:auto;text-align:center;color:var(--faint);font-weight:700;font-size:1rem;line-height:1.5;padding:20px}
+.empty big{display:block;font-size:2.4rem}
+.pay{border-top:2px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface)}
+.total{display:flex;align-items:baseline;justify-content:space-between}
+.total span{font-size:.85rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.total b{font-family:var(--font-display);font-size:2.6rem;font-variant-numeric:tabular-nums;line-height:1}
+.total.rendre b{color:var(--err)}
+.paybtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pbtn{min-height:78px;border-radius:var(--r-lg);color:#fff;font-size:1.35rem;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;box-shadow:var(--shadow)}
+.pbtn small{font-size:.78rem;font-weight:700;opacity:.85}
+.pbtn.cb{background:var(--card)}
+.pbtn.esp{background:var(--cash)}
+.pbtn.full{grid-column:1/-1}
+.pbtn:active{transform:scale(.97)}
+.pbtn:disabled{opacity:.3;box-shadow:none}
 
-.alert-banner{border-radius:var(--radius-md);padding:var(--space-3);font-size:var(--text-sm);font-weight:700;display:flex;align-items:center;gap:var(--space-2)}
-.alert-banner+.alert-banner{margin-top:var(--space-2)}
-.alert-banner.warn{background:var(--warning-bg);color:var(--warning);border:1.5px solid color-mix(in srgb,var(--warning) 40%,transparent)}
-.alert-banner.ok-banner{background:var(--success-bg);color:var(--success);border:1.5px solid color-mix(in srgb,var(--success) 40%,transparent)}
-.alert-banner.err{background:var(--error-bg);color:var(--error);border:1.5px solid color-mix(in srgb,var(--error) 40%,transparent)}
-@keyframes slideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+/* ── Fenêtres ─────────────────────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,18,30,.6);backdrop-filter:blur(3px);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+.overlay.open{display:flex;animation:fade .15s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{position:relative;background:var(--surface);border-radius:20px;padding:22px;width:100%;max-width:600px;max-height:94dvh;overflow-y:auto;box-shadow:var(--shadow-lg);user-select:text;-webkit-user-select:text}
+.modal h3{font-size:1.35rem;font-weight:900;margin-bottom:14px;padding-right:48px}
+.x{position:absolute;top:14px;right:14px;width:44px;height:44px;border-radius:999px;background:var(--surface-2);font-size:1.1rem;font-weight:900;color:var(--muted)}
 
-.stock-list{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-2)}
-.stock-item{min-width:0;background:var(--surface-2);border:1px solid var(--divider);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
-.stock-label{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.stock-qty{font-size:var(--text-base);font-weight:800;font-variant-numeric:tabular-nums}
-.stock-qty.ok{color:var(--success)}
-.stock-qty.warn{color:var(--warning)}
-.stock-qty.crit{color:var(--error)}
+/* Espèces */
+.cash-du{text-align:center;margin-bottom:6px;font-weight:800;color:var(--muted)}
+.cash-du b{display:block;font-family:var(--font-display);font-size:3rem;color:var(--text)}
+.cash-q{text-align:center;font-weight:900;font-size:1.05rem;margin:10px 0}
+.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.note{min-height:80px;border-radius:16px;background:var(--surface-2);border:2px solid var(--border);font-family:var(--font-display);font-size:1.8rem;font-weight:700}
+.note.exact{grid-column:1/-1;background:var(--cash);color:#fff;border:none;font-family:var(--font-body);font-size:1.25rem;font-weight:900}
+.note:active{transform:scale(.97)}
+.rendu{text-align:center;padding:10px 0}
+.rendu .l{font-size:1.1rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.rendu .v{font-family:var(--font-display);font-size:5rem;line-height:1.05;color:var(--ok)}
+.rendu .s{font-weight:700;color:var(--muted);margin-bottom:14px}
+.big-ok{width:100%;min-height:70px;border-radius:16px;background:var(--primary);color:var(--on-primary);font-size:1.3rem;font-weight:900}
 
-.ecocup-card{background:var(--surface-2);border:1.5px solid color-mix(in srgb,var(--warning) 35%,transparent);border-radius:var(--radius-lg);padding:var(--space-3)}
-.ecocup-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-2)}
-.ecocup-item{background:var(--surface);border:1px solid var(--divider);border-radius:var(--radius-md);padding:var(--space-2)}
-.ecocup-label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted);margin-bottom:var(--space-2);text-align:center}
-.ecocup-controls{display:flex;align-items:center;justify-content:space-between;gap:var(--space-1)}
-.ecocup-controls .qty-btn{height:52px;font-size:1.5rem}
-.ecocup-controls .qty-display{font-size:var(--text-lg);min-width:28px}
-.ecocup-net{font-size:var(--text-sm);font-weight:600;color:var(--text-muted);margin-top:var(--space-3);display:flex;justify-content:space-between}
-.ecocup-net b{color:var(--warning);font-weight:800}
-.eco-sign{display:inline-block;margin-top:2px;font-size:var(--text-sm);font-weight:800}
-.eco-sign.plus{color:var(--success)}
-.eco-sign.minus{color:var(--error)}
-
-.side-footer{border-top:1.5px solid var(--border);padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);background:var(--surface)}
-.ca-label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
-.ca-value{font-family:var(--font-display);font-size:1.85rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--success);line-height:1.05}
-.btn-sync{background:var(--primary);color:var(--on-primary);border-radius:var(--radius-lg);padding:var(--space-4);font-size:var(--text-base);font-weight:800;display:flex;align-items:center;justify-content:center;gap:var(--space-2);transition:background var(--transition);min-height:60px}
-.btn-sync:hover{background:var(--primary-hover)}
-.btn-sync svg{width:22px;height:22px}
-
-/* ── Match ─────────────────────────────────────────────────────────── */
-.products-zone{display:flex;flex-direction:column;gap:var(--space-4)}
-.match-banner{background:var(--warning-bg);border:1.5px solid color-mix(in srgb,var(--warning) 45%,transparent);color:var(--text);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
-.match-banner button{background:var(--primary);color:var(--on-primary);border-radius:var(--radius-md);padding:var(--space-2) var(--space-4);font-weight:800;min-height:44px}
-.match-box{background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2)}
-.match-state{font-size:var(--text-sm);color:var(--text)}
-.hint{font-size:var(--text-xs);color:var(--text-muted)}
-
-/* ── Vente en cours ───────────────────────────────────────────────── */
-.cart{background:var(--surface);border:2px solid var(--primary);border-radius:var(--radius-lg);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);box-shadow:var(--card-shadow)}
-.cart-lines{display:flex;flex-direction:column;gap:2px;max-height:150px;overflow-y:auto}
-.cart-row{display:flex;justify-content:space-between;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;padding:3px 0;border-bottom:1px dashed var(--divider)}
-.cart-row b{font-variant-numeric:tabular-nums}
-.cart-row.neg b{color:var(--error)}
-.cart-empty{font-size:var(--text-sm);color:var(--text-faint);padding:var(--space-2) 0;text-align:center}
-.cart-total-row{display:flex;justify-content:space-between;align-items:baseline;font-weight:800}
-.cart-total-row span{font-size:var(--text-sm);color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
-.cart-total-row b{font-family:var(--font-display);font-size:2.1rem;font-variant-numeric:tabular-nums;color:var(--text)}
-.cart-actions{display:flex;gap:var(--space-2)}
-.btn-validate{flex:1;min-height:58px;border-radius:var(--radius-lg);background:var(--success);color:#fff;font-size:var(--text-base);font-weight:800}
-.btn-validate.danger{background:var(--error)}
-.btn-validate:disabled{opacity:.35}
-.btn-cancel{min-height:58px;padding:0 var(--space-4);border-radius:var(--radius-lg);background:var(--surface-2);border:1.5px solid var(--border);color:var(--text);font-weight:700}
-.btn-cancel:disabled{opacity:.4}
-.btn-scan{width:100%;min-height:48px;border-radius:var(--radius-md);border:2px dashed color-mix(in srgb,var(--primary) 45%,transparent);color:var(--text);font-weight:800;font-size:var(--text-sm);display:flex;align-items:center;justify-content:center;gap:var(--space-2);background:var(--surface-2)}
-.btn-scan small{font-weight:600;color:var(--text-muted)}
-.ticket-badge{display:flex;align-items:center;gap:var(--space-3);background:color-mix(in srgb,var(--success) 12%,var(--surface));border:2px solid var(--success);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);font-size:1.3rem}
-.ticket-badge div{flex:1;display:flex;flex-direction:column;line-height:1.2}
-.ticket-badge b{font-size:var(--text-sm);color:var(--text)}
-.ticket-badge small{font-size:var(--text-xs);color:var(--text-muted);font-weight:600}
-.ticket-badge button{width:36px;height:36px;border-radius:var(--radius-full);background:var(--surface-2);font-size:1rem;color:var(--text-muted)}
-.footer-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
-.ca-sub{font-size:var(--text-xs);color:var(--text-muted);font-weight:600;margin-top:2px}
-.btn-report{background:var(--surface-2);border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-4);font-weight:800;display:flex;align-items:center;gap:var(--space-2);min-height:52px}
-.btn-report svg{width:20px;height:20px}
-.sync-dot{font-size:var(--text-xs);font-weight:700;display:flex;align-items:center;gap:6px;color:var(--text-muted)}
-.sync-dot::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--text-faint)}
-.sync-dot.ok::before{background:var(--success)}
-.sync-dot.wait{color:var(--warning)}.sync-dot.wait::before{background:var(--warning)}
-.reset-confirm{background:var(--warning-bg);border-radius:var(--radius-md);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-3);font-size:var(--text-sm);font-weight:600}
-/* ── Scanner ──────────────────────────────────────────────────────── */
-.scan-frame{position:relative;border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:16/10;max-width:100%}
+/* Scanner */
+.scan-frame{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:16/10}
 .scan-frame video{width:100%;height:100%;object-fit:cover;display:block}
-.scan-target{position:absolute;inset:18% 30%;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.25)}
-.scan-status{text-align:center;font-size:var(--text-sm);font-weight:600;color:var(--text-muted);margin:var(--space-3) 0}
-.scan-manual{display:flex;gap:var(--space-2)}
-.scan-card{border-radius:var(--radius-lg);padding:var(--space-4);border:2px solid var(--success);background:var(--success-bg);display:flex;flex-direction:column;gap:4px}
-.scan-card.ko{border-color:var(--error);background:var(--error-bg)}
-.scan-card.warn{border-color:var(--warning);background:var(--warning-bg)}
-.scan-card.warn .scan-state{color:var(--warning)}
-.scan-state{font-size:var(--text-xs);font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--success)}
-.scan-card.ko .scan-state{color:var(--error)}
-.scan-tarif{font-size:var(--text-lg);font-weight:800}
-.scan-name{font-size:var(--text-base);font-weight:600}
-.scan-meta{font-size:var(--text-sm);color:var(--text-muted)}
-.scan-skip{display:block;width:100%;text-align:center;margin-top:var(--space-3);padding:var(--space-3);font-weight:700;color:var(--text-muted)}
-.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--navy);color:#fff;padding:var(--space-3) var(--space-5);border-radius:var(--radius-full);font-weight:700;font-size:var(--text-sm);opacity:0;pointer-events:none;transition:all .2s;z-index:200;box-shadow:var(--shadow)}
-.toast.show{opacity:1;transform:translate(-50%,0)}
+.scan-target{position:absolute;inset:16% 28%;border:4px solid var(--gold);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.3)}
+.scan-status{text-align:center;font-size:1rem;font-weight:700;color:var(--muted);margin:12px 0}
+.scan-manual{display:flex;gap:8px}
+.scan-ko{border-radius:14px;padding:16px;border:3px solid var(--err);background:var(--err-bg);text-align:center;font-weight:800;font-size:1.1rem;margin-bottom:12px}
+.scan-ko b{display:block;font-size:1.5rem;color:var(--err)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.btn{min-height:56px;border-radius:14px;font-weight:900;font-size:1.05rem;background:var(--surface-2);border:2px solid var(--border);padding:0 16px}
+.btn.prim{background:var(--primary);color:var(--on-primary);border-color:transparent}
+.btn.danger{background:var(--err);color:#fff;border-color:transparent}
+.btn.small{min-height:44px;font-size:.9rem;padding:0 12px}
+.input{background:var(--surface-2);border:2px solid var(--border);border-radius:12px;padding:12px 14px;font-size:1.05rem;width:100%}
 
-/* ── Indication portrait ──────────────────────────────────────────────── */
-.rotate-hint{display:none}
-@media (orientation: portrait) {
+/* Bilan */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.k{background:var(--surface-2);border-radius:14px;padding:12px}
+.k span{display:block;font-size:.75rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.k b{font-family:var(--font-display);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.k small{display:block;font-size:.8rem;color:var(--muted);font-weight:700}
+.sec{font-size:.78rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 6px}
+.rows div{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--divider);font-size:.95rem}
+.rows div:last-child{border-bottom:none}
+.rows b{font-variant-numeric:tabular-nums}
+.rows .barre{text-decoration:line-through;color:var(--faint)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}
+.msg{border-radius:12px;padding:10px 14px;font-weight:800;margin-top:12px}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.msg.warn{background:var(--warn-bg);color:var(--warn)}
+.msg.err{background:var(--err-bg);color:var(--err)}
+
+/* Aide */
+.aide ol{list-style:none;display:flex;flex-direction:column;gap:12px;counter-reset:s}
+.aide li{display:flex;gap:14px;align-items:flex-start;background:var(--surface-2);border-radius:14px;padding:12px 14px;font-size:1.02rem;line-height:1.35}
+.aide li::before{counter-increment:s;content:counter(s);flex-shrink:0;width:38px;height:38px;border-radius:999px;background:var(--gold);color:var(--navy);font-family:var(--font-display);font-size:1.3rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--navy)}
+.aide li b{display:block;font-size:1.08rem}
+.aide .plus{margin-top:12px;font-size:.92rem;color:var(--muted);font-weight:600;line-height:1.5}
+
+/* Réglages */
+.form{display:flex;flex-direction:column;gap:14px}
+.form label{font-size:.9rem;font-weight:800;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.seg button{min-height:56px;border-radius:12px;background:var(--surface-2);border:2px solid var(--border);font-weight:900;font-size:1.05rem}
+.seg button.on{background:var(--navy);color:var(--gold);border-color:var(--navy)}
+.hint{font-size:.85rem;color:var(--muted);font-weight:600;line-height:1.45}
+details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
+
+/* Bandeau "vente enregistrée" + annuler */
+.snack{position:fixed;left:50%;top:72px;transform:translate(-50%,-20px);opacity:0;pointer-events:none;transition:all .2s;z-index:150;background:var(--navy);color:#fff;border-radius:16px;padding:10px 10px 10px 18px;display:flex;align-items:center;gap:16px;font-weight:800;font-size:1.02rem;box-shadow:var(--shadow-lg);border:2px solid var(--gold);max-width:calc(100vw - 32px)}
+.snack.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.snack button{background:var(--gold);color:var(--navy);border-radius:12px;min-height:50px;padding:0 18px;font-weight:900;font-size:1rem;white-space:nowrap}
+.snack.info button{display:none}
+@keyframes flash{0%{box-shadow:inset 0 0 0 999px rgba(74,222,128,.35)}100%{box-shadow:inset 0 0 0 999px rgba(74,222,128,0)}}
+.side.flash{animation:flash .5s ease}
+
+/* Portrait (secours) */
+.rotate{display:none}
+@media (orientation:portrait){
   #app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr auto;grid-template-areas:"header" "hint" "main" "side"}
-  .rotate-hint{display:flex;grid-area:hint;align-items:center;justify-content:center;gap:var(--space-2);background:var(--gold);color:var(--navy);font-weight:800;font-size:var(--text-sm);padding:var(--space-2) var(--space-4)}
-  .side{border-left:none;border-top:1.5px solid var(--border);max-height:42dvh}
-  .header{flex-wrap:wrap}
+  .rotate{display:block;grid-area:hint;background:var(--gold);color:var(--navy);font-weight:900;text-align:center;padding:6px}
+  .side{border-left:none;border-top:2px solid var(--border);max-height:46dvh}
+  .tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
-@media (max-width: 1100px) and (orientation: landscape) { :root{--sidebar-w:310px} .product-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))} }
-
-/* ── Modals ───────────────────────────────────────────────────────────── */
-.modal-overlay{position:fixed;inset:0;background:rgba(8,16,30,.55);backdrop-filter:blur(4px);z-index:100;display:none;align-items:center;justify-content:center;padding:var(--space-4)}
-.modal-overlay.open{display:flex;animation:fadeIn .2s ease}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.modal{background:var(--surface);border-radius:var(--radius-xl);padding:var(--space-6);width:100%;max-width:560px;max-height:92dvh;overflow-y:auto;box-shadow:var(--shadow);animation:slideUp .25s cubic-bezier(.16,1,.3,1);user-select:text;-webkit-user-select:text}
-@keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
-.modal-title{font-size:var(--text-lg);font-weight:800;margin-bottom:var(--space-4);padding-right:var(--space-8)}
-.modal-close{position:absolute;top:var(--space-4);right:var(--space-4);width:40px;height:40px;border-radius:var(--radius-full);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--text-muted)}
-
-.settings-form{display:flex;flex-direction:column;gap:var(--space-4)}
-.form-row{display:flex;flex-direction:column;gap:var(--space-2)}
-.form-label{font-size:var(--text-sm);font-weight:700;color:var(--text-muted)}
-.form-input{background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-base);color:var(--text);width:100%}
-.form-input:focus{outline:2px solid var(--primary);outline-offset:2px}
-.btn-primary{background:var(--primary);color:var(--on-primary);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:800;width:100%;min-height:50px;transition:background var(--transition)}
-.btn-primary:hover{background:var(--primary-hover)}
-.btn-secondary{background:var(--surface-2);color:var(--text);border:1.5px solid var(--border)}
-
-.rapport-section{margin-bottom:var(--space-4)}
-.rapport-section-title{font-size:var(--text-xs);font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
-.rapport-row{display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) 0;border-bottom:1px solid var(--divider);font-size:var(--text-sm)}
-.rapport-row:last-child{border-bottom:none}
-.rapport-row b{font-variant-numeric:tabular-nums}
-.rapport-total{background:var(--success-bg);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);display:flex;justify-content:space-between;align-items:center;margin:var(--space-3) 0}
-.rapport-total-label{font-weight:800;color:var(--success)}
-.rapport-total-value{font-size:var(--text-lg);font-weight:800;color:var(--success);font-variant-numeric:tabular-nums}
-.json-block{background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3);font-size:11px;font-family:monospace;color:var(--text-muted);white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;margin-top:var(--space-3)}
-.btn-copy{background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-2) var(--space-4);font-size:var(--text-sm);font-weight:700;width:100%;margin-top:var(--space-2);min-height:46px}
-.btn-copy:hover{background:var(--surface-3)}
-
-.sync-status{border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:700;display:none;margin-top:var(--space-3)}
-.sync-status.ok{background:var(--success-bg);color:var(--success);display:block}
-.sync-status.err{background:var(--error-bg);color:var(--error);display:block}
+@media (max-width:1100px) and (orientation:landscape){:root{--side-w:340px}.net span{display:none}}
+@media (max-height:640px) and (orientation:landscape){.utils .ubtn{min-height:58px}.pbtn{min-height:64px}.total b{font-size:2.1rem}}
 </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- HEADER -->
   <header class="header">
-    <div class="header-left">
-      <div class="logo">
-        <span class="logo-badge"><img class="logo-icon" src="logo-spacers.png" alt="Spacer's Toulouse Volley" width="40" height="40"></span>
-        <div>
-          <div class="logo-text">Spacer's Buvette</div>
-          <div class="logo-sub" id="match-label">Aucun match configuré</div>
-        </div>
-      </div>
-      <!-- Sélecteur tablette -->
-      <div class="tab-selector" id="tab-selector"></div>
-    </div>
-    <div class="header-right">
-      <div class="match-badge" id="tab-badge" hidden>Buvette 1</div>
-      <button class="btn-icon" onclick="openSettings()" aria-label="Paramètres">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      </button>
-      <button class="btn-icon" data-theme-toggle onclick="toggleTheme()" aria-label="Thème">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
-    </div>
+    <span class="logo-badge"><img src="logo-spacers.png" alt="Spacer's Toulouse Volley" width="40" height="40"></span>
+    <div class="who"><b id="h-buvette">Buvette 1</b><span id="h-match">Aucun match chargé</span></div>
+    <div class="net" id="net" role="status"><span id="net-txt">…</span></div>
+    <button class="hbtn" onclick="openBilan()" aria-label="Bilan de la buvette">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>Bilan
+    </button>
+    <button class="hbtn" onclick="openAide()" aria-label="Aide">?</button>
+    <button class="hbtn" onclick="openSettings()" aria-label="Réglages">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </header>
 
-  <div class="rotate-hint">↻ Tournez la tablette en mode paysage pour un meilleur affichage</div>
+  <div class="rotate">↻ Tourne la tablette à l'horizontale</div>
 
-  <!-- PRODUITS -->
-  <main class="main"><div class="match-banner" id="match-banner" hidden></div><div id="products-zone" class="products-zone"></div></main>
-
-  <!-- CAISSE -->
-  <aside class="side">
-    <div class="side-scroll">
-      <div id="alerts-zone"></div>
-
-      <section class="cart" aria-label="Vente en cours">
-        <div class="cart-head"><span class="side-title" style="margin:0">Vente en cours</span></div>
-        <div id="billet-zone"></div>
-        <div class="cart-lines" id="cart-lines"></div>
-        <div class="cart-total-row">
-          <span id="cart-total-label">À encaisser</span>
-          <b id="cart-total">0,00 €</b>
-        </div>
-        <div class="cart-actions">
-          <button class="btn-cancel" id="btn-annuler" onclick="annulerVente()">Annuler</button>
-          <button class="btn-validate" id="btn-valider" onclick="validerVente()">✓ Valider la vente</button>
-        </div>
-      </section>
-
-      <div>
-        <div class="side-title">♻️ Écocup — consigne 1 €</div>
-        <div class="ecocup-card" id="ecocup-section">
-          <div class="ecocup-grid">
-            <div class="ecocup-item">
-              <div class="ecocup-label">Consigne encaissée<br><span class="eco-sign plus">+1 €</span></div>
-              <div class="ecocup-controls">
-                <button class="qty-btn minus" onclick="changeEcocup('E01',-1)" aria-label="Retirer une consigne">−</button>
-                <div class="qty-display" id="qty-E01">0</div>
-                <button class="qty-btn plus" onclick="changeEcocup('E01',1)" aria-label="Ajouter une consigne">+</button>
-              </div>
-            </div>
-            <div class="ecocup-item">
-              <div class="ecocup-label">Consigne rendue<br><span class="eco-sign minus">−1 €</span></div>
-              <div class="ecocup-controls">
-                <button class="qty-btn minus" onclick="changeRemb('E01',-1)" aria-label="Retirer une remise">−</button>
-                <div class="qty-display" id="remb-E01">0</div>
-                <button class="qty-btn plus" onclick="changeRemb('E01',1)" aria-label="Ajouter une remise">+</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <div class="side-title">Stock restant</div>
-        <div class="stock-list" id="stock-list"></div>
-      </div>
+  <main class="main">
+    <div class="banner" id="banner" hidden></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="utils">
+      <button class="ubtn eco" onclick="ecocupRendue()"><span class="ico">♻️</span><span>Le client rend un gobelet<small>−1 € déduit de la vente</small></span></button>
+      <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span></button>
     </div>
+  </main>
 
-    <div class="side-footer">
-      <div class="footer-row">
-        <div>
-          <div class="ca-label">CA du match</div>
-          <div class="ca-value" id="ca-total-display">0,00 €</div>
-          <div class="ca-sub" id="ca-sub"></div>
-        </div>
-        <button class="btn-report" onclick="openRapport()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Rapport
-        </button>
-      </div>
-      <div class="sync-dot off" id="sync-dot" role="status"></div>
+  <aside class="side" id="side">
+    <div class="alerts" id="alerts"></div>
+    <div class="cart-head"><h2>Commande en cours</h2><button class="vider" id="btn-vider" onclick="viderPanier()">✕ Tout effacer</button></div>
+    <div id="billet"></div>
+    <div class="lines" id="lines"></div>
+    <div class="pay">
+      <div class="total" id="total-box"><span id="total-label">À encaisser</span><b id="total">0,00 €</b></div>
+      <div class="paybtns" id="paybtns"></div>
     </div>
   </aside>
 </div>
 
-<!-- MODAL SETTINGS -->
-<div class="modal-overlay" id="modal-settings">
-  <div class="modal" style="position:relative">
-    <button class="modal-close" onclick="closeModal('modal-settings')">✕</button>
-    <div class="modal-title">⚙️ Configuration</div>
-    <div class="settings-form">
-      <section class="match-box">
-        <div class="form-label">Match sur cette tablette</div>
-        <div id="match-state" class="match-state"></div>
-        <button class="btn-validate" onclick="chargerMatch()">📥 Recharger maintenant</button>
-        <p class="hint">Automatique : dès qu'elle a le wifi, la tablette récupère le match, le stock de cette buvette et la liste des billets préparés au tableau de bord (à l'ouverture puis toutes les 5 minutes). Ensuite elle fonctionne sans réseau.</p>
-        <div class="sync-status" id="load-status"></div>
-        <div class="reset-confirm" id="reset-confirm" hidden>
-          <p></p>
-          <div class="cart-actions">
-            <button class="btn-cancel" onclick="annulerNouveauMatch()">Annuler</button>
-            <button class="btn-validate danger" onclick="confirmerNouveauMatch()">Changer de match</button>
-          </div>
-        </div>
-      </section>
-      <div class="form-row">
-        <label class="form-label" for="sel-tab">Point de vente</label>
-        <select class="form-input" id="sel-tab">
-          <option>Buvette 1</option><option>Buvette 2</option><option>Buvette 3</option>
-        </select>
-      </div>
-      <div class="form-row">
-        <label class="form-label" for="inp-url">URL Apps Script (Matchday Business)</label>
-        <input class="form-input" id="inp-url" placeholder="https://script.google.com/macros/s/…/exec" type="url">
-      </div>
-      <div class="form-row">
-        <label class="form-label" for="inp-token">Jeton pilotage</label>
-        <input class="form-input" id="inp-token" type="text" autocomplete="off">
-      </div>
-      <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer</button>
-      <p class="hint" style="text-align:center">Version 2026.10.01-f</p>
+<!-- ESPÈCES -->
+<div class="overlay" id="m-cash">
+  <div class="modal" style="max-width:520px">
+    <button class="x" onclick="fermer('m-cash')" aria-label="Fermer">✕</button>
+    <div id="cash-step1">
+      <h3>💶 Paiement en espèces</h3>
+      <div class="cash-du">À payer<b id="cash-du">0,00 €</b></div>
+      <div class="cash-q">Le client te donne :</div>
+      <div class="notes" id="notes"></div>
+    </div>
+    <div id="cash-step2" hidden>
+      <div class="rendu"><div class="l">Rends au client</div><div class="v" id="rendu-v">0,00 €</div><div class="s" id="rendu-s"></div></div>
+      <button class="big-ok" onclick="fermer('m-cash')">✓ C'est fait — client suivant</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL RAPPORT -->
-<div class="modal-overlay" id="modal-rapport">
-  <div class="modal" style="position:relative">
-    <button class="modal-close" onclick="closeModal('modal-rapport')">✕</button>
-    <div class="modal-title">📊 Rapport de caisse</div>
-    <div id="rapport-content"></div>
-  </div>
-</div>
-
-<!-- MODAL SCANNER BILLET -->
-<div class="modal-overlay" id="modal-scan">
-  <div class="modal" style="position:relative">
-    <button class="modal-close" onclick="fermerScanner()" aria-label="Fermer">✕</button>
-    <div class="modal-title">🎫 Scanner le billet</div>
+<!-- SCANNER -->
+<div class="overlay" id="m-scan">
+  <div class="modal">
+    <button class="x" onclick="fermerScanner()" aria-label="Fermer">✕</button>
+    <h3>🎫 Montre-moi ton billet ou ta carte</h3>
+    <div id="scan-ko" hidden></div>
     <div id="scan-zone">
       <div class="scan-frame"><video id="scan-video" playsinline autoplay muted></video><div class="scan-target" aria-hidden="true"></div></div>
       <canvas id="scan-canvas" hidden></canvas>
       <div class="scan-status" id="scan-status" role="status"></div>
       <form class="scan-manual" onsubmit="saisieManuelle(event)">
-        <input class="form-input" id="scan-manual" placeholder="Code du billet (ou douchette)" autocomplete="off" aria-label="Code du billet">
-        <button class="btn-primary" type="submit" style="width:auto">Chercher</button>
+        <input class="input" id="scan-manual" placeholder="ou tape le code du billet" autocomplete="off" inputmode="text" aria-label="Code du billet">
+        <button class="btn prim" type="submit">OK</button>
       </form>
     </div>
-    <div id="scan-result" hidden>
-      <div class="scan-card" id="scan-card"></div>
-      <div class="cart-actions" style="margin-top:var(--space-3)">
-        <button class="btn-cancel" onclick="relancerScan()">Rescanner</button>
-        <button class="btn-validate" id="btn-use-ticket" onclick="utiliserBillet()">✓ Relier à la vente</button>
-      </div>
-    </div>
-    <button class="scan-skip" onclick="fermerScanner()">Continuer sans billet →</button>
+    <div class="row2"><button class="btn" onclick="fermerScanner()">Pas de billet → continuer</button><button class="btn" id="btn-rescan" onclick="relancerScan()" hidden>🔁 Rescanner</button></div>
   </div>
 </div>
 
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!-- BILAN -->
+<div class="overlay" id="m-bilan">
+  <div class="modal" style="max-width:720px">
+    <button class="x" onclick="fermer('m-bilan')" aria-label="Fermer">✕</button>
+    <h3 id="bilan-titre">📊 Bilan</h3>
+    <div id="bilan"></div>
+  </div>
+</div>
+
+<!-- AIDE -->
+<div class="overlay" id="m-aide">
+  <div class="modal aide">
+    <h3>👋 Bienvenue à la buvette !</h3>
+    <ol>
+      <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson. Le gobelet consigné (1 €) s'ajoute tout seul avec chaque bière.</span></li>
+      <li><span><b>Le client rend un gobelet ? Touche ♻️.</b>1 € est déduit. S'il reprend une bière dans son gobelet, ça s'annule : il ne paie pas de consigne.</span></li>
+      <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Le client gagne des points et le club sait qui consomme. Pas de billet ? On continue.</span></li>
+      <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>En espèces, touche le billet donné : la tablette affiche la monnaie à rendre.</span></li>
+    </ol>
+    <p class="plus">Une erreur ? Le bouton <b>↶ Annuler</b> apparaît quelques secondes après chaque vente, ou retire une boisson avec <b>−</b>.<br>Pas de wifi ? Aucun souci : tout est gardé dans la tablette et part tout seul plus tard.</p>
+    <button class="big-ok" style="margin-top:16px" onclick="fermerAide()">C'est parti !</button>
+  </div>
+</div>
+
+<!-- RÉGLAGES -->
+<div class="overlay" id="m-settings">
+  <div class="modal">
+    <button class="x" onclick="fermer('m-settings')" aria-label="Fermer">✕</button>
+    <h3>⚙️ Réglages (responsable)</h3>
+    <div class="form">
+      <label>Cette tablette est à la
+        <div class="seg" id="seg-tab"></div>
+      </label>
+      <div>
+        <div class="hint" id="match-state"></div>
+        <div class="row2" style="margin-top:8px"><button class="btn prim" onclick="chargerMatch()">📥 Recharger le match et le stock</button><button class="btn" onclick="toggleTheme()">🌗 Mode jour / nuit</button></div>
+        <div class="msg" id="load-status" hidden></div>
+        <div class="msg warn" id="reset-confirm" hidden><p></p><div class="row2"><button class="btn" onclick="annulerNouveauMatch()">Garder l'ancien</button><button class="btn danger" onclick="confirmerNouveauMatch()">Changer de match</button></div></div>
+      </div>
+      <details>
+        <summary>Connexion au Sheet</summary>
+        <div class="form" style="margin-top:8px">
+          <label>URL Apps Script<input class="input" id="inp-url" placeholder="https://script.google.com/macros/s/…/exec" type="url"></label>
+          <label>Jeton pilotage<input class="input" id="inp-token" type="text" autocomplete="off"></label>
+          <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
+        </div>
+      </details>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.01-ux</p>
+    </div>
+  </div>
+</div>
+
+<div class="snack" id="snack" role="status" aria-live="polite"><span id="snack-txt"></span><button id="snack-btn" onclick="annulerDerniere()">↶ Annuler</button></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -443,138 +370,87 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 const NB_BUVETTES = 3;
 const TICKIE_PROXY_URL = 'https://tickie-proxy.spacersytb.workers.dev';
 const STORE_KEY = 'buvette_etat_v2';
-const APPS_SCRIPT_URL = '';  // fourni par le lien de configuration (menu du Sheet)   // Apps Script « Buvette » du Sheet Matchday Business
-
-const CATS = {
-  biere: { label:'🍺 Bières pression', order:1 },
-  soft:  { label:'🥤 Softs',           order:2 },
-  eau:   { label:'💧 Eaux 50cl',       order:3 },
-  autre: { label:'🛒 Autres',          order:9 },
-};
-
-// Catalogue produits 26-27 (prix mis à jour par la synchro Sheet)
-const CATALOGUE = [
-  { ref:'P01_25',   nom:'Bière 25cl',        cat:'biere', pv:3.00, consigne:0, seuil:15, unite:'verres', color:'#d99a00', icon:'🍺' },
-  { ref:'P01_50',   nom:'Bière 50cl',        cat:'biere', pv:6.00, consigne:0, seuil:10, unite:'verres', color:'#b86e00', icon:'🍺' },
-  { ref:'P02_COCA', nom:'Coca-Cola',         cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#d7141f', icon:'🥤' },
-  { ref:'P02_ORAN', nom:'Orangina',          cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#ef7d00', icon:'🍊' },
-  { ref:'P02_ICET', nom:'Ice Tea',           cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#a8690f', icon:'🍑' },
-  { ref:'P02_SCHW', nom:'Schweppes Agrumes', cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#d4a800', icon:'🍋' },
-  { ref:'P03',      nom:'Eau plate 50cl',    cat:'eau',   pv:1.00, consigne:0, seuil:5,  color:'#1f7fd1', icon:'💧' },
-  { ref:'P04',      nom:'Eau gazeuse 50cl',  cat:'eau',   pv:1.00, consigne:0, seuil:5,  color:'#0f98a8', icon:'🫧' },
-  { ref:'E01',      nom:'Écocup',            cat:'eco',   pv:0,    consigne:1.00, seuil:0 },
-];
+const APPS_SCRIPT_URL = '';      // fourni par le lien de configuration (menu du Sheet)
+const DELAI_ANNUL = 10000;       // une vente reste annulable 10 s avant de partir au Sheet
 const CONSIGNE = 1.00;
-const PARAMS = { rdt25: 120, rdt50: 60, seuil25: 15, seuil50: 10 };
 
-function sellable() { return CATALOGUE.filter(p => p.cat !== 'eco'); }
-function priceOf(p) { return p.pv || 0; }
-function nomOf(ref) { const p = CATALOGUE.find(c => c.ref === ref); return p ? p.nom : ref; }
+// Ordre des tuiles = ordre de la grille 4×2 (les plus vendues en haut à gauche)
+const CATALOGUE = [
+  { ref:'P01_25',   nom:'Bière 25cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺', ecocup:true },
+  { ref:'P01_50',   nom:'Bière 50cl',        pv:6.00, seuil:10, color:'#a86400', icon:'🍺', ecocup:true },
+  { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧' },
+  { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧' },
+  { ref:'P02_COCA', nom:'Coca-Cola',         pv:3.00, seuil:5,  color:'#d7141f', icon:'🥤' },
+  { ref:'P02_ORAN', nom:'Orangina',          pv:3.00, seuil:5,  color:'#ef7d00', icon:'🍊' },
+  { ref:'P02_ICET', nom:'Ice Tea',           pv:3.00, seuil:5,  color:'#8a5a12', icon:'🍑' },
+  { ref:'P02_SCHW', nom:'Schweppes Agrumes', pv:3.00, seuil:5,  color:'#c9a000', icon:'🍋' },
+];
+const prod = ref => CATALOGUE.find(p => p.ref === ref) || {};
+const priceOf = p => p.pv || 0;
 
 // ═══════════════════════════════════════════════════════════════════
 // ÉTAT
 // ═══════════════════════════════════════════════════════════════════
-// Un point de vente = une tablette en général, mais chaque buvette garde ses propres compteurs.
 const state = {
-  tab:      'Buvette 1',
-  matchId:  '',
-  date:     new Date().toISOString().slice(0,10),
-  url:      APPS_SCRIPT_URL, // Apps Script « Buvette » (Matchday Business) : chargement + ventes en direct
-  token:    '',            // jeton pilotage
-  match:    null,          // { eventId, idMatch, nom, date, charge } — chargé depuis le tableau de bord
-  futLitres: 30,
-  stocks:   {},            // { 'Buvette 1': { FUT: fûts, P02_COCA: unités, … } } stock de départ
-  billets:  {},            // { code-barres: [id billet, tarif] } — billets valides du match + abonnés, pour le hors ligne
-  cumul:    {},            // { 'Buvette 1': { lignes:{ref:qty}, consigne:n, rendue:n, ventes:n, ca:n } }
-  outbox:   [],            // ventes validées pas encore reçues par le pilotage
-  envoyees: 0,
+  tab:'Buvette 1', url:APPS_SCRIPT_URL, token:'',
+  match:null,        // { eventId, idMatch, nom, date, charge, prepa }
+  futLitres:30,
+  stocks:{},         // { 'Buvette 1': { FUT: fûts, P02_COCA: unités, … } }
+  billets:{},        // { code-barres: [id billet, tarif] } pour vérifier hors ligne
+  cumul:{},          // { 'Buvette 1': { lignes, consigne, rendue, ventes, ca, cb, esp } }
+  outbox:[],         // ventes pas encore reçues par le Sheet
+  envoyees:0,
+  historique:[],     // dernières ventes de la tablette (pour annuler / bilan)
 };
-// Vente en cours (non persistée tant qu'elle n'est pas validée)
-let panier = { lignes:{}, consigne:0, rendue:0 };
-let billet = null;         // { ticket_id, barcode, tarif, prenom, valide }
+let panier = nouveauPanier();
+let billet = null;   // { ticket_id, barcode, tarif, prenom, nonVerifie }
+function nouveauPanier() { return { lignes:{}, consigne:0, rendue:0 }; }
 
-function initDefaultStocks() {
-  for (let t = 1; t <= NB_BUVETTES; t++) { const k = 'Buvette ' + t; if (!state.stocks[k]) state.stocks[k] = {}; }
-}
+function initDefaultStocks() { for (let t = 1; t <= NB_BUVETTES; t++) { const k = 'Buvette ' + t; if (!state.stocks[k]) state.stocks[k] = {}; } }
 function cumulTab(tab) {
   tab = tab || state.tab;
-  if (!state.cumul[tab]) state.cumul[tab] = { lignes:{}, consigne:0, rendue:0, ventes:0, ca:0 };
-  return state.cumul[tab];
+  const c = state.cumul[tab] = state.cumul[tab] || {};
+  ['consigne','rendue','ventes','ca','cb','esp'].forEach(k => { if (typeof c[k] !== 'number') c[k] = 0; });
+  c.lignes = c.lignes || {};
+  return c;
 }
-
-function save() {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({
-      tab:state.tab, url:state.url, token:state.token, match:state.match, futLitres:state.futLitres,
-      stocks:state.stocks, billets:state.billets, cumul:state.cumul, outbox:state.outbox, envoyees:state.envoyees }));
-  } catch(e) {}
-}
+const CLES = ['tab','url','token','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique'];
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); } catch(e) {} }
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
     if (!s) return;
-    ['tab','url','token','match','futLitres','stocks','billets','cumul','outbox','envoyees'].forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
+    CLES.forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
     if (!state.url) state.url = s.pilotage || APPS_SCRIPT_URL;
+    if (!Array.isArray(state.historique)) state.historique = [];
   } catch(e) {}
 }
 
-// Lien de configuration : ?cfg=<base64 JSON> {url, pilotage, token, tab, matchId}
+// Lien de configuration : ?cfg=<base64 JSON> {url, token, tab}
 function lireLienConfig() {
   try {
-    const q = new URLSearchParams(location.search);
-    const raw = q.get('cfg');
+    const raw = new URLSearchParams(location.search).get('cfg');
     if (!raw) return;
     const cfg = JSON.parse(decodeURIComponent(escape(atob(raw))));
     if (cfg.url || cfg.pilotage) state.url = cfg.url || cfg.pilotage;
     if (cfg.token) state.token = cfg.token;
     if (cfg.tab) { const n = normTab(cfg.tab); if (n) state.tab = n; }
     history.replaceState(null, '', location.pathname);
-    setTimeout(() => { toast('✅ Configuration reçue'); if (navigator.onLine !== false) chargerMatch(); }, 300);
-  } catch(e) { setTimeout(() => toast('⚠️ Lien de configuration illisible'), 300); }
+    setTimeout(() => { info('✅ Tablette configurée pour la ' + state.tab); if (navigator.onLine !== false) chargerMatch(true); }, 300);
+  } catch(e) { setTimeout(() => info('⚠️ Lien de configuration illisible'), 300); }
 }
+function normTab(raw) { const m = String(raw).match(/(\d+)/); const n = m ? parseInt(m[1], 10) : 0; return (n >= 1 && n <= NB_BUVETTES) ? 'Buvette ' + n : null; }
+
+// Thème (clair par défaut ; le mode nuit est dans les réglages)
+let theme = 'light';
+try { const t = localStorage.getItem('buvette_theme'); if (t === 'dark' || t === 'light') theme = t; } catch(e) {}
+document.documentElement.setAttribute('data-theme', theme);
+function toggleTheme() { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('buvette_theme', theme); } catch(e) {} document.documentElement.setAttribute('data-theme', theme); }
 
 // ═══════════════════════════════════════════════════════════════════
-// THEME (clair par défaut)
+// STOCK — la bière 25/50 cl est tirée des mêmes fûts (stock en litres)
 // ═══════════════════════════════════════════════════════════════════
-let currentTheme = 'light';
-const ICON_MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-const ICON_SUN  = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
-function applyTheme() {
-  document.documentElement.setAttribute('data-theme', currentTheme);
-  document.querySelector('[data-theme-toggle] svg').innerHTML = currentTheme === 'light' ? ICON_MOON : ICON_SUN;
-}
-function toggleTheme() {
-  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-  try { localStorage.setItem('buvette_theme', currentTheme); } catch(e) {}
-  applyTheme();
-}
-try { const t = localStorage.getItem('buvette_theme'); if (t === 'dark' || t === 'light') currentTheme = t; } catch(e) {}
-applyTheme();
-
-// ═══════════════════════════════════════════════════════════════════
-// ONGLETS BUVETTE
-// ═══════════════════════════════════════════════════════════════════
-function renderTabs() {
-  const c = document.getElementById('tab-selector');
-  c.innerHTML = '';
-  Object.keys(state.stocks).forEach(t => {
-    const b = document.createElement('button');
-    b.className = 'tab-btn' + (t === state.tab ? ' active' : '');
-    b.textContent = t;
-    b.onclick = () => {
-      if (t === state.tab) return;
-      if (panierVide()) { state.tab = t; save(); renderAll(); }
-      else toast('Valide ou annule la vente en cours avant de changer de buvette');
-    };
-    c.appendChild(b);
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// STOCK
-// ═══════════════════════════════════════════════════════════════════
-// Bière : 25cl et 50cl sont tirés des mêmes fûts → stock commun en litres
-const LITRES = { P01_25: 0.25, P01_50: 0.5 };
+const LITRES = { P01_25:0.25, P01_50:0.5 };
 function stockInit(ref) { return Number((state.stocks[state.tab] || {})[ref]) || 0; }
 function litresRestants(avecPanier) {
   const c = cumulTab();
@@ -582,232 +458,259 @@ function litresRestants(avecPanier) {
   Object.keys(LITRES).forEach(r => { l -= ((c.lignes[r] || 0) + (avecPanier ? (panier.lignes[r] || 0) : 0)) * LITRES[r]; });
   return Math.max(0, Math.round(l * 100) / 100);
 }
-function venduValide(ref) { return cumulTab().lignes[ref] || 0; }
 function stockApresVentes(ref) {
   if (LITRES[ref]) return Math.floor(litresRestants(false) / LITRES[ref] + 1e-9);
-  return Math.max(0, stockInit(ref) - venduValide(ref));
+  return Math.max(0, stockInit(ref) - (cumulTab().lignes[ref] || 0));
 }
 function stockDispo(ref) {
   if (LITRES[ref]) return Math.floor(litresRestants(true) / LITRES[ref] + 1e-9);
   return Math.max(0, stockApresVentes(ref) - (panier.lignes[ref] || 0));
 }
 function aStock(ref) { return LITRES[ref] ? stockInit('FUT') > 0 : stockInit(ref) > 0; }
-function seuilOf(p) {
-  if (p.ref === 'P01_25') return PARAMS.seuil25;
-  if (p.ref === 'P01_50') return PARAMS.seuil50;
-  return p.seuil || 0;
-}
-function stockClass(p) {
-  const d = stockDispo(p.ref);
-  if (d === 0) return 'crit';
-  if (d <= seuilOf(p)) return 'warn';
-  return 'ok';
-}
+// Sans match chargé, on laisse vendre (le stock n'est simplement pas suivi)
+function stockSuivi() { return !!state.match; }
+function peutAjouter(ref) { return !stockSuivi() || stockDispo(ref) > 0; }
 function stockSnapshot() {
   const o = {};
   if (stockInit('FUT') > 0) o.FUT_L = litresRestants(false);
-  sellable().forEach(p => { if (aStock(p.ref)) o[p.ref] = stockApresVentes(p.ref); });
+  CATALOGUE.forEach(p => { if (aStock(p.ref)) o[p.ref] = stockApresVentes(p.ref); });
   return o;
 }
 
-function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
+const vibre = ms => { try { navigator.vibrate && navigator.vibrate(ms || 12); } catch(e) {} };
 
 // ═══════════════════════════════════════════════════════════════════
 // RENDU
 // ═══════════════════════════════════════════════════════════════════
-function renderAll() {
-  renderTabs();
-  renderAlerts();
-  renderProducts();
-  renderPanier();
-  renderStockList();
-  renderFooter();
-  renderMatchBanner();
+function renderAll() { renderHeader(); renderBanner(); renderTiles(); renderPanier(); renderAlerts(); renderNet(); }
+
+function renderHeader() {
+  document.getElementById('h-buvette').textContent = state.tab;
+  document.getElementById('h-match').textContent = state.match ? state.match.nom : 'Aucun match chargé';
 }
-function renderMatchBanner() {
-  const m = state.match;
-  document.getElementById('match-label').textContent = m ? m.nom : 'Aucun match chargé';
-  const b = document.getElementById('match-banner');
+function renderBanner() {
+  const b = document.getElementById('banner');
   if (chargementEnAttente) {
     b.hidden = false;
-    b.innerHTML = `<b>Nouveau match prêt : ${esc(chargementEnAttente.match.nom)}.</b> Les compteurs actuels seront remis à zéro (ventes non envoyées gardées). <button onclick="confirmerNouveauMatch()">Passer à ce match</button>`;
-    return;
-  }
-  if (m) { b.hidden = true; return; }
-  b.hidden = false;
-  b.innerHTML = state.url && state.token
-    ? `<b>Aucun match chargé.</b> Il se charge tout seul dès que le stock est enregistré au tableau de bord et que la tablette a le wifi. <button onclick="chargerMatch()">📥 Charger maintenant</button>`
-    : `<b>Tablette non configurée.</b> Ouvre le lien de configuration envoyé par Clément (ou scanne son QR code).`;
+    b.innerHTML = `<span>📣 <b>Nouveau match prêt : ${esc(chargementEnAttente.match.nom)}.</b> Les compteurs repartiront à zéro.</span><button onclick="confirmerNouveauMatch()">Passer à ce match</button>`;
+  } else if (!state.url || !state.token) {
+    b.hidden = false;
+    b.innerHTML = `<span>⚙️ <b>Tablette pas encore configurée</b> : ouvre le lien ou scanne le QR code du responsable.</span>`;
+  } else if (!state.match) {
+    b.hidden = false;
+    b.innerHTML = `<span>⏳ <b>Match pas encore chargé</b> — tu peux vendre quand même, le stock arrivera dès qu'il y aura du wifi.</span><button onclick="chargerMatch()">Charger</button>`;
+  } else b.hidden = true;
 }
 
-function renderProducts() {
-  const zone = document.getElementById('products-zone');
-  const groups = {};
-  sellable().forEach(p => { const c = CATS[p.cat] ? p.cat : 'autre'; (groups[c] = groups[c] || []).push(p); });
-  const order = Object.keys(groups).sort((a,b) => CATS[a].order - CATS[b].order);
-  let html = '';
-  order.forEach(cat => {
-    html += `<section><div class="section-title">${CATS[cat].label}</div><div class="product-grid">`;
-    groups[cat].forEach(p => {
-      const dispo = stockDispo(p.ref);
-      const qte   = panier.lignes[p.ref] || 0;
-      const cls   = stockClass(p);
-      const lowCls = cls === 'crit' ? 'empty' : (cls === 'warn' ? 'low' : '');
-      const unite = p.unite ? ' ' + p.unite : '';
-      html += `
-        <div class="product-card${qte > 0 ? ' has-sale' : ''}${dispo <= 0 && qte === 0 ? ' is-empty' : ''}" style="--accent:${esc(p.color || '#001E2D')}">
-          <div class="card-band"></div>
-          <div class="card-body">
-            <div class="product-head">
-              <div class="product-icon" aria-hidden="true">${p.icon || '🛒'}</div>
-              <div>
-                <div class="product-name">${esc(p.nom)}</div>
-                <div class="product-price">${fmt(priceOf(p))}</div>
-              </div>
-            </div>
-            <div class="qty-control">
-              <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)" ${qte <= 0 ? 'disabled' : ''} aria-label="Retirer ${esc(p.nom)}">−</button>
-              <div class="qty-display">${qte}</div>
-              <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)" ${dispo <= 0 ? 'disabled' : ''} aria-label="Ajouter ${esc(p.nom)}">+</button>
-            </div>
-            <div class="stock-remaining ${lowCls}">${!aStock(p.ref) ? 'Pas en stock ici' : dispo <= 0 ? 'Épuisé' : 'Dispo : ' + dispo + unite}</div>
-          </div>
-        </div>`;
-    });
-    html += '</div></section>';
-  });
-  zone.innerHTML = html;
+function renderTiles() {
+  document.getElementById('tiles').innerHTML = CATALOGUE.map(p => {
+    const q = panier.lignes[p.ref] || 0;
+    const suivi = stockSuivi(), absent = suivi && !aStock(p.ref), d = stockDispo(p.ref);
+    const vide = suivi && d <= 0 && q === 0;
+    const bas = suivi && !absent && d > 0 && d <= p.seuil;
+    return `<button class="tile${q ? ' on' : ''}${vide ? ' vide' : ''}${absent ? ' absent' : ''}" style="--c:${p.color}" onclick="ajouter('${p.ref}')" aria-label="Ajouter ${esc(p.nom)}">
+      <div class="top" aria-hidden="true">${p.icon}</div>
+      <div class="bot"><span class="nom">${esc(p.nom)}</span><span class="prix">${fmt(p.pv)}</span>${bas ? `<span class="reste">⚠️ plus que ${d}</span>` : ''}</div>
+      ${q ? `<span class="qty" id="q-${p.ref}">${q}</span><span class="moins" role="button" aria-label="Retirer ${esc(p.nom)}" onclick="event.stopPropagation();retirer('${p.ref}')">−</span>` : ''}
+    </button>`;
+  }).join('');
 }
 
 function totalPanier() {
   let t = 0;
-  Object.entries(panier.lignes).forEach(([ref, q]) => { const p = CATALOGUE.find(c => c.ref === ref); if (p) t += q * priceOf(p); });
-  return t + panier.consigne * CONSIGNE - panier.rendue * CONSIGNE;
+  Object.entries(panier.lignes).forEach(([r, q]) => { t += q * priceOf(prod(r)); });
+  return Math.round((t + (panier.consigne - panier.rendue) * CONSIGNE) * 100) / 100;
 }
 function panierVide() { return !Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue; }
 
+function ligneHtml(label, sub, qte, montant, moins, plus, neg) {
+  return `<div class="line${neg ? ' neg' : ''}"><span class="n">${label}${sub ? `<small>${sub}</small>` : ''}</span>
+    <span class="step"><button onclick="${moins}" aria-label="Moins">−</button><b>${qte}</b><button onclick="${plus}" aria-label="Plus">+</button></span>
+    <span class="m">${neg ? '−' : ''}${fmt(montant)}</span></div>`;
+}
 function renderPanier() {
-  const lines = document.getElementById('cart-lines');
   const rows = [];
-  sellable().forEach(p => { const q = panier.lignes[p.ref] || 0; if (q) rows.push(`<div class="cart-row"><span>${q} × ${esc(p.nom)}</span><b>${fmt(q * priceOf(p))}</b></div>`); });
-  if (panier.consigne) rows.push(`<div class="cart-row"><span>${panier.consigne} × consigne écocup</span><b>${fmt(panier.consigne * CONSIGNE)}</b></div>`);
-  if (panier.rendue)   rows.push(`<div class="cart-row neg"><span>${panier.rendue} × consigne rendue</span><b>−${fmt(panier.rendue * CONSIGNE)}</b></div>`);
-  lines.innerHTML = rows.length ? rows.join('') : '<div class="cart-empty">Touche + sur un produit pour commencer une vente</div>';
-  const tot = totalPanier();
-  document.getElementById('cart-total').textContent = (tot < 0 ? '−' : '') + fmt(Math.abs(tot));
-  document.getElementById('cart-total-label').textContent = tot < 0 ? 'À rendre au client' : 'À encaisser';
-  document.getElementById('btn-valider').disabled = panierVide();
-  document.getElementById('btn-annuler').disabled = panierVide() && !billet;
-  document.getElementById('qty-E01').textContent  = panier.consigne;
-  document.getElementById('remb-E01').textContent = panier.rendue;
-  const bz = document.getElementById('billet-zone');
+  CATALOGUE.forEach(p => { const q = panier.lignes[p.ref] || 0; if (q) rows.push(ligneHtml(esc(p.nom), fmt(p.pv) + ' pièce', q, q * p.pv, `retirer('${p.ref}')`, `ajouter('${p.ref}')`)); });
+  if (panier.consigne) rows.push(ligneHtml('♻️ Gobelet consigné', 'ajouté avec la bière', panier.consigne, panier.consigne * CONSIGNE, 'changeConsigne(-1)', 'changeConsigne(1)'));
+  if (panier.rendue) rows.push(ligneHtml('♻️ Gobelet rendu', 'consigne remboursée', panier.rendue, panier.rendue * CONSIGNE, 'changeRendue(-1)', 'changeRendue(1)', true));
+  document.getElementById('lines').innerHTML = rows.length ? rows.join('')
+    : `<div class="empty"><big>👈</big>Touche les boissons<br>demandées par le client</div>`;
+
+  const tot = totalPanier(), vide = panierVide();
+  document.getElementById('total').textContent = (tot < 0 ? '−' : '') + fmt(Math.abs(tot));
+  document.getElementById('total-label').textContent = tot < 0 ? 'À rendre au client' : 'À encaisser';
+  document.getElementById('total-box').className = 'total' + (tot < 0 ? ' rendre' : '');
+  document.getElementById('btn-vider').disabled = vide && !billet;
+
+  const pb = document.getElementById('paybtns');
+  if (!vide && tot < 0) pb.innerHTML = `<button class="pbtn esp full" onclick="encaisser('ESP')">💶 Rendre ${fmt(-tot)}<small>remboursement des gobelets</small></button>`;
+  else if (!vide && tot === 0) pb.innerHTML = `<button class="pbtn cb full" onclick="encaisser('ESP')">✓ Valider<small>rien à payer</small></button>`;
+  else pb.innerHTML = `<button class="pbtn cb" onclick="encaisser('CB')" ${vide ? 'disabled' : ''}>💳 CB<small>carte / sans contact</small></button>
+    <button class="pbtn esp" onclick="ouvrirEspeces()" ${vide ? 'disabled' : ''}>💶 Espèces<small>calcul de la monnaie</small></button>`;
+
+  const bz = document.getElementById('billet'), bs = document.getElementById('btn-scan');
   if (billet) {
-    bz.innerHTML = `<div class="ticket-badge"><span aria-hidden="true">🎫</span><div><b>${esc(billet.tarif || (billet.nonVerifie ? 'Billet à vérifier' : 'Billet'))}</b>${billet.prenom ? '<small>' + esc(billet.prenom) + '</small>' : ''}</div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>`;
+    bz.innerHTML = `<div class="billet"><span class="i">🎫</span><div><b>${esc(billet.prenom ? billet.prenom + ' · ' : '')}${esc(billet.tarif || (billet.nonVerifie ? 'Billet (vérifié plus tard)' : 'Billet'))}</b><small>relié à cette vente · points fidélité</small></div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>`;
+    bs.classList.add('lie'); bs.innerHTML = `<span class="ico">✅</span><span>Billet relié<small>Toucher pour en scanner un autre</small></span>`;
   } else {
-    bz.innerHTML = `<button class="btn-scan" onclick="ouvrirScanner()"><span aria-hidden="true">🎫</span> Scanner le billet <small>(facultatif)</small></button>`;
+    bz.innerHTML = '';
+    bs.classList.remove('lie'); bs.innerHTML = `<span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span>`;
   }
 }
 
-function renderStockList() {
-  const l = document.getElementById('stock-list');
-  l.innerHTML = sellable().map(p =>
-    `<div class="stock-item"><span class="stock-label">${esc(p.nom)}</span><span class="stock-qty ${stockClass(p)}">${stockDispo(p.ref)}</span></div>`
-  ).join('');
-}
-
 function renderAlerts() {
-  const z = document.getElementById('alerts-zone');
-  z.innerHTML = '';
-  sellable().forEach(p => {
-    if (!aStock(p.ref)) return;
-    const d = stockDispo(p.ref);
-    const isBiere = p.cat === 'biere';
-    if (d === 0) addAlert(z, 'err', isBiere ? `🚨 ${p.nom} ÉPUISÉE — changer le fût !` : `🚨 ${p.nom} épuisé`);
-    else if (d <= seuilOf(p)) addAlert(z, 'warn', isBiere ? `⚠️ ${p.nom} : ${d} verres restants — prévoir le fût` : `⚠️ ${p.nom} : plus que ${d}`);
-  });
-}
-function addAlert(z, type, msg) {
-  const d = document.createElement('div');
-  d.className = 'alert-banner ' + (type === 'warn' ? 'warn' : 'err');
-  d.textContent = msg;
-  z.appendChild(d);
+  const z = document.getElementById('alerts'), out = [];
+  if (stockSuivi()) {
+    const biere = aStock('P01_25') || aStock('P01_50');
+    if (biere) {
+      const l = litresRestants(true);
+      if (l <= 0) out.push(['err', '🚨 Fût vide : préviens le responsable']);
+      else if (l <= 4) out.push(['warn', `⚠️ Bière : ~${Math.floor(l / .25)} verres de 25cl restants`]);
+    }
+    CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => {
+      const d = stockDispo(p.ref);
+      if (d === 0) out.push(['err', `🚨 ${p.nom} épuisé`]);
+    });
+  }
+  z.innerHTML = out.slice(0, 3).map(([c, t]) => `<div class="alert ${c}">${esc(t)}</div>`).join('');
 }
 
-function renderFooter() {
-  const c = cumulTab();
-  document.getElementById('ca-total-display').textContent = fmt(c.ca);
-  document.getElementById('ca-sub').textContent = c.ventes + ' vente' + (c.ventes > 1 ? 's' : '') + ' · ' + state.tab;
-  const s = document.getElementById('sync-dot');
-  const horsLigne = navigator.onLine === false;
-  if (!state.url || !state.token) { s.className = 'sync-dot off'; s.textContent = 'Tablette non configurée'; }
-  else if (state.outbox.length) { s.className = 'sync-dot wait'; s.textContent = (horsLigne ? 'Hors ligne · ' : '') + state.outbox.length + ' vente(s) gardée(s), envoi au retour du réseau'; }
-  else { s.className = 'sync-dot ok'; s.textContent = horsLigne ? 'Hors ligne · tout est déjà envoyé' : 'Toutes les ventes sont envoyées'; }
+function renderNet() {
+  const n = document.getElementById('net'), t = document.getElementById('net-txt');
+  const off = navigator.onLine === false, att = state.outbox.length;
+  if (!state.url || !state.token) { n.className = 'net off'; t.textContent = 'Non configurée'; }
+  else if (off) { n.className = 'net wait'; t.textContent = att ? `Hors ligne · ${att} vente${att > 1 ? 's' : ''} gardée${att > 1 ? 's' : ''}` : 'Hors ligne · tout est à jour'; }
+  else if (att) { n.className = 'net wait'; t.textContent = `Envoi en cours (${att})`; }
+  else { n.className = 'net ok'; t.textContent = 'Connectée · tout est envoyé'; }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ACTIONS VENTE
+// SAISIE
 // ═══════════════════════════════════════════════════════════════════
-function changeQty(ref, delta) {
-  const cur = panier.lignes[ref] || 0;
-  if (delta > 0 && stockDispo(ref) <= 0) return;
-  if (delta < 0 && cur <= 0) return;
-  panier.lignes[ref] = cur + delta;
-  renderAll();
+function ajouter(ref) {
+  const p = prod(ref);
+  if (!peutAjouter(ref)) { vibre(60); info(aStock(ref) || !stockSuivi() ? `🚫 ${p.nom} : plus de stock` : `🚫 Pas de ${p.nom} dans cette buvette`); return; }
+  panier.lignes[ref] = (panier.lignes[ref] || 0) + 1;
+  if (p.ecocup) panier.consigne++;          // la bière est servie en écocup consignée
+  vibre();
+  renderTiles(); renderPanier(); renderAlerts();
+  const q = document.getElementById('q-' + ref); if (q) q.classList.add('pop');
 }
-function changeEcocup(ref, delta) {
-  if (delta < 0 && panier.consigne <= 0) return;
-  panier.consigne += delta;
-  renderPanier();
+function retirer(ref) {
+  const q = panier.lignes[ref] || 0;
+  if (!q) return;
+  panier.lignes[ref] = q - 1;
+  if (!panier.lignes[ref]) delete panier.lignes[ref];
+  if (prod(ref).ecocup && panier.consigne > 0) panier.consigne--;
+  vibre();
+  renderTiles(); renderPanier(); renderAlerts();
 }
-// Une écocup achetée à une autre buvette peut être rendue ici : pas de plafond.
-function changeRemb(ref, delta) {
-  if (delta < 0 && panier.rendue <= 0) return;
-  panier.rendue += delta;
-  renderPanier();
-}
+function changeConsigne(d) { if (d < 0 && !panier.consigne) return; panier.consigne += d; renderPanier(); }
+function changeRendue(d) { if (d < 0 && !panier.rendue) return; panier.rendue += d; renderPanier(); }
+function ecocupRendue() { panier.rendue++; vibre(); renderPanier(); }
+function viderPanier() { panier = nouveauPanier(); billet = null; renderAll(); }
 
-function annulerVente() {
-  panier = { lignes:{}, consigne:0, rendue:0 };
-  billet = null;
-  renderAll();
-}
-
-function validerVente() {
+// ═══════════════════════════════════════════════════════════════════
+// ENCAISSEMENT
+// ═══════════════════════════════════════════════════════════════════
+function ouvrirEspeces() {
   if (panierVide()) return;
-  const total = Math.round(totalPanier() * 100) / 100;
+  const tot = totalPanier();
+  document.getElementById('cash-du').textContent = fmt(tot);
+  // Billets/pièces probables : montant exact + coupures supérieures au total
+  const cand = [5, 10, 20, 50, 100].filter(v => v > tot);
+  const arr = [Math.ceil(tot), Math.ceil(tot / 5) * 5].filter(v => v > tot && !cand.includes(v));
+  const choix = [...new Set([...arr, ...cand])].sort((a, b) => a - b).slice(0, 6);
+  document.getElementById('notes').innerHTML = `<button class="note exact" onclick="payerEspeces(${tot})">✓ Compte juste (${fmt(tot)})</button>`
+    + choix.map(v => `<button class="note" onclick="payerEspeces(${v})">${v} €</button>`).join('');
+  document.getElementById('cash-step1').hidden = false;
+  document.getElementById('cash-step2').hidden = true;
+  ouvrir('m-cash');
+}
+function payerEspeces(donne) {
+  const tot = totalPanier();
+  encaisser('ESP');
+  const rendu = Math.round((donne - tot) * 100) / 100;
+  if (rendu <= 0) { fermer('m-cash'); return; }
+  document.getElementById('rendu-v').textContent = fmt(rendu);
+  document.getElementById('rendu-s').textContent = `Reçu ${fmt(donne)} pour ${fmt(tot)}`;
+  document.getElementById('cash-step1').hidden = true;
+  document.getElementById('cash-step2').hidden = false;
+}
+
+function encaisser(mode) {
+  if (panierVide()) return;
+  const total = totalPanier();
   const lignes = {};
   Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) lignes[r] = q; });
   const vente = {
-    id: state.tab.replace(/\D/g,'') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,6),
+    id: state.tab.replace(/\D/g, '') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
     ts: new Date().toISOString(),
     matchId: state.match ? state.match.idMatch : '',
     buvette: state.tab,
     lignes, consigne: panier.consigne, rendue: panier.rendue, total,
-    prix: Object.fromEntries(Object.keys(lignes).map(r => [r, priceOf(CATALOGUE.find(c => c.ref === r) || {})])),
+    paiement: mode,
+    prix: Object.fromEntries(Object.keys(lignes).map(r => [r, priceOf(prod(r))])),
     ticket: billet ? { ticket_id: billet.ticket_id || '', barcode: billet.barcode || '', tarif: billet.tarif || '' } : null,
   };
-  const c = cumulTab();
-  Object.entries(lignes).forEach(([r, q]) => c.lignes[r] = (c.lignes[r] || 0) + q);
-  c.consigne += panier.consigne; c.rendue += panier.rendue; c.ventes++; c.ca = Math.round((c.ca + total) * 100) / 100;
+  appliquerCumul(vente, 1);
   state.outbox.push(vente);
-  panier = { lignes:{}, consigne:0, rendue:0 };
-  billet = null;
-  save();
-  renderAll();
-  toast('✅ Vente validée — ' + (total < 0 ? 'rendre ' : '') + fmt(Math.abs(total)) + (vente.ticket ? ' · billet relié' : ''));
+  state.historique.unshift({ id: vente.id, ts: vente.ts, total, paiement: mode, lignes, consigne: vente.consigne, rendue: vente.rendue, billet: !!vente.ticket, buvette: state.tab });
+  state.historique = state.historique.slice(0, 40);
+  panier = nouveauPanier(); billet = null;
+  save(); renderAll();
+  vibre(25);
+  const side = document.getElementById('side'); side.classList.remove('flash'); void side.offsetWidth; side.classList.add('flash');
+  derniere = vente.id;
+  snack(`✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${vente.ticket ? ' · 🎫' : ''}`, true);
+  setTimeout(envoyerVentes, DELAI_ANNUL + 500);
+}
+function appliquerCumul(v, sens) {
+  const c = cumulTab(v.buvette);
+  Object.entries(v.lignes).forEach(([r, q]) => { c.lignes[r] = (c.lignes[r] || 0) + sens * q; if (!c.lignes[r]) delete c.lignes[r]; });
+  c.consigne += sens * v.consigne; c.rendue += sens * v.rendue; c.ventes += sens;
+  c.ca = Math.round((c.ca + sens * v.total) * 100) / 100;
+  const k = v.paiement === 'CB' ? 'cb' : 'esp';
+  c[k] = Math.round((c[k] + sens * v.total) * 100) / 100;
+}
+
+// ── Annulation ──────────────────────────────────────────────────────
+let derniere = null;
+function annulerDerniere() { if (derniere) annulerVente(derniere); }
+// Pas encore partie → on la retire. Déjà au Sheet → on envoie une vente inverse.
+function annulerVente(id) {
+  const h = state.historique.find(x => x.id === id);
+  if (!h || h.annulee) return;
+  const i = state.outbox.findIndex(v => v.id === id);
+  if (i >= 0) state.outbox.splice(i, 1);
+  else {
+    const neg = o => Object.fromEntries(Object.entries(o).map(([r, q]) => [r, -q]));
+    state.outbox.push({ id: id + '-ANN', ts: new Date().toISOString(), matchId: state.match ? state.match.idMatch : '', buvette: h.buvette,
+      lignes: neg(h.lignes), consigne: -h.consigne, rendue: -h.rendue, total: -h.total, paiement: h.paiement, annule: id,
+      prix: Object.fromEntries(Object.keys(h.lignes).map(r => [r, priceOf(prod(r))])), ticket: null });
+  }
+  appliquerCumul({ buvette: h.buvette, lignes: h.lignes, consigne: h.consigne, rendue: h.rendue, total: h.total, paiement: h.paiement }, -1);
+  h.annulee = true;
+  if (derniere === id) derniere = null;
+  save(); renderAll();
+  fermer('m-cash');
+  snack('↶ Vente annulée (' + fmt(Math.abs(h.total)) + (h.paiement === 'CB' ? ' CB' : ' espèces') + ')', false);
+  if (document.getElementById('m-bilan').classList.contains('open')) openBilan();
   envoyerVentes();
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ENVOI AU PILOTAGE (au fil de l'eau, file d'attente hors ligne)
+// ENVOI AU SHEET (file d'attente hors ligne)
 // ═══════════════════════════════════════════════════════════════════
 let envoiEnCours = false;
 async function envoyerVentes() {
-  if (envoiEnCours || !state.url || !state.token || !state.outbox.length) { renderFooter(); return; }
+  const pretes = state.outbox.filter(v => Date.now() - Date.parse(v.ts) >= DELAI_ANNUL);
+  if (envoiEnCours || !state.url || !state.token || !pretes.length) { renderNet(); return; }
   envoiEnCours = true;
   try {
-    const lot = state.outbox.slice(0, 50);
-    // text/plain : pas de pré-vérification CORS, accepté par Apps Script
+    const lot = pretes.slice(0, 50);
     const r = await fetch(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
       body: JSON.stringify({ action:'ventes', token: state.token, buvette: state.tab, ventes: lot, stock: stockSnapshot() }) });
     const res = await r.json();
@@ -816,24 +719,22 @@ async function envoyerVentes() {
     state.outbox = state.outbox.filter(v => !recus.has(v.id));
     state.envoyees += recus.size;
     save();
-  } catch(e) {
-    // réseau coupé ou jeton refusé : on réessaiera
-  } finally {
+  } catch(e) { /* réseau coupé : on réessaiera */ }
+  finally {
     envoiEnCours = false;
-    renderFooter();
+    renderNet();
     if (state.outbox.length && navigator.onLine !== false) setTimeout(envoyerVentes, 20000);
   }
 }
-window.addEventListener('online', () => { renderFooter(); envoyerVentes(); chargerMatch(true); });
-setInterval(() => chargerMatch(true), 5 * 60000);   // réassort et changement de match pris en compte automatiquement
-window.addEventListener('offline', renderFooter);
-setInterval(() => { if (state.outbox.length) envoyerVentes(); }, 60000);
+window.addEventListener('online', () => { renderNet(); envoyerVentes(); chargerMatch(true); });
+window.addEventListener('offline', renderNet);
+setInterval(() => chargerMatch(true), 5 * 60000);
+setInterval(() => { if (state.outbox.length) envoyerVentes(); }, 30000);
 
 // ═══════════════════════════════════════════════════════════════════
-// SCANNER BILLET (QR Tickie → relais tickie-proxy)
+// BILLET / CARTE ABONNÉ — caméra, douchette ou saisie
 // ═══════════════════════════════════════════════════════════════════
 let scanStream = null, scanTimer = null, detector = null;
-
 function chargerJsQR() {
   return new Promise((ok, ko) => {
     if (window.jsQR) return ok();
@@ -843,35 +744,28 @@ function chargerJsQR() {
     document.head.appendChild(s);
   });
 }
-
 async function ouvrirScanner() {
-  document.getElementById('scan-result').hidden = true;
+  document.getElementById('scan-ko').hidden = true;
+  document.getElementById('btn-rescan').hidden = true;
   document.getElementById('scan-zone').hidden = false;
   document.getElementById('scan-manual').value = '';
-  setScanStatus('📷 Place le QR code du billet dans le cadre');
-  document.getElementById('modal-scan').classList.add('open');
+  setScanStatus('📷 Mets le QR code du billet dans le cadre jaune');
+  ouvrir('m-scan');
   try {
-    if ('BarcodeDetector' in window) {
-      try { detector = new BarcodeDetector({ formats:['qr_code','code_128','aztec','data_matrix'] }); } catch(e) { detector = null; }
-    }
+    if (!detector && 'BarcodeDetector' in window) { try { detector = new BarcodeDetector({ formats:['qr_code','code_128','aztec','data_matrix'] }); } catch(e) { detector = null; } }
     if (!detector) await chargerJsQR();
     scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } });
     const v = document.getElementById('scan-video');
     v.srcObject = scanStream; await v.play();
-    scanTimer = setInterval(lireImage, 250);
-  } catch(e) {
-    setScanStatus('Caméra indisponible (' + e.message + '). Tape le code du billet ou utilise une douchette.');
-    document.getElementById('scan-manual').focus();
-  }
+    scanTimer = setInterval(lireImage, 200);
+  } catch(e) { setScanStatus('Caméra indisponible : tape le code imprimé sous le QR.'); }
 }
-
 async function lireImage() {
   const v = document.getElementById('scan-video');
   if (!v.videoWidth) return;
   let code = null;
-  if (detector) {
-    try { const r = await detector.detect(v); if (r && r[0]) code = r[0].rawValue; } catch(e) {}
-  } else if (window.jsQR) {
+  if (detector) { try { const r = await detector.detect(v); if (r && r[0]) code = r[0].rawValue; } catch(e) {} }
+  else if (window.jsQR) {
     const c = document.getElementById('scan-canvas');
     c.width = v.videoWidth; c.height = v.videoHeight;
     const ctx = c.getContext('2d', { willReadFrequently:true }); ctx.drawImage(v, 0, 0);
@@ -881,224 +775,209 @@ async function lireImage() {
   }
   if (code) { arreterCamera(); chercherBillet(code.trim()); }
 }
-
-function arreterCamera() {
-  clearInterval(scanTimer); scanTimer = null;
-  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
-}
+function arreterCamera() { clearInterval(scanTimer); scanTimer = null; if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; } }
 function setScanStatus(t) { document.getElementById('scan-status').textContent = t; }
-
-function saisieManuelle(e) {
-  e.preventDefault();
-  const v = document.getElementById('scan-manual').value.trim();
-  if (v) { arreterCamera(); chercherBillet(v); }
-}
+function saisieManuelle(e) { e.preventDefault(); const v = document.getElementById('scan-manual').value.trim(); if (v) { arreterCamera(); chercherBillet(v); } }
 
 async function chercherBillet(barcode) {
   const local = state.billets[barcode];
-  if (local) { afficherBillet({ ticket_id: local[0], tarif: local[1], valide: true }, barcode); return; }
-  if (navigator.onLine === false) { afficherNonVerifie(barcode, 'Hors ligne et billet absent de la liste chargée.'); return; }
-  setScanStatus('⏳ Recherche du billet…');
+  if (local) { relierBillet({ ticket_id: local[0], tarif: local[1] }, barcode); return; }
+  if (navigator.onLine === false) { relierBillet({ nonVerifie: true }, barcode); return; }
+  setScanStatus('⏳ Vérification du billet…');
   try {
-    const r = await fetch(TICKIE_PROXY_URL + '/ticket/' + encodeURIComponent(barcode));
-    if (r.status === 404) throw Object.assign(new Error('billet introuvable dans Tickie'), { definitif: true });
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch(TICKIE_PROXY_URL + '/ticket/' + encodeURIComponent(barcode), { signal: ctl.signal });
+    clearTimeout(to);
+    if (r.status === 404) return refuserBillet('Billet inconnu');
     if (!r.ok) throw new Error('erreur ' + r.status);
     const t = await r.json();
-    if (t.error) throw Object.assign(new Error(t.error), { definitif: true });
-    afficherBillet(t, barcode);
-  } catch(e) {
-    if (e.definitif) afficherBillet({ valide: false, tarif: e.message }, barcode);
-    else afficherNonVerifie(barcode, 'Vérification impossible (' + e.message + ').');
-  }
+    if (t.error) return refuserBillet(t.error);
+    if (t.valide === false) return refuserBillet('Billet non valide' + (t.tarif ? ' (' + t.tarif + ')' : ''));
+    relierBillet(t, barcode);
+  } catch(e) { relierBillet({ nonVerifie: true }, barcode); }   // réseau lent : vérifié plus tard par le Sheet
 }
-
-// Billet lu mais non vérifié (hors ligne) : on garde le code, le serveur le reliera au retour du réseau
-function afficherNonVerifie(barcode, raison) {
-  billetLu = { ticket_id: '', barcode, tarif: '', prenom: '', valide: true, nonVerifie: true };
-  document.getElementById('scan-zone').hidden = true;
-  document.getElementById('scan-result').hidden = false;
-  document.getElementById('scan-card').className = 'scan-card warn';
-  document.getElementById('scan-card').innerHTML =
-    `<div class="scan-state">⚠️ Billet non vérifié</div><div class="scan-tarif">Code ${esc(barcode)}</div>
-     <div class="scan-meta">${esc(raison)} Il sera vérifié et relié à l'acheteur au retour du réseau.</div>`;
-  document.getElementById('btn-use-ticket').disabled = false;
-}
-
-let billetLu = null;
-function afficherBillet(t, barcode) {
-  const valide = t.valide !== false;
+// Billet bon (ou impossible à vérifier tout de suite) → relié directement, sans confirmation
+function relierBillet(t, barcode) {
   const prenom = (t.prenom || (t.nom_complet || t.nom || '').split(' ')[0] || '').trim();
-  // Seuls ces champs quittent le scanner : pas d'email ni de nom complet stockés
-  billetLu = { ticket_id: t.ticket_id || t._id || '', barcode: t.barcode || barcode, tarif: t.tarif || '', prenom, valide };
-  document.getElementById('scan-zone').hidden = true;
-  document.getElementById('scan-result').hidden = false;
-  document.getElementById('scan-card').className = 'scan-card ' + (valide ? 'ok' : 'ko');
-  document.getElementById('scan-card').innerHTML =
-    `<div class="scan-state">${valide ? '✅ Billet valide' : '❌ Billet non valide'}</div>
-     <div class="scan-tarif">${esc(billetLu.tarif || 'Tarif inconnu')}</div>
-     ${prenom ? `<div class="scan-name">${esc(prenom)}</div>` : ''}
-     ${t.tribune ? `<div class="scan-meta">📍 ${esc(t.tribune)}</div>` : ''}`;
-  document.getElementById('btn-use-ticket').disabled = !valide;
-}
-
-function utiliserBillet() {
-  if (!billetLu || !billetLu.valide) return;
-  billet = billetLu; billetLu = null;
+  billet = { ticket_id: t.ticket_id || t._id || '', barcode: t.barcode || barcode, tarif: t.tarif || '', prenom, nonVerifie: !!t.nonVerifie };
   fermerScanner();
+  vibre(30);
   renderPanier();
-  toast('🎫 Billet relié à la vente en cours');
+  info(t.nonVerifie ? '🎫 Billet enregistré (vérifié plus tard)' : `🎫 ${prenom ? prenom + ' · ' : ''}${billet.tarif || 'Billet'} relié`);
+}
+function refuserBillet(msg) {
+  vibre([80, 60, 80]);
+  const z = document.getElementById('scan-ko');
+  z.hidden = false; z.className = 'scan-ko'; z.innerHTML = `<b>❌ ${esc(msg)}</b>La vente peut continuer sans billet.`;
+  document.getElementById('scan-zone').hidden = true;
+  document.getElementById('btn-rescan').hidden = false;
 }
 function relancerScan() { arreterCamera(); ouvrirScanner(); }
-function fermerScanner() { arreterCamera(); document.getElementById('modal-scan').classList.remove('open'); }
+function fermerScanner() { arreterCamera(); fermer('m-scan'); }
 function retirerBillet() { billet = null; renderPanier(); }
 
+// Douchette USB/Bluetooth : elle « tape » le code très vite puis Entrée
+let kbBuf = '', kbLast = 0;
+document.addEventListener('keydown', e => {
+  if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  const now = Date.now();
+  if (now - kbLast > 80) kbBuf = '';
+  kbLast = now;
+  // Entrée ne doit jamais « re-cliquer » le dernier bouton touché (la douchette finit toujours par Entrée)
+  if (e.key === 'Enter') { e.preventDefault(); if (kbBuf.length >= 4) { const c = kbBuf; arreterCamera(); chercherBillet(c); } kbBuf = ''; return; }
+  if (e.key.length === 1) kbBuf += e.key;
+});
+
 // ═══════════════════════════════════════════════════════════════════
-// SETTINGS
+// BILAN (pour le responsable et la fermeture de caisse)
 // ═══════════════════════════════════════════════════════════════════
+function openBilan() {
+  const c = cumulTab();
+  document.getElementById('bilan-titre').textContent = '📊 Bilan ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
+  let h = `<div class="kpis">
+    <div class="k"><span>Total</span><b>${fmt(c.ca)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}</small></div>
+    <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>à rapprocher du TPE</small></div>
+    <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>+ fond de caisse</small></div></div>`;
+  h += `<div class="grid2"><div><div class="sec">Vendu</div><div class="rows">`;
+  const vendus = CATALOGUE.filter(p => (c.lignes[p.ref] || 0) > 0);
+  h += vendus.length ? vendus.map(p => `<div><span>${esc(p.nom)} × ${c.lignes[p.ref]}</span><b>${fmt(c.lignes[p.ref] * p.pv)}</b></div>`).join('') : '<div><span>Aucune vente</span><b>—</b></div>';
+  h += `<div><span>♻️ Gobelets sortis / rendus</span><b>${c.consigne} / ${c.rendue}</b></div></div></div>`;
+  h += `<div><div class="sec">Stock restant</div><div class="rows">`;
+  if (!stockSuivi()) h += '<div><span>Match pas chargé</span><b>—</b></div>';
+  else {
+    if (aStock('P01_25') || aStock('P01_50')) h += `<div><span>🍺 Bière</span><b>${litresRestants(false).toLocaleString('fr-FR')} L</b></div>`;
+    CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => { h += `<div><span>${esc(p.nom)}</span><b>${stockApresVentes(p.ref)}</b></div>`; });
+  }
+  h += `</div></div></div>`;
+  const hist = state.historique.filter(x => x.buvette === state.tab).slice(0, 8);
+  if (hist.length) {
+    h += `<div class="sec">Dernières ventes (erreur ? annule-la ici)</div><div class="rows">`;
+    h += hist.map(x => {
+      const det = Object.entries(x.lignes).map(([r, q]) => q + ' ' + (prod(r).nom || r)).join(', ') || 'gobelets';
+      const heure = new Date(x.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+      return `<div><span class="${x.annulee ? 'barre' : ''}">${heure} · ${esc(det)} · ${x.paiement === 'CB' ? '💳' : '💶'} ${fmt(x.total)}${x.billet ? ' · 🎫' : ''}</span>${x.annulee ? '<b>annulée</b>' : `<button class="btn small" onclick="annulerVente('${x.id}')">↶ Annuler</button>`}</div>`;
+    }).join('') + '</div>';
+  }
+  h += state.outbox.length
+    ? `<div class="msg warn">📶 ${state.outbox.length} vente(s) gardée(s) dans la tablette : elles partiront toutes seules au retour du wifi.</div>`
+    : `<div class="msg ok">✅ Toutes les ventes sont arrivées dans le Sheet.</div>`;
+  if (state.outbox.length) h += `<button class="btn prim" style="width:100%;margin-top:10px" onclick="envoyerVentes()">📤 Réessayer l'envoi maintenant</button>`;
+  document.getElementById('bilan').innerHTML = h;
+  ouvrir('m-bilan');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AIDE / RÉGLAGES
+// ═══════════════════════════════════════════════════════════════════
+function openAide() { ouvrir('m-aide'); }
+function fermerAide() { try { localStorage.setItem('buvette_aide_vue', '1'); } catch(e) {} fermer('m-aide'); }
+
 function openSettings() {
-  document.getElementById('sel-tab').value   = state.tab;
-  document.getElementById('inp-url').value   = state.url;
+  renderSeg();
+  document.getElementById('inp-url').value = state.url;
   document.getElementById('inp-token').value = state.token;
   renderEtatMatch();
-  document.getElementById('modal-settings').classList.add('open');
+  ouvrir('m-settings');
+}
+function renderSeg() {
+  document.getElementById('seg-tab').innerHTML = [1, 2, 3].map(n => { const t = 'Buvette ' + n; return `<button class="${t === state.tab ? 'on' : ''}" onclick="choisirBuvette('${t}')">${t}</button>`; }).join('');
+}
+function choisirBuvette(t) {
+  if (t === state.tab) return;
+  if (!panierVide()) { info('Encaisse ou efface la commande en cours d\'abord'); return; }
+  state.tab = t; save(); renderSeg(); renderAll();
+  info('📍 Tablette passée en ' + t);
+  if (state.match) { state.match = Object.assign({}, state.match, { prepa: null }); chargerMatch(true); }
 }
 function saveSettings() {
-  const tab = document.getElementById('sel-tab').value;
-  if (tab !== state.tab && !panierVide()) { toast('Valide ou annule la vente en cours avant de changer de buvette'); return; }
-  state.tab   = tab;
-  state.url   = document.getElementById('inp-url').value.trim();
+  state.url = document.getElementById('inp-url').value.trim();
   const jt = document.getElementById('inp-token').value.match(/[0-9a-f]{20}/i);
   state.token = jt ? jt[0] : document.getElementById('inp-token').value.trim();
-  save();
-  closeModal('modal-settings');
-  renderAll();
-  envoyerVentes();
+  save(); fermer('m-settings'); renderAll(); envoyerVentes(); chargerMatch(true);
 }
 function renderEtatMatch() {
-  const el = document.getElementById('match-state');
   const m = state.match;
-  el.innerHTML = m
-    ? `<b>${esc(m.nom)}</b><br>Chargé le ${new Date(m.charge).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${Object.keys(state.billets).length} billets en mémoire`
+  document.getElementById('match-state').innerHTML = m
+    ? `Match : <b>${esc(m.nom)}</b> · chargé le ${new Date(m.charge).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })} · ${Object.keys(state.billets).length} billets en mémoire`
     : 'Aucun match chargé.';
 }
 
-// 'Tab. 2', 'Buvette 2', 'B2', '2' → 'Buvette 2' (null si hors des 3 buvettes)
-function normTab(raw) {
-  const m = String(raw).match(/(\d+)/);
-  const n = m ? parseInt(m[1], 10) : 0;
-  return (n >= 1 && n <= NB_BUVETTES) ? 'Buvette ' + n : null;
-}
-
-// ── Chargement du match préparé au tableau de bord (à faire en wifi) ──
+// ── Chargement du match préparé au tableau de bord ──────────────────
 let chargementEnAttente = null;
-// auto = true : appel automatique (ouverture de l'app, toutes les 5 min, retour du réseau) — silencieux sauf changement
 async function chargerMatch(auto) {
   auto = auto === true;
   const st = document.getElementById('load-status');
-  const dire = (cls, t) => { if (auto) return; st.className = 'sync-status ' + cls; st.textContent = t; st.style.display = 'block'; };
-  if (!state.url || !state.token) { if (!auto) { openSettings(); dire('err', '❌ Tablette non configurée : ouvre le lien envoyé par Clément.'); } return; }
+  const dire = (cls, t) => { if (auto) return; st.hidden = false; st.className = 'msg ' + cls; st.textContent = t; };
+  if (!state.url || !state.token) { dire('err', '❌ Tablette non configurée : ouvre le lien du responsable.'); return; }
   if (auto && (navigator.onLine === false || chargementEnAttente)) return;
-  if (!panierVide()) { if (!auto) toast('Valide ou annule la vente en cours d\'abord'); return; }
-  if (!auto) toast('⏳ Chargement du match…');
-  dire('', '⏳ Chargement du match, du stock et des billets…');
+  if (!panierVide()) { if (!auto) info('Encaisse ou efface la commande en cours d\'abord'); return; }
+  dire('warn', '⏳ Chargement du match, du stock et des billets…');
   try {
     const u = new URL(state.url);
     u.searchParams.set('action', 'tablette'); u.searchParams.set('buvette', state.tab); u.searchParams.set('token', state.token);
-    const r = await fetch(u.toString());
-    const d = await r.json();
+    const d = await (await fetch(u.toString())).json();
     if (d.status !== 'ok') throw new Error(d.message || 'réponse invalide');
     const nouveau = !state.match || state.match.eventId !== d.match.eventId;
     const ventesEnCours = Object.values(state.cumul).reduce((a, c) => a + (c.ventes || 0), 0);
     if (nouveau && ventesEnCours > 0) {
       chargementEnAttente = d;
-      if (auto) { renderMatchBanner(); return; }
+      if (auto) { renderBanner(); return; }
       const box = document.getElementById('reset-confirm');
       box.hidden = false;
-      box.querySelector('p').textContent = `Nouveau match : ${d.match.nom}. Les compteurs du match précédent (${ventesEnCours} ventes) seront remis à zéro. Les ventes pas encore envoyées sont gardées et partiront au retour du réseau.`;
-      if (!document.getElementById('modal-settings').classList.contains('open')) openSettings();
-      dire('', 'Confirme le changement de match ci-dessous.');
+      box.querySelector('p').textContent = `Nouveau match : ${d.match.nom}. Les compteurs (${ventesEnCours} ventes) repartiront à zéro. Les ventes pas encore envoyées sont gardées.`;
+      st.hidden = true;
       return;
     }
-    if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {   // rien de neuf : on rafraîchit juste la liste des billets
+    if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {
       if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; save(); }
       return;
     }
-    appliquerChargement(d, nouveau, auto);
-    dire('ok', '✅ ' + d.match.nom + ' chargé' + (d.billetsOk ? ` · ${d.billets.length} billets en mémoire` : ' · liste des billets indisponible, les scans seront vérifiés plus tard'));
+    appliquerChargement(d, nouveau);
+    dire('ok', '✅ ' + d.match.nom + ' chargé' + (d.billetsOk ? ` · ${d.billets.length} billets en mémoire` : ''));
   } catch(e) {
     if (auto) return;
-    const pasPrepare = /aucun match préparé/i.test(e.message);
-    dire('err', pasPrepare ? '⏳ Le stock de ce match n\'a pas encore été enregistré au tableau de bord.' : '❌ Chargement impossible : ' + e.message + '. Vérifie le wifi, puis recommence.');
-    toast(pasPrepare ? '⏳ Match pas encore préparé au tableau de bord' : '❌ Chargement impossible : ' + e.message);
+    dire('err', /aucun match préparé/i.test(e.message) ? '⏳ Le stock de ce match n\'a pas encore été préparé au tableau de bord.' : '❌ Chargement impossible (' + e.message + '). Vérifie le wifi.');
   }
 }
-function appliquerChargement(d, nouveau, auto) {
-  const reassort = !nouveau && state.match && state.match.prepa !== d.match.prepa;
+function appliquerChargement(d, nouveau) {
+  const reassort = !nouveau && state.match && state.match.prepa && state.match.prepa !== d.match.prepa;
   state.match = { eventId: d.match.eventId, idMatch: d.match.idMatch, nom: d.match.nom, date: d.match.date, charge: d.charge, prepa: d.match.prepa };
   state.futLitres = d.futLitres || 30;
   state.stocks[state.tab] = d.stock || {};
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; }
-  if (nouveau) { state.cumul = {}; panier = { lignes:{}, consigne:0, rendue:0 }; billet = null; }
+  if (nouveau) { state.cumul = {}; state.historique = []; panier = nouveauPanier(); billet = null; }
   save(); renderAll(); renderEtatMatch();
-  toast(nouveau ? '✅ ' + d.match.nom + ' chargé' : reassort ? '📦 Stock mis à jour depuis le tableau de bord' : '✅ Match chargé : stock à jour');
+  info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
 }
 function confirmerNouveauMatch() {
   document.getElementById('reset-confirm').hidden = true;
-  if (chargementEnAttente) {
-    const d = chargementEnAttente; chargementEnAttente = null;
-    appliquerChargement(d, true);
-    renderMatchBanner();
-    const st = document.getElementById('load-status'); st.className = 'sync-status ok'; st.textContent = '✅ ' + d.match.nom + ' chargé';
-  }
+  if (chargementEnAttente) { const d = chargementEnAttente; chargementEnAttente = null; appliquerChargement(d, true); }
 }
-function annulerNouveauMatch() { chargementEnAttente = null; document.getElementById('reset-confirm').hidden = true; document.getElementById('load-status').style.display = 'none'; }
-
-// ═══════════════════════════════════════════════════════════════════
-// RAPPORT (agrégé, pour le Sheet stocks existant)
-// ═══════════════════════════════════════════════════════════════════
-function openRapport() {
-  const c = document.getElementById('rapport-content');
-  const cu = cumulTab();
-  let html = `<div class="rapport-section"><div class="rapport-section-title">${esc(state.tab)} · ${cu.ventes} vente(s)${state.match ? ' · ' + esc(state.match.nom) : ''}</div>`;
-  const lignes = sellable().filter(p => (cu.lignes[p.ref] || 0) > 0);
-  if (!lignes.length && !cu.consigne && !cu.rendue) html += '<div class="rapport-row"><span>Aucune vente validée</span><b>—</b></div>';
-  lignes.forEach(p => { html += `<div class="rapport-row"><span>${esc(p.nom)} × ${cu.lignes[p.ref]}</span><b>${fmt(cu.lignes[p.ref] * priceOf(p))}</b></div>`; });
-  if (cu.consigne) html += `<div class="rapport-row"><span>Consignes encaissées × ${cu.consigne}</span><b>${fmt(cu.consigne * CONSIGNE)}</b></div>`;
-  if (cu.rendue) html += `<div class="rapport-row"><span>Consignes rendues × ${cu.rendue}</span><b style="color:var(--error)">−${fmt(cu.rendue * CONSIGNE)}</b></div>`;
-  html += '</div>';
-  html += `<div class="rapport-total"><span class="rapport-total-label">💰 CA ${esc(state.tab)}</span><span class="rapport-total-value">${fmt(cu.ca)}</span></div>`;
-  if (aStock('P01_25') || aStock('P01_50')) html += `<div class="rapport-row"><span>Bière restante</span><b>${litresRestants(false).toLocaleString('fr-FR')} L</b></div>`;
-  html += state.outbox.length
-    ? `<div class="alert-banner warn" style="margin-top:var(--space-3)">⚠️ ${state.outbox.length} vente(s) pas encore envoyées. Reconnecte la tablette au wifi : elles partiront toutes seules.</div>`
-    : `<div class="alert-banner ok-banner" style="margin-top:var(--space-3)">✅ Toutes les ventes sont arrivées dans le Sheet Matchday Business.</div>`;
-  html += `<button class="btn-primary" style="margin-top:var(--space-3)" onclick="envoyerVentes();closeModal('modal-rapport')">📤 Envoyer maintenant</button>`;
-  c.innerHTML = html;
-  document.getElementById('modal-rapport').classList.add('open');
-}
+function annulerNouveauMatch() { chargementEnAttente = null; document.getElementById('reset-confirm').hidden = true; renderBanner(); }
 
 // ═══════════════════════════════════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════════════════════════════════
-function fmt(n) {
-  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
+let snackTimer = null;
+function snack(msg, annulable) {
+  const s = document.getElementById('snack');
+  document.getElementById('snack-txt').textContent = msg;
+  s.classList.toggle('info', !annulable);
+  s.classList.add('show');
+  clearTimeout(snackTimer);
+  snackTimer = setTimeout(() => { s.classList.remove('show'); if (annulable) derniere = null; }, annulable ? DELAI_ANNUL : 2600);
 }
-let toastTimer = null;
-function toast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
-}
-function openModal(id)  { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); if (id === 'modal-scan') arreterCamera(); }
+function info(msg) { snack(msg, false); }
+function ouvrir(id) { document.getElementById(id).classList.add('open'); }
+function fermer(id) { document.getElementById(id).classList.remove('open'); if (id === 'm-scan') arreterCamera(); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => {
+  if (e.target !== o) return;
+  if (o.id === 'm-scan') fermerScanner(); else if (o.id === 'm-aide') fermerAide(); else fermer(o.id);
+}));
 
-document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target === o) { if (o.id === 'modal-scan') fermerScanner(); else o.classList.remove('open'); } });
-});
-
-// Verrouillage paysage quand le navigateur l'autorise (PWA installée / plein écran)
 try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch(e) {}
 
-// ── Init ─────────────────────────────────────────────────────────────
+// ── Démarrage ───────────────────────────────────────────────────────
 load();
 lireLienConfig();
 initDefaultStocks();
@@ -1106,8 +985,7 @@ save();
 renderAll();
 envoyerVentes();
 setTimeout(() => chargerMatch(true), 1500);
-
-// Hors ligne : l'app reste disponible même sans réseau (service worker)
+try { if (!localStorage.getItem('buvette_aide_vue')) ouvrir('m-aide'); } catch(e) {}
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>

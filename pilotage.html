@@ -280,7 +280,9 @@ function render(d){
 
   $('kpis').innerHTML = [
     kpi('Recette / spectateur', base ? eur(v.ca/base, 2) : '—', presents ? 'sur les entrées scannées' : 'sur les spectateurs attendus', 'hero'),
-    kpi('CA buvette', eur(v.ca), int(v.ventes) + ' ventes · net consignes ' + eur(v.consignes - v.rendues)),
+    kpi('CA buvette', eur(v.ca), int(v.ventes) + ' ventes · net consignes ' + eur(v.consignes - v.rendues)
+      + (v.paiement && (v.paiement.CB || v.paiement.ESP) ? ' · 💳 ' + eur(v.paiement.CB) + ' / 💶 ' + eur(v.paiement.ESP) : '')
+      + (v.annulations ? ' · ' + int(v.annulations) + ' annulation(s)' : '')),
     kpi('Spectateurs attendus', int(attendus), int(b.billets) + ' billets + ' + int(b.abonnes) + ' abonnés', '', b.jauge ? attendus/b.jauge : null, b.jauge ? 'jauge ' + int(b.jauge) : ''),
     kpi('Entrées scannées', presents != null ? int(presents) : '—', presents != null ? pct(presents, attendus) + ' des attendus' : 'contrôle d\'accès non disponible', '', presents != null && attendus ? presents/attendus : null),
     kpi('Panier moyen', eur(panier, 2), 'par vente validée'),
