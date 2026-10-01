@@ -1,0 +1,21 @@
+Visuels des tuiles produits (tablette buvette)
+================================================
+
+Déposer ici une image par produit, nommée avec la référence du produit :
+
+  P01_25.png    Bière 25cl
+  P01_50.png    Bière 50cl
+  P02_COCA.png  Coca-Cola
+  P02_ORAN.png  Orangina
+  P02_ICET.png  Ice Tea
+  P02_SCHW.png  Schweppes Agrumes
+  P03.png       Eau plate 50cl
+  P04.png       Eau gazeuse 50cl
+
+Formats acceptés : .png (fond transparent idéal), .svg, .webp, .jpg.
+Taille conseillée : 400 x 400 px environ, moins de 100 Ko.
+L'image s'affiche sur une pastille blanche au centre de la tuile.
+Pas d'image = l'emoji actuel reste affiché.
+
+Utiliser les visuels fournis par le fournisseur / la marque (kit distributeur),
+ou une photo de la bouteille prise par le club.
