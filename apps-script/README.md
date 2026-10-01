@@ -1,19 +1,41 @@
-# Pilotage buvette — mise en place (une fois par saison)
+# Pilotage live — installation dans le Sheet Matchday Business
 
-1. **Créer le Google Sheet de pilotage** (nouveau fichier, ex. « Pilotage buvette 26-27 »).
-2. **Extensions → Apps Script**, coller `Pilotage.gs` à la place du code par défaut, enregistrer.
-3. **Paramètres du projet → Propriétés du script** : ajouter `VIVENU_API_KEY` = la clé API Vivenu (la même que le relais tickie-proxy).
-   Vérifier que le fuseau horaire du projet est `Europe/Paris` (Paramètres du projet).
-4. Recharger le Sheet → menu **Pilotage buvette → Initialiser les onglets** (crée VENTES, STOCK_LIVE et le jeton, affiché à l'écran).
-5. **Déployer → Nouveau déploiement → Application Web** : exécuter en tant que *moi*, accès *Tout le monde*. Copier l'URL `…/exec`.
-6. Ouvrir `https://spacers-buvette.spacersytb.workers.dev/pilotage.html`, coller l'URL et le jeton.
-   En bas du tableau de bord : un lien de configuration par buvette, à envoyer aux bénévoles (il règle la tablette d'un clic).
+Le pilotage s'ajoute au projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*.
+Les tablettes et le tableau de bord utilisent la même URL de déploiement que les tablettes aujourd'hui.
 
-## Après chaque match
-- Menu **Pilotage buvette → Relier les ventes aux acheteurs** : complète la colonne « Client CRM (id) » à partir des billets scannés.
-- Sur chaque tablette : Rapport de caisse → Envoyer au Sheet, puis ⚙️ → **Nouveau match** pour remettre les compteurs à zéro.
+## Installation (une fois)
+1. Ouvrir le Sheet → **Extensions → Apps Script** (projet « Buvette »).
+2. **Code.gs** : remplacer tout le contenu par `Code.gs` (V12). Les changements par rapport à la V11 sont limités et commentés en tête de fichier.
+3. **Fichiers ➕ → Script**, nommer `Pilotage`, coller `Pilotage.gs`. Ne pas toucher à `Fidelite.gs`.
+4. **Paramètres du projet → Propriétés du script** : ajouter `VIVENU_API_KEY` = la clé API Tickie (la même que celle du relais tickie-proxy).
+5. Enregistrer, recharger le Sheet → menu **🏐 Matchday → 📡 Pilotage live → ⚙️ Initialiser le pilotage**. Autoriser le script, noter le **jeton** affiché.
+6. Menu **📡 Pilotage live → ⏱️ Activer le traitement auto (10 min)**.
+7. **Déployer → Gérer les déploiements → ✏️ → Version : Nouvelle version → Déployer**. L'URL `…/exec` ne change pas.
+8. Ouvrir `https://spacers-buvette.spacersytb.workers.dev/pilotage.html`, coller l'URL `…/exec` et le jeton.
+9. En bas du tableau de bord : envoyer à chaque bénévole le lien de sa buvette (il configure la tablette d'un clic).
 
-## Données
-- La tablette n'envoie que : identifiant du billet, code-barres, tarif. Ni nom ni email.
+## Jour de match
+1. **Tableau de bord** : choisir le match, saisir le stock par buvette (bière en fûts de 30 L), « Enregistrer le stock ».
+   → le match est créé dans 10_MATCHS s'il n'existe pas (ex. `NAR-10-10`) et devient le match actif (PILOTAGE!B9).
+2. **Chaque tablette, en wifi** : ⚙️ → « Charger le match ». Le tableau de bord affiche « ✓ tablette chargée ».
+3. **En buvette** : la tablette fonctionne hors ligne. Ventes et billets scannés sont gardés sur la tablette.
+4. **Retour du wifi** : tout repart seul. Les ventes arrivent dans `51_VENTES_LIVE` (détail) et `50_VENTES_DIRECTES` (lignes produits, lues par les KPI).
+5. **Réassort pendant le match** : modifier le stock au tableau de bord, puis « Charger le match » sur la tablette concernée (les compteurs sont conservés).
+
+Pour que DASHBOARD / 80_KPI_MATCH comptent les ventes, PILOTAGE!B8 doit être sur **DIRECT**.
+
+## Onglets ajoutés
+| Onglet | Contenu |
+|---|---|
+| 51_VENTES_LIVE | une ligne par vente : buvette, total, consignes, billet scanné (id, code, tarif), client Tickie, points fidélité |
+| 52_STOCK_LIVE | stock restant remonté par chaque tablette |
+| 53_PREPA | stock de départ par match et par buvette |
+| 54_TABLETTES | dernier chargement et dernière remontée de chaque tablette |
+
+Colonnes ajoutées à 10_MATCHS : `TICKIE_EVENT_ID`, `AFFLUENCE_TICKIE` (reprise par les KPI quand l'export OandB du match est vide).
+
+## Données personnelles
+- La tablette ne reçoit et n'envoie que : identifiant du billet, code-barres, tarif. Ni nom ni email.
+- Le lien vers l'acheteur (id client Tickie, email pour la fidélité) est fait par le script, côté serveur.
 - Le tableau de bord ne reçoit que des totaux.
-- Mettre à jour la mention d'information RGPD (affichage buvette / politique de confidentialité) : le scan du billet à la buvette sert à mesurer la consommation par profil de spectateur et alimente le programme de fidélité.
+- À afficher en buvette et dans la politique de confidentialité : le scan du billet sert à mesurer la consommation par profil de spectateur et à créditer les points du programme de fidélité.

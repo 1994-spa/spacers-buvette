@@ -1,215 +1,211 @@
-/**
- * ═══════════════════════════════════════════════════════════════════════
- *  PILOTAGE BUVETTE — Spacer's Toulouse Volley
- *  Projet Apps Script lié à un Google Sheet dédié (distinct du Sheet stocks).
- *
- *  - doPost  : reçoit les ventes validées des tablettes (envoi au fil de l'eau,
- *              idempotent par identifiant de vente) + le stock restant.
- *  - doGet   : ?action=events     → matchs billetterie (sélecteur du tableau de bord)
- *              ?action=dashboard  → agrégats du match (billetterie + buvette)
- *              ?action=ping       → test de connexion
- *  - Menu    : Initialiser · Relier les ventes aux acheteurs · Afficher le jeton
- *
- *  Propriétés du script (Paramètres du projet → Propriétés du script) :
- *    VIVENU_API_KEY   clé API Vivenu (jamais côté tablette)
- *    PILOTAGE_TOKEN   jeton partagé tablettes / tableau de bord (créé par initialiser())
- *
- *  Données personnelles : les tablettes n'envoient que l'identifiant du billet,
- *  son code-barres et son tarif. Le lien vers le client CRM (customerId Vivenu)
- *  est fait ici, côté serveur, par relierAcheteurs(). Le tableau de bord ne
- *  reçoit que des agrégats.
- * ═══════════════════════════════════════════════════════════════════════
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// PILOTAGE LIVE — module additif au Matchday Business (Code.gs V12)
+// A coller comme NOUVEAU fichier Apps Script (Pilotage.gs), à côté de Code.gs
+// et Fidelite.gs. Réutilise NAVY / YELLOW, 10_MATCHS, 50_VENTES_DIRECTES,
+// PILOTAGE!B9 et _fidCreditOne_ (Fidelite.gs) s'il est présent.
+//
+// Billetterie : Tickie (plateforme Vivenu, API https://vivenu.com/api).
+//
+// Flux jour de match :
+//  1. Tableau de bord (pilotage.html) : choix du match Tickie + stock par buvette
+//     → action=prepa → 53_PREPA, ligne 10_MATCHS créée si besoin, PILOTAGE!B9.
+//  2. Tablette en wifi : action=tablette → match, stock, billets valides
+//     (code-barres + tarif, sans nom ni email) pour travailler hors ligne.
+//  3. Tablette hors ligne : ventes stockées, renvoyées au retour du réseau
+//     (action=ventes, idempotent) → 51_VENTES_LIVE + 50_VENTES_DIRECTES.
+//  4. Déclencheur toutes les 10 min : billet scanné → client Tickie
+//     → 51_VENTES_LIVE (id client) + points fidélité (90_FIDELITE).
+//
+// Propriétés du script : VIVENU_API_KEY (clé API Tickie/Vivenu), PILOTAGE_TOKEN
+// (créé par « Initialiser le pilotage »). Le tableau de bord ne reçoit que des totaux.
+// ═══════════════════════════════════════════════════════════════════════════
 
-const PILOTAGE = {
+const PIL = {
   VIVENU_BASE: 'https://vivenu.com/api',
   PORTIER_BASE: 'https://portier.vivenu.com/api',
-  ABONNEMENT_EVENT_ID: '69fc9d2b69a5578199f9d5e9',   // événement « Abonnement 2026-2027 »
-  TZ: 'Europe/Paris',
-  SHEET_VENTES: 'VENTES',
-  SHEET_STOCK: 'STOCK_LIVE',
-  PRODUITS: [
-    ['P01_25',   'Bière 25cl'],
-    ['P01_50',   'Bière 50cl'],
-    ['P02_COCA', 'Coca-Cola'],
-    ['P02_ORAN', 'Orangina'],
-    ['P02_ICET', 'Ice Tea'],
-    ['P02_SCHW', 'Schweppes Agrumes'],
-    ['P03',      'Eau plate 50cl'],
-    ['P04',      'Eau gazeuse 50cl'],
-  ],
+  ABONNEMENT_EVENT_ID: '69fc9d2b69a5578199f9d5e9',   // « Abonnement 2026-2027 » dans Tickie
+  SH_LIVE: '51_VENTES_LIVE',
+  SH_STOCK: '52_STOCK_LIVE',
+  SH_PREPA: '53_PREPA',
+  SH_TAB: '54_TABLETTES',
+  SH_VD: '50_VENTES_DIRECTES',
+  FUT_LITRES: 30,
   BUVETTES: ['Buvette 1', 'Buvette 2', 'Buvette 3'],
+  // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
+  PRODUITS: [
+    ['P01_25',   'Bière 25cl',        3],
+    ['P01_50',   'Bière 50cl',        6],
+    ['P02_COCA', 'Coca-Cola',         3],
+    ['P02_ORAN', 'Orangina',          3],
+    ['P02_ICET', 'Ice Tea',           3],
+    ['P02_SCHW', 'Schweppes Agrumes', 3],
+    ['P03',      'Eau plate 50cl',    1],
+    ['P04',      'Eau gazeuse 50cl',  1],
+  ],
+  // Lignes de préparation : FUT en fûts de 30 L (25cl et 50cl tirés du même fût), le reste en unités
+  PREPA: [['FUT', 'Bière (fûts 30 L)'], ['P02_COCA', 'Coca-Cola'], ['P02_ORAN', 'Orangina'], ['P02_ICET', 'Ice Tea'],
+          ['P02_SCHW', 'Schweppes Agrumes'], ['P03', 'Eau plate 50cl'], ['P04', 'Eau gazeuse 50cl']],
 };
+const PIL_LIVE_COLS = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Total €', 'Consignes +',
+  'Consignes rendues', 'ID billet', 'Code-barres', 'Tarif billet', 'Client Tickie', 'Fidélité'];
+const PIL_I = {}; PIL_LIVE_COLS.forEach(function (c, i) { PIL_I[c] = i; });
+const PIL_NB = PIL_LIVE_COLS.length;
+const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_UNIT', 'CONSIGNE_UNIT', 'CA_HT', 'CA_CONSIGNE', 'TYPE'];
 
-// Colonnes fixes de VENTES (les colonnes produits suivent)
-const COLS_FIXES = ['Horodatage', 'ID vente', 'Date match', 'Match', 'Buvette', 'Total €',
-  'Consignes +', 'Consignes rendues', 'ID billet', 'Code-barres', 'Tarif billet', 'Client CRM (id)'];
-const IDX = {}; COLS_FIXES.forEach((c, i) => IDX[c] = i);
-const NB_FIXES = COLS_FIXES.length;
-
-// ── Menu ────────────────────────────────────────────────────────────────
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Pilotage buvette')
-    .addItem('Initialiser les onglets', 'initialiser')
-    .addItem('Relier les ventes aux acheteurs', 'relierAcheteurs')
-    .addItem('Afficher le jeton', 'afficherJeton')
-    .addToUi();
+// ── Menu (ajouté à onOpen de Code.gs) ───────────────────────────────────
+function pilotageMenu_(ui) {
+  return ui.createMenu('📡 Pilotage live')
+    .addItem('⚙️ Initialiser le pilotage', 'pilotageInitialiser')
+    .addItem('🔑 Afficher le jeton', 'pilotageAfficherJeton')
+    .addItem('🎫 Relier les billets scannés + fidélité', 'pilotageTraiterBillets')
+    .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur');
 }
 
-function initialiser() {
+function pilotageInitialiser() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sh = ss.getSheetByName(PILOTAGE.SHEET_VENTES) || ss.insertSheet(PILOTAGE.SHEET_VENTES);
-  const head = COLS_FIXES.concat(PILOTAGE.PRODUITS.map(p => p[1]));
-  sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
-  sh.setFrozenRows(1);
-  let st = ss.getSheetByName(PILOTAGE.SHEET_STOCK) || ss.insertSheet(PILOTAGE.SHEET_STOCK);
-  st.getRange(1, 1, 1, 5).setValues([['Buvette', 'Réf.', 'Produit', 'Restant', 'Mis à jour']]).setFontWeight('bold');
-  st.setFrozenRows(1);
+  const mk = function (name, head) {
+    const sh = ss.getSheetByName(name) || ss.insertSheet(name);
+    if (sh.getLastRow() === 0) {
+      sh.getRange(1, 1, 1, head.length).setValues([head]).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
+      sh.setFrozenRows(1);
+    }
+    return sh;
+  };
+  mk(PIL.SH_LIVE, PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; })));
+  mk(PIL.SH_STOCK, ['Buvette', 'Réf.', 'Produit', 'Restant', 'Mis à jour']);
+  mk(PIL.SH_PREPA, ['ID_MATCH', 'ID événement Tickie', 'Buvette', 'Réf.', 'Stock de départ', 'Mis à jour']);
+  mk(PIL.SH_TAB, ['Buvette', 'ID_MATCH', 'Dernier chargement', 'Dernière remontée de ventes']);
+  pilEnsureVdHeader_();
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('PILOTAGE_TOKEN')) props.setProperty('PILOTAGE_TOKEN', Utilities.getUuid().replace(/-/g, '').slice(0, 20));
-  afficherJeton();
+  pilotageAfficherJeton();
 }
 
-function afficherJeton() {
-  const t = PropertiesService.getScriptProperties().getProperty('PILOTAGE_TOKEN') || '(lancer Initialiser)';
-  const k = PropertiesService.getScriptProperties().getProperty('VIVENU_API_KEY') ? 'renseignée' : 'MANQUANTE';
-  try { SpreadsheetApp.getUi().alert('Jeton de pilotage : ' + t + '\nClé API Vivenu : ' + k); } catch (e) { Logger.log(t); }
+function pilotageAfficherJeton() {
+  const p = PropertiesService.getScriptProperties();
+  const msg = 'Jeton de pilotage : ' + (p.getProperty('PILOTAGE_TOKEN') || '(lancer Initialiser)') +
+    '\nClé API Tickie (VIVENU_API_KEY) : ' + (p.getProperty('VIVENU_API_KEY') ? 'renseignée' : 'MANQUANTE (Paramètres du projet → Propriétés du script)');
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
 }
 
-// ── Utilitaires ─────────────────────────────────────────────────────────
-function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
-function tokenOk_(t) {
-  const ref = PropertiesService.getScriptProperties().getProperty('PILOTAGE_TOKEN');
-  return !!ref && t === ref;
+function pilotageInstallerDeclencheur() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pilotageTraiterBillets') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('pilotageTraiterBillets').timeBased().everyMinutes(10).create();
+  try { SpreadsheetApp.getUi().alert('✅ Billets scannés reliés et fidélité créditée toutes les 10 minutes.'); } catch (e) {}
 }
-function dateParis_(d) { return Utilities.formatDate(new Date(d), PILOTAGE.TZ, 'yyyy-MM-dd'); }
 
-// ── Réception des ventes ────────────────────────────────────────────────
-function doPost(e) {
-  let body;
-  try { body = JSON.parse(e.postData.contents); } catch (err) { return json_({ status: 'error', message: 'JSON invalide' }); }
-  if (!tokenOk_(body.token)) return json_({ status: 'error', message: 'Jeton refusé' });
-  if (body.action !== 'ventes') return json_({ status: 'error', message: 'Action inconnue' });
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+// ── Utilitaires ──────────────────────────────────────────────────────────
+function pilJson_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+function pilTokenOk_(t) { const ref = PropertiesService.getScriptProperties().getProperty('PILOTAGE_TOKEN'); return !!ref && t === ref; }
+function pilTz_() { return Session.getScriptTimeZone() || 'Europe/Paris'; }
+function pilDate_(d) { return Utilities.formatDate(new Date(d), pilTz_(), 'yyyy-MM-dd'); }
+function pilSheet_(n) { return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(n); }
+function pilProduit_(ref) { return PIL.PRODUITS.filter(function (x) { return x[0] === ref; })[0] || [ref, ref, 0]; }
+
+function pilEnsureVdHeader_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(PIL.SH_VD) || ss.insertSheet(PIL.SH_VD);
+  const h = sh.getLastRow() ? sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(String) : [];
+  if (h.indexOf('CA_HT') < 0) {
+    if (sh.getLastRow() === 0) sh.appendRow(PIL_VD_HDR); else sh.getRange(1, 1, 1, PIL_VD_HDR.length).setValues([PIL_VD_HDR]);
+    sh.getRange(1, 1, 1, PIL_VD_HDR.length).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
+  }
+  return sh;
+}
+
+// ── Points d'entrée (routés depuis doGet / doPost de Code.gs) ────────────
+function pilotageGet_(e) {
+  const p = (e && e.parameter) || {};
+  if (p.action === 'ping') return pilJson_({ status: 'ok', app: 'buvette' });
+  if (!pilTokenOk_(p.token)) return pilJson_({ status: 'error', message: 'Jeton refusé' });
   try {
-    const recus = enregistrerVentes_(body.ventes || []);
-    if (body.stock && body.buvette) majStock_(body.buvette, body.stock);
-    return json_({ status: 'ok', recus: recus });
+    if (p.action === 'events') return pilJson_({ status: 'ok', events: pilMatchsTickie_() });
+    if (p.action === 'dashboard') return pilJson_(Object.assign({ status: 'ok' }, pilDashboard_(p.eventId)));
+    if (p.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilLirePrepa_(p.eventId)));
+    if (p.action === 'tablette') return pilJson_(Object.assign({ status: 'ok' }, pilChargerTablette_(p.buvette)));
+    return pilJson_({ status: 'error', message: 'Action inconnue' });
+  } catch (err) { return pilJson_({ status: 'error', message: String(err && err.message || err) }); }
+}
+
+function pilotagePost_(body) {
+  if (!pilTokenOk_(body.token)) return pilJson_({ status: 'error', message: 'Jeton refusé' });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    if (body.action === 'ventes') {
+      const recus = pilEnregistrerVentes_(body.ventes || []);
+      if (body.stock && body.buvette) pilMajStock_(body.buvette, body.stock);
+      if (body.buvette) pilJournal_(body.buvette, null, 4);
+      return pilJson_({ status: 'ok', recus: recus });
+    }
+    if (body.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerPrepa_(body.eventId, body.stocks || {})));
+    return pilJson_({ status: 'error', message: 'Action inconnue' });
+  } catch (err) { return pilJson_({ status: 'error', message: String(err && err.message || err) });
   } finally { lock.releaseLock(); }
 }
 
-function enregistrerVentes_(ventes) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PILOTAGE.SHEET_VENTES);
-  const last = sh.getLastRow();
-  const deja = new Set(last > 1 ? sh.getRange(2, IDX['ID vente'] + 1, last - 1, 1).getValues().map(r => String(r[0])) : []);
-  const rows = [], recus = [];
-  ventes.forEach(v => {
-    if (!v || !v.id) return;
-    recus.push(v.id);                 // déjà reçue = accusé quand même (idempotence)
-    if (deja.has(String(v.id))) return;
-    deja.add(String(v.id));
-    const t = v.ticket || {};
-    const row = [new Date(v.ts || Date.now()), v.id, "'" + dateParis_(v.ts || Date.now()), v.matchId || '', v.buvette || '',
-      Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
-      t.ticket_id || '', t.barcode || '', t.tarif || '', ''];
-    PILOTAGE.PRODUITS.forEach(p => row.push(Number((v.lignes || {})[p[0]]) || 0));
-    rows.push(row);
-  });
-  if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
-  return recus;
-}
-
-function majStock_(buvette, stock) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PILOTAGE.SHEET_STOCK);
-  const data = sh.getDataRange().getValues();
-  const now = new Date();
-  const noms = {}; PILOTAGE.PRODUITS.forEach(p => noms[p[0]] = p[1]);
-  Object.keys(stock).forEach(ref => {
-    let r = data.findIndex((row, i) => i > 0 && row[0] === buvette && row[1] === ref);
-    const vals = [[buvette, ref, noms[ref] || ref, Number(stock[ref]) || 0, now]];
-    if (r > 0) sh.getRange(r + 1, 1, 1, 5).setValues(vals);
-    else { sh.appendRow(vals[0]); data.push(vals[0]); }
-  });
-}
-
-// ── Lecture ─────────────────────────────────────────────────────────────
-function doGet(e) {
-  const p = (e && e.parameter) || {};
-  if (p.action === 'ping') return json_({ status: 'ok', app: 'pilotage-buvette' });
-  if (!tokenOk_(p.token)) return json_({ status: 'error', message: 'Jeton refusé' });
-  try {
-    if (p.action === 'events') return json_({ status: 'ok', events: listerMatchs_() });
-    if (p.action === 'dashboard') return json_(Object.assign({ status: 'ok' }, dashboard_(p.eventId, p.date)));
-    return json_({ status: 'error', message: 'Action inconnue' });
-  } catch (err) {
-    return json_({ status: 'error', message: String(err && err.message || err) });
-  }
-}
-
-function vivenu_(base, path, query) {
+// ── API Tickie (Vivenu) ──────────────────────────────────────────────────
+function pilApi_(base, path, query) {
   const key = PropertiesService.getScriptProperties().getProperty('VIVENU_API_KEY');
-  if (!key) throw new Error('VIVENU_API_KEY manquante dans les propriétés du script');
-  const qs = Object.keys(query || {}).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(query[k])).join('&');
-  const r = UrlFetchApp.fetch(base + path + (qs ? '?' + qs : ''), {
-    headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true });
-  if (r.getResponseCode() >= 300) throw new Error('Vivenu ' + r.getResponseCode() + ' sur ' + path);
+  if (!key) throw new Error('Clé API Tickie manquante (propriété VIVENU_API_KEY)');
+  const qs = Object.keys(query || {}).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(query[k]); }).join('&');
+  const r = UrlFetchApp.fetch(base + path + (qs ? '?' + qs : ''), { headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true });
+  if (r.getResponseCode() >= 300) throw new Error('Tickie ' + r.getResponseCode() + ' sur ' + path);
   return JSON.parse(r.getContentText());
 }
-
-function cache_(key, ttl, fn) {
-  const c = CacheService.getScriptCache();
-  const hit = c.get(key);
+function pilCache_(key, ttl, fn) {
+  const c = CacheService.getScriptCache(), hit = c.get(key);
   if (hit) return JSON.parse(hit);
   const v = fn();
   try { c.put(key, JSON.stringify(v), ttl); } catch (e) {}
   return v;
 }
-
-function listerMatchs_() {
-  return cache_('events', 600, () => {
-    const res = vivenu_(PILOTAGE.VIVENU_BASE, '/events', { top: 100 });
-    const rows = res.rows || res.docs || res || [];
-    return rows.filter(ev => ev._id !== PILOTAGE.ABONNEMENT_EVENT_ID)
-      .map(ev => ({ id: ev._id, nom: ev.name, date: ev.start, dateMatch: dateParis_(ev.start), jauge: ev.maxAmount || null }))
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+function pilMatchsTickie_() {
+  return pilCache_('pil_events', 600, function () {
+    const res = pilApi_(PIL.VIVENU_BASE, '/events', { top: 100 });
+    return (res.rows || res.docs || []).filter(function (ev) { return ev._id !== PIL.ABONNEMENT_EVENT_ID; })
+      .map(function (ev) { return { id: ev._id, nom: ev.name, date: ev.start, dateMatch: pilDate_(ev.start), jauge: ev.maxAmount || null }; })
+      .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
   });
 }
-
-// Billets VALID d'un événement, comptés par tarif (sans données personnelles)
-function compterBillets_(eventId, ttl) {
-  return cache_('billets_' + eventId, ttl, () => {
-    let skip = 0, total = 0, payants = 0, invitations = 0;
-    const parTarif = {};
-    while (true) {
-      const res = vivenu_(PILOTAGE.VIVENU_BASE, '/tickets', { event: eventId, status: 'VALID', top: 1000, skip: skip });
-      const rows = res.rows || [];
-      rows.forEach(t => {
-        if (t.status && t.status !== 'VALID') return;
-        total++;
-        if ((t.realPrice || 0) > 0) payants++;
-        if (/invitation/i.test(t.ticketName || '')) invitations++;
-        parTarif[t.ticketName || 'Autre'] = (parTarif[t.ticketName || 'Autre'] || 0) + 1;
-      });
-      skip += rows.length;
-      if (!rows.length || skip >= (res.total || 0)) break;
-    }
-    return { total: total, payants: payants, invitations: invitations, parTarif: parTarif };
+function pilEvent_(eventId) { return pilMatchsTickie_().filter(function (x) { return x.id === eventId; })[0] || null; }
+function pilParcourirBillets_(eventId, fn) {
+  let skip = 0;
+  while (true) {
+    const res = pilApi_(PIL.VIVENU_BASE, '/tickets', { event: eventId, status: 'VALID', top: 1000, skip: skip });
+    const rows = res.rows || [];
+    rows.forEach(function (t) { if (!t.status || t.status === 'VALID') fn(t); });
+    skip += rows.length;
+    if (!rows.length || skip >= (res.total || 0)) break;
+  }
+}
+function pilCompterBillets_(eventId, ttl) {
+  return pilCache_('pil_billets_' + eventId, ttl, function () {
+    const o = { total: 0, payants: 0, invitations: 0, parTarif: {} };
+    pilParcourirBillets_(eventId, function (t) {
+      o.total++;
+      if ((t.realPrice || 0) > 0) o.payants++;
+      if (/invitation/i.test(t.ticketName || '')) o.invitations++;
+      o.parTarif[t.ticketName || 'Autre'] = (o.parTarif[t.ticketName || 'Autre'] || 0) + 1;
+    });
+    return o;
   });
 }
-
-// Entrées scannées (contrôle d'accès Vivenu). null si l'API n'est pas accessible.
-function compterEntrees_(eventId) {
+function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif] — ni nom ni email
+  const out = [];
+  pilParcourirBillets_(eventId, function (t) { if (t.barcode) out.push([t.barcode, t._id, t.ticketName || '']); });
+  return out;
+}
+function pilCompterEntrees_(eventId) {   // null si le contrôle d'accès n'est pas accessible
   try {
-    return cache_('entrees_' + eventId, 60, () => {
+    return pilCache_('pil_entrees_' + eventId, 60, function () {
       const vus = {}; let skip = 0;
       while (true) {
-        const res = vivenu_(PILOTAGE.PORTIER_BASE, '/scans', { eventId: eventId, top: 1000, skip: skip });
+        const res = pilApi_(PIL.PORTIER_BASE, '/scans', { eventId: eventId, top: 1000, skip: skip });
         const rows = res.rows || res.docs || [];
-        rows.forEach(s => {
+        rows.forEach(function (s) {
           if (s.scanResult && s.scanResult !== 'approved') return;
-          if (s.type === 'checkout') delete vus[s.ticketId || s.barcode];
-          else vus[s.ticketId || s.barcode] = 1;
+          if (s.type === 'checkout') delete vus[s.ticketId || s.barcode]; else vus[s.ticketId || s.barcode] = 1;
         });
         skip += rows.length;
         if (!rows.length || skip >= (res.total || 0)) break;
@@ -219,83 +215,285 @@ function compterEntrees_(eventId) {
   } catch (e) { return null; }
 }
 
-function familleTarif_(tarif) {
-  if (!tarif) return 'Sans billet';
-  if (/abonn/i.test(tarif)) return 'Abonné';
+// ── 10_MATCHS : retrouver / créer l'ID_MATCH d'un match Tickie ───────────
+function pilIdMatch_(ev, creer) {
+  const sh = pilSheet_('10_MATCHS');
+  if (!sh) throw new Error('10_MATCHS introuvable');
+  const d = sh.getDataRange().getValues(), h = d[0].map(String);
+  const cId = h.indexOf('ID_MATCH'), cDate = h.indexOf('DATE');
+  let cEv = h.indexOf('TICKIE_EVENT_ID');
+  if (cEv >= 0) for (let r = 1; r < d.length; r++) if (String(d[r][cEv]) === ev.id) return String(d[r][cId]);
+  for (let r = 1; r < d.length; r++) {
+    const dv = d[r][cDate];
+    if (dv && d[r][cId] && pilDate_(dv instanceof Date ? dv : new Date(dv)) === ev.dateMatch) {
+      if (creer) { if (cEv < 0) cEv = pilAjouterColonne_(sh, 'TICKIE_EVENT_ID'); sh.getRange(r + 1, cEv + 1).setValue(ev.id); }
+      return String(d[r][cId]);
+    }
+  }
+  if (!creer) return '';
+  // Adversaire = texte après « Vs » dans le nom Tickie (« Spacer's Vs Narbonne - Samedi… »)
+  const m = String(ev.nom).match(/vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/i);
+  const adv = m ? m[1].trim() : String(ev.nom);
+  const idm = adv.replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase() + '-' + ev.dateMatch.slice(8, 10) + '-' + ev.dateMatch.slice(5, 7);
+  if (cEv < 0) cEv = pilAjouterColonne_(sh, 'TICKIE_EVENT_ID');
+  const hh = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  sh.appendRow(hh.map(function (c) {
+    switch (c) {
+      case 'ID_MATCH': return idm;
+      case 'DATE': return ev.dateMatch;
+      case 'ADVERSAIRE': return adv;
+      case 'TYPE_MATCH': return 'Championnat';
+      case 'STATUT': return 'OPEN';
+      case 'ID_SAISON': return pilSaison_(ev.dateMatch);
+      case 'TICKIE_EVENT_ID': return ev.id;
+      default: return '';
+    }
+  }));
+  const k = pilSheet_('80_KPI_MATCH');
+  if (k) { const kh = k.getRange(1, 1, 1, k.getLastColumn()).getValues()[0].map(String); k.appendRow(kh.map(function (c) { return c === 'MATCH' ? idm : ''; })); }
+  return idm;
+}
+function pilAjouterColonne_(sh, nom) {
+  const c = sh.getLastColumn();
+  sh.getRange(1, c + 1).setValue(nom).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
+  return c;
+}
+function pilSaison_(dateStr) {
+  const sh = pilSheet_('05_SAISONS');
+  if (!sh) return '';
+  const d = sh.getDataRange().getValues();
+  for (let r = 1; r < d.length; r++) {
+    const deb = d[r][2] ? pilDate_(d[r][2]) : '', fin = d[r][3] ? pilDate_(d[r][3]) : '';
+    if (deb && fin && dateStr >= deb && dateStr <= fin) return String(d[r][0]);
+  }
+  return '';
+}
+
+// ── Préparation (stock de départ) ────────────────────────────────────────
+function pilEnregistrerPrepa_(eventId, stocks) {
+  const ev = pilEvent_(eventId);
+  if (!ev) throw new Error('Match introuvable dans Tickie');
+  const idm = pilIdMatch_(ev, true);
+  const sh = pilSheet_(PIL.SH_PREPA);
+  if (!sh) throw new Error('Pilotage non initialisé (menu 📡 Pilotage live → Initialiser)');
+  const data = sh.getDataRange().getValues(), now = new Date();
+  Object.keys(stocks).forEach(function (b) {
+    if (PIL.BUVETTES.indexOf(b) < 0) return;
+    Object.keys(stocks[b]).forEach(function (ref) {
+      const q = Math.max(0, Math.round((Number(stocks[b][ref]) || 0) * 100) / 100);
+      const vals = [idm, eventId, b, ref, q, now];
+      const r = data.findIndex(function (row, i) { return i > 0 && String(row[0]) === idm && row[2] === b && row[3] === ref; });
+      if (r > 0) { sh.getRange(r + 1, 1, 1, 6).setValues([vals]); data[r] = vals; }
+      else { sh.appendRow(vals); data.push(vals); }
+    });
+  });
+  const pilot = pilSheet_('PILOTAGE');
+  if (pilot) pilot.getRange('B9').setValue(idm);          // match actif du Matchday Business
+  PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify({ eventId: eventId, idMatch: idm, saved: now.toISOString() }));
+  return { idMatch: idm, saved: now.toISOString() };
+}
+function pilStocksPrepa_(idm) {
+  const out = {};
+  PIL.BUVETTES.forEach(function (b) { out[b] = {}; PIL.PREPA.forEach(function (p) { out[b][p[0]] = 0; }); });
+  const sh = pilSheet_(PIL.SH_PREPA);
+  if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues().forEach(function (r) {
+    if (String(r[0]) === idm && out[r[2]]) out[r[2]][r[3]] = Number(r[4]) || 0;
+  });
+  return out;
+}
+function pilActif_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PIL_MATCH_ACTIF') || 'null'); } catch (e) { return null; } }
+function pilLirePrepa_(eventId) {
+  const actif = pilActif_();
+  let idm = '';
+  if (eventId) { const ev = pilEvent_(eventId); if (ev) idm = pilIdMatch_(ev, false); }
+  else if (actif) { idm = actif.idMatch; eventId = actif.eventId; }
+  return { eventId: eventId || '', idMatch: idm, actif: actif, lignes: PIL.PREPA, buvettes: PIL.BUVETTES,
+    stocks: idm ? pilStocksPrepa_(idm) : null, tablettes: pilLireJournal_() };
+}
+
+// Ce que la tablette emporte en buvette pour travailler hors ligne
+function pilChargerTablette_(buvette) {
+  if (PIL.BUVETTES.indexOf(buvette) < 0) throw new Error('Buvette inconnue');
+  const actif = pilActif_();
+  if (!actif) throw new Error('Aucun match préparé : saisis le stock dans le tableau de bord');
+  const ev = pilEvent_(actif.eventId) || { id: actif.eventId, nom: actif.idMatch, date: '' };
+  let billets = [], billetsOk = true;
+  try { billets = pilListerBillets_(ev.id).concat(pilListerBillets_(PIL.ABONNEMENT_EVENT_ID)); } catch (e) { billetsOk = false; }
+  pilJournal_(buvette, actif.idMatch, 3);
+  return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
+    buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES,
+    billets: billets, billetsOk: billetsOk, charge: new Date().toISOString() };
+}
+
+// ── Réception des ventes ─────────────────────────────────────────────────
+function pilEnregistrerVentes_(ventes) {
+  const sh = pilSheet_(PIL.SH_LIVE);
+  if (!sh) throw new Error('Pilotage non initialisé (menu 📡 Pilotage live → Initialiser)');
+  const vd = pilEnsureVdHeader_();
+  const last = sh.getLastRow(), deja = {};
+  if (last > 1) sh.getRange(2, PIL_I['ID vente'] + 1, last - 1, 1).getValues().forEach(function (r) { deja[String(r[0])] = 1; });
+  const rows = [], vdRows = [], recus = [], now = new Date();
+  ventes.forEach(function (v) {
+    if (!v || !v.id) return;
+    recus.push(v.id);                       // déjà reçue : accusé quand même (idempotence)
+    if (deja[String(v.id)]) return;
+    deja[String(v.id)] = 1;
+    const t = v.ticket || {}, ts = new Date(v.ts || Date.now()), idm = v.matchId || '', b = v.buvette || '', day = pilDate_(ts);
+    const row = [now, ts, v.id, idm, b, Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
+      t.ticket_id || '', t.barcode || '', t.tarif || '', '', ''];
+    PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
+    rows.push(row);
+    Object.keys(v.lignes || {}).forEach(function (ref) {
+      const q = Number(v.lignes[ref]) || 0, p = pilProduit_(ref), pu = Number((v.prix || {})[ref]) || p[2];
+      if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, 'VENTE']);
+    });
+    if (v.consigne) vdRows.push([idm, day, b, 'E01', 'Écocup (consigne)', v.consigne, 0, 1, 0, v.consigne, 'VENTE']);
+    if (v.rendue) vdRows.push([idm, day, b, 'E01', 'Remboursement consigne', v.rendue, 0, -1, 0, -v.rendue, 'REMBOURSEMENT_CONSIGNE']);
+  });
+  if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  if (vdRows.length) vd.getRange(vd.getLastRow() + 1, 1, vdRows.length, vdRows[0].length).setValues(vdRows);
+  return recus;
+}
+
+function pilMajStock_(buvette, stock) {
+  const sh = pilSheet_(PIL.SH_STOCK);
+  if (!sh) return;
+  const data = sh.getDataRange().getValues(), now = new Date();
+  Object.keys(stock).forEach(function (ref) {
+    const vals = [buvette, ref, ref === 'FUT_L' ? 'Bière (litres restants)' : pilProduit_(ref)[1], Number(stock[ref]) || 0, now];
+    const r = data.findIndex(function (row, i) { return i > 0 && row[0] === buvette && row[1] === ref; });
+    if (r > 0) sh.getRange(r + 1, 1, 1, 5).setValues([vals]); else { sh.appendRow(vals); data.push(vals); }
+  });
+}
+
+function pilJournal_(buvette, idm, col) {
+  const sh = pilSheet_(PIL.SH_TAB);
+  if (!sh) return;
+  const data = sh.getDataRange().getValues();
+  let r = data.findIndex(function (row, i) { return i > 0 && row[0] === buvette; });
+  if (r < 0) { sh.appendRow([buvette, '', '', '']); r = sh.getLastRow() - 1; }
+  if (idm) sh.getRange(r + 1, 2).setValue(idm);
+  sh.getRange(r + 1, col).setValue(new Date());
+}
+function pilLireJournal_() {
+  const sh = pilSheet_(PIL.SH_TAB), out = {};
+  if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues().forEach(function (r) {
+    out[r[0]] = { idMatch: r[1], chargement: r[2] || null, remontee: r[3] || null };
+  });
+  return out;
+}
+
+// ── Tableau de bord ──────────────────────────────────────────────────────
+function pilFamilleTarif_(tarif, code) {
+  if (!tarif) return code ? 'Billet à vérifier' : 'Sans billet';
+  if (/abonn|commandant|pilote|spationaute/i.test(tarif)) return 'Abonné';
   if (/invitation|gratuit|licenci/i.test(tarif)) return 'Invité / gratuit';
   return 'Billet payant';
 }
 
-function dashboard_(eventId, dateParam) {
-  let ev = null;
-  if (eventId) ev = listerMatchs_().find(x => x.id === eventId) || null;
-  const dateMatch = dateParam || (ev ? ev.dateMatch : dateParis_(new Date()));
-
-  // Billetterie
+function pilDashboard_(eventId) {
+  const ev = pilEvent_(eventId);
+  const idm = ev ? pilIdMatch_(ev, false) : '';
   let billetterie = null;
   if (ev) {
-    const b = compterBillets_(ev.id, 120);
+    const b = pilCompterBillets_(ev.id, 120);
     let abonnes = null;
-    try { abonnes = compterBillets_(PILOTAGE.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+    try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
     billetterie = { billets: b.total, payants: b.payants, invitations: b.invitations, parTarif: b.parTarif,
-      abonnes: abonnes, entrees: compterEntrees_(ev.id), jauge: ev.jauge };
+      abonnes: abonnes, entrees: pilCompterEntrees_(ev.id), jauge: ev.jauge };
+    if (idm) pilAffluence_(idm, billetterie.entrees > 0 ? billetterie.entrees : b.total + (abonnes || 0));
   }
-
-  // Buvette
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(PILOTAGE.SHEET_VENTES);
-  const data = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, NB_FIXES + PILOTAGE.PRODUITS.length).getValues() : [];
-  const rows = data.filter(r => String(r[IDX['Date match']] instanceof Date ? dateParis_(r[IDX['Date match']]) : r[IDX['Date match']]) === dateMatch);
+  const sh = pilSheet_(PIL.SH_LIVE);
+  const data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB + PIL.PRODUITS.length).getValues() : [];
+  const rows = data.filter(function (r) {
+    return idm ? String(r[PIL_I['ID_MATCH']]) === idm : (ev && pilDate_(r[PIL_I['Horodatage']]) === ev.dateMatch);
+  });
   const buv = { ca: 0, ventes: rows.length, consignes: 0, rendues: 0, parBuvette: {}, parProduit: {}, parQuartHeure: {},
     reliees: { ventes: 0, ca: 0 }, parFamilleTarif: {} };
-  PILOTAGE.BUVETTES.forEach(b => buv.parBuvette[b] = { ca: 0, ventes: 0 });
-  PILOTAGE.PRODUITS.forEach(p => buv.parProduit[p[0]] = { nom: p[1], qte: 0 });
-  rows.forEach(r => {
-    const tot = Number(r[IDX['Total €']]) || 0, b = r[IDX['Buvette']] || '?';
+  PIL.BUVETTES.forEach(function (b) { buv.parBuvette[b] = { ca: 0, ventes: 0 }; });
+  PIL.PRODUITS.forEach(function (p) { buv.parProduit[p[0]] = { nom: p[1], qte: 0 }; });
+  rows.forEach(function (r) {
+    const tot = Number(r[PIL_I['Total €']]) || 0, b = r[PIL_I['Buvette']] || '?';
     buv.ca += tot;
-    buv.consignes += Number(r[IDX['Consignes +']]) || 0;
-    buv.rendues += Number(r[IDX['Consignes rendues']]) || 0;
-    (buv.parBuvette[b] = buv.parBuvette[b] || { ca: 0, ventes: 0 });
+    buv.consignes += Number(r[PIL_I['Consignes +']]) || 0;
+    buv.rendues += Number(r[PIL_I['Consignes rendues']]) || 0;
+    buv.parBuvette[b] = buv.parBuvette[b] || { ca: 0, ventes: 0 };
     buv.parBuvette[b].ca += tot; buv.parBuvette[b].ventes++;
-    PILOTAGE.PRODUITS.forEach((p, i) => buv.parProduit[p[0]].qte += Number(r[NB_FIXES + i]) || 0);
-    const d = new Date(r[IDX['Horodatage']]);
-    const q = Utilities.formatDate(new Date(Math.floor(d.getTime() / 900000) * 900000), PILOTAGE.TZ, 'HH:mm');
+    PIL.PRODUITS.forEach(function (p, i) { buv.parProduit[p[0]].qte += Number(r[PIL_NB + i]) || 0; });
+    const d = new Date(r[PIL_I['Horodatage']]);
+    const q = Utilities.formatDate(new Date(Math.floor(d.getTime() / 900000) * 900000), pilTz_(), 'HH:mm');
     buv.parQuartHeure[q] = (buv.parQuartHeure[q] || 0) + tot;
-    const fam = familleTarif_(r[IDX['Tarif billet']]);
-    (buv.parFamilleTarif[fam] = buv.parFamilleTarif[fam] || { ventes: 0, ca: 0 });
+    const fam = pilFamilleTarif_(r[PIL_I['Tarif billet']], r[PIL_I['Code-barres']]);
+    buv.parFamilleTarif[fam] = buv.parFamilleTarif[fam] || { ventes: 0, ca: 0 };
     buv.parFamilleTarif[fam].ventes++; buv.parFamilleTarif[fam].ca += tot;
-    if (r[IDX['ID billet']]) { buv.reliees.ventes++; buv.reliees.ca += tot; }
+    if (r[PIL_I['ID billet']] || r[PIL_I['Code-barres']]) { buv.reliees.ventes++; buv.reliees.ca += tot; }
   });
-
-  // Stock restant
-  const st = ss.getSheetByName(PILOTAGE.SHEET_STOCK);
-  const stock = {};
-  if (st && st.getLastRow() > 1) st.getRange(2, 1, st.getLastRow() - 1, 5).getValues().forEach(r => {
+  const st = pilSheet_(PIL.SH_STOCK), stock = {};
+  if (st && st.getLastRow() > 1) st.getRange(2, 1, st.getLastRow() - 1, 5).getValues().forEach(function (r) {
     (stock[r[0]] = stock[r[0]] || {})[r[1]] = { restant: r[3], maj: r[4] };
   });
-
-  return { event: ev, dateMatch: dateMatch, billetterie: billetterie, buvette: buv, stock: stock,
-    produits: PILOTAGE.PRODUITS, maj: new Date().toISOString() };
+  return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(),
+    produits: PIL.PRODUITS.map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString() };
 }
 
-// ── Lien vente → acheteur (côté serveur uniquement) ─────────────────────
-// Complète « Client CRM (id) » avec le customerId Vivenu du billet scanné.
-function relierAcheteurs() {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PILOTAGE.SHEET_VENTES);
-  const n = sh.getLastRow() - 1;
-  if (n < 1) return;
-  const rg = sh.getRange(2, 1, n, NB_FIXES);
-  const data = rg.getValues();
-  const memo = {};
-  let faits = 0;
-  data.forEach(r => {
-    const id = r[IDX['ID billet']];
-    if (!id || r[IDX['Client CRM (id)']]) return;
-    try {
-      if (!(id in memo)) memo[id] = (vivenu_(PILOTAGE.VIVENU_BASE, '/tickets/' + id, {}) || {}).customerId || '';
-      r[IDX['Client CRM (id)']] = memo[id]; faits++;
-    } catch (e) { /* billet introuvable : on laisse vide */ }
+// Affluence Tickie → 10_MATCHS.AFFLUENCE_TICKIE (reprise par les KPI quand l'export OandB est vide)
+function pilAffluence_(idm, n) {
+  const sh = pilSheet_('10_MATCHS');
+  if (!sh || !n) return;
+  const d = sh.getDataRange().getValues(), h = d[0].map(String), cId = h.indexOf('ID_MATCH');
+  let c = h.indexOf('AFFLUENCE_TICKIE');
+  for (let r = 1; r < d.length; r++) {
+    if (String(d[r][cId]) !== idm) continue;
+    if (c < 0) c = pilAjouterColonne_(sh, 'AFFLUENCE_TICKIE');
+    else if (Number(d[r][c]) === n) return;
+    sh.getRange(r + 1, c + 1).setValue(n);
+    return;
+  }
+}
+function pilAffluenceTickie_(idm) {
+  const sh = pilSheet_('10_MATCHS');
+  if (!sh) return 0;
+  const d = sh.getDataRange().getValues(), h = d[0].map(String), c = h.indexOf('AFFLUENCE_TICKIE'), cId = h.indexOf('ID_MATCH');
+  if (c < 0) return 0;
+  for (let r = 1; r < d.length; r++) if (String(d[r][cId]) === idm) return Number(d[r][c]) || 0;
+  return 0;
+}
+
+// ── Billets scannés → client Tickie + fidélité ───────────────────────────
+function pilotageTraiterBillets() {
+  const sh = pilSheet_(PIL.SH_LIVE);
+  if (!sh || sh.getLastRow() < 2) return;
+  const rg = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB);
+  const data = rg.getValues(), memo = {}, debut = Date.now();
+  let relies = 0, credites = 0;
+  data.forEach(function (r) {
+    if (Date.now() - debut > 270000) return;               // marge sous la limite d'exécution
+    const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']];
+    if ((!id && !code) || r[PIL_I['Fidélité']]) return;
+    const key = id || ('bc:' + code);
+    if (!(key in memo)) {
+      try {
+        let t = null;
+        if (id) t = pilApi_(PIL.VIVENU_BASE, '/tickets/' + id, {});
+        else { const res = pilApi_(PIL.VIVENU_BASE, '/tickets', { barcode: code, top: 5 }); t = (res.rows || []).filter(function (x) { return x.barcode === code; })[0] || null; }
+        memo[key] = t ? { customerId: t.customerId || '', email: String(t.email || '').toLowerCase().trim(),
+          nom: [t.firstname, t.lastname].filter(Boolean).join(' '), tarif: t.ticketName || '', id: t._id } : null;
+      } catch (e) { memo[key] = undefined; }
+    }
+    const c = memo[key];
+    if (c === undefined) return;                            // erreur réseau : on réessaiera
+    if (c === null) { r[PIL_I['Fidélité']] = 'billet introuvable'; return; }
+    r[PIL_I['Client Tickie']] = c.customerId;
+    if (!r[PIL_I['ID billet']]) r[PIL_I['ID billet']] = c.id;
+    if (!r[PIL_I['Tarif billet']]) r[PIL_I['Tarif billet']] = c.tarif;
+    relies++;
+    // Points sur les consommations, hors consignes
+    const montant = (Number(r[PIL_I['Total €']]) || 0) - (Number(r[PIL_I['Consignes +']]) || 0) + (Number(r[PIL_I['Consignes rendues']]) || 0);
+    if (typeof _fidCreditOne_ === 'function' && c.email && montant > 0) {
+      _fidCreditOne_({ carte: c.email, nom: c.nom, montant: montant }, r[PIL_I['ID_MATCH']], r[PIL_I['Buvette']], pilDate_(r[PIL_I['Horodatage']]));
+      r[PIL_I['Fidélité']] = Math.floor(montant) + ' pts'; credites++;
+    } else r[PIL_I['Fidélité']] = 'relié';
   });
   rg.setValues(data);
-  try { SpreadsheetApp.getActiveSpreadsheet().toast(faits + ' vente(s) reliée(s) à un client CRM'); } catch (e) {}
+  try { SpreadsheetApp.getActiveSpreadsheet().toast(relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'); } catch (e) {}
 }
