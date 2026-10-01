@@ -1,182 +1,197 @@
 <!DOCTYPE html>
-<html lang="fr" data-theme="dark">
+<html lang="fr" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a2e4a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>Spacer's Buvette</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ── Tokens ───────────────────────────────────────────────────────────── */
 :root {
-  --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
-  --text-sm:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
-  --text-base: clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
-  --text-lg:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
-  --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
+  --text-xs:   0.8125rem;
+  --text-sm:   0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg:   1.375rem;
+  --text-xl:   2rem;
   --space-1:.25rem;--space-2:.5rem;--space-3:.75rem;--space-4:1rem;
-  --space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;--space-10:2.5rem;
-  --radius-sm:.375rem;--radius-md:.5rem;--radius-lg:.75rem;--radius-xl:1rem;--radius-full:9999px;
-  --transition:180ms cubic-bezier(0.16,1,0.3,1);
-  --font-body:'Inter','Helvetica Neue',sans-serif;
+  --space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;
+  --radius-sm:.375rem;--radius-md:.625rem;--radius-lg:.875rem;--radius-xl:1.125rem;--radius-full:9999px;
+  --transition:160ms cubic-bezier(0.16,1,0.3,1);
+  --font-body:'Inter','Helvetica Neue',Arial,sans-serif;
+  --sidebar-w: 360px;
+  --navy:#1a2e4a;--navy-2:#24406a;--gold:#f5c518;
+}
+/* Thème clair (par défaut) : fond lumineux, texte très contrasté, cartes blanches en relief */
+[data-theme="light"] {
+  --bg:#eef2f7;--surface:#ffffff;--surface-2:#f4f6fa;--surface-3:#e6eaf1;
+  --border:rgba(16,32,56,.14);--divider:rgba(16,32,56,.09);
+  --text:#0d1726;--text-muted:#3f4b5e;--text-faint:#6b7689;
+  --primary:#1a2e4a;--primary-hover:#24406a;--on-primary:#ffffff;
+  --success:#1d7a32;--success-bg:#e3f4e7;
+  --warning:#a85a00;--warning-bg:#fff1dc;
+  --error:#c0262d;--error-bg:#fde6e7;
+  --card-shadow:0 1px 2px rgba(16,32,56,.06),0 6px 18px rgba(16,32,56,.10);
+  --card-shadow-active:0 2px 4px rgba(16,32,56,.08),0 10px 26px rgba(16,32,56,.16);
+  --shadow:0 10px 30px rgba(16,32,56,.18);
 }
 [data-theme="dark"] {
-  --bg:#111210;--surface:#1a1917;--surface-2:#201f1d;--surface-3:#282724;
-  --border:rgba(255,255,255,.08);--divider:rgba(255,255,255,.05);
-  --text:#e8e6e3;--text-muted:#888785;--text-faint:#555452;
-  --primary:#4f98a3;--primary-hover:#227f8b;
-  --success:#6daa45;--success-bg:rgba(109,170,69,.15);
-  --warning:#fdab43;--warning-bg:rgba(253,171,67,.15);
-  --error:#dd6974;--error-bg:rgba(221,105,116,.15);
-  --navy:#1a2e4a;--gold:#f5c518;
-  --shadow:0 4px 20px rgba(0,0,0,.4);
-}
-[data-theme="light"] {
-  --bg:#f7f6f2;--surface:#fff;--surface-2:#f3f0ec;--surface-3:#edeae5;
-  --border:rgba(0,0,0,.1);--divider:rgba(0,0,0,.06);
-  --text:#28251d;--text-muted:#7a7974;--text-faint:#bab9b4;
-  --primary:#01696f;--primary-hover:#0c4e54;
-  --success:#437a22;--success-bg:rgba(67,122,34,.12);
-  --warning:#da7101;--warning-bg:rgba(218,113,1,.12);
-  --error:#a12c7b;--error-bg:rgba(161,44,123,.12);
-  --navy:#1a2e4a;--gold:#f5c518;
-  --shadow:0 4px 12px rgba(0,0,0,.08);
+  --bg:#171a20;--surface:#262a33;--surface-2:#2f343f;--surface-3:#3a404c;
+  --border:rgba(255,255,255,.14);--divider:rgba(255,255,255,.08);
+  --text:#f6f7f9;--text-muted:#c3c8d2;--text-faint:#9299a6;
+  --primary:#f5c518;--primary-hover:#ffd63d;--on-primary:#13213a;
+  --success:#5fd07a;--success-bg:rgba(95,208,122,.15);
+  --warning:#ffb547;--warning-bg:rgba(255,181,71,.15);
+  --error:#ff6b72;--error-bg:rgba(255,107,114,.15);
+  --card-shadow:0 4px 16px rgba(0,0,0,.35);
+  --card-shadow-active:0 8px 24px rgba(0,0,0,.5);
+  --shadow:0 10px 30px rgba(0,0,0,.5);
 }
 
 /* ── Reset ────────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{height:100%;overflow:hidden;-webkit-text-size-adjust:none;text-size-adjust:none}
-body{height:100%;font-family:var(--font-body);font-size:var(--text-base);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden}
-button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
-input,select{font:inherit;color:inherit}
+body{height:100%;font-family:var(--font-body);font-size:var(--text-base);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;touch-action:manipulation}
+button:disabled{cursor:not-allowed}
+input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
 
-/* ── Layout ───────────────────────────────────────────────────────────── */
-#app{display:grid;grid-template-rows:auto 1fr auto;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg)}
+/* ── Layout paysage : produits à gauche, caisse à droite ──────────────── */
+#app{display:grid;grid-template-rows:auto 1fr;grid-template-columns:1fr var(--sidebar-w);grid-template-areas:"header header" "main side";height:100dvh;background:var(--bg)}
+.header{grid-area:header}
+.main{grid-area:main}
+.side{grid-area:side}
 
 /* ── Header ───────────────────────────────────────────────────────────── */
-.header{background:var(--navy);padding:var(--space-3) var(--space-4);display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);position:sticky;top:0;z-index:20}
-.header-left{display:flex;align-items:center;gap:var(--space-3)}
-.logo{display:flex;align-items:center;gap:var(--space-2)}
-.logo-icon{width:28px;height:28px;flex-shrink:0}
-.logo-text{font-size:var(--text-sm);font-weight:700;color:#fff;line-height:1.2}
-.logo-sub{font-size:var(--text-xs);color:rgba(255,255,255,.55);font-weight:400}
-.match-badge{background:rgba(245,197,24,.15);border:1px solid rgba(245,197,24,.3);border-radius:var(--radius-full);padding:var(--space-1) var(--space-3);font-size:var(--text-xs);color:var(--gold);font-weight:600;white-space:nowrap}
-.header-right{display:flex;align-items:center;gap:var(--space-2)}
-.btn-icon{width:34px;height:34px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1);color:#fff;transition:background var(--transition)}
-.btn-icon:hover{background:rgba(255,255,255,.2)}
-.btn-icon svg{width:18px;height:18px}
-
-/* ── Main scrollable ──────────────────────────────────────────────────── */
-.main{overflow-y:auto;overscroll-behavior:contain;padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-4)}
-
-/* ── Tab selector ─────────────────────────────────────────────────────── */
-.tab-selector{display:flex;gap:var(--space-2);overflow-x:auto;padding-bottom:var(--space-1);scrollbar-width:none}
+.header{background:var(--navy);padding:var(--space-2) var(--space-5);display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);z-index:20;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.header-left{display:flex;align-items:center;gap:var(--space-4);min-width:0}
+.logo{display:flex;align-items:center;gap:var(--space-3)}
+.logo-icon{width:34px;height:34px;flex-shrink:0}
+.logo-text{font-size:var(--text-base);font-weight:800;color:#fff;line-height:1.15}
+.logo-sub{font-size:var(--text-xs);color:rgba(255,255,255,.75);font-weight:500}
+.tab-selector{display:flex;gap:var(--space-2);overflow-x:auto;scrollbar-width:none}
 .tab-selector::-webkit-scrollbar{display:none}
-.tab-btn{flex-shrink:0;padding:var(--space-2) var(--space-4);border-radius:var(--radius-full);font-size:var(--text-sm);font-weight:600;background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border);transition:all var(--transition)}
-.tab-btn.active{background:var(--primary);color:#fff;border-color:transparent}
+.tab-btn{flex-shrink:0;padding:var(--space-2) var(--space-4);border-radius:var(--radius-full);font-size:var(--text-sm);font-weight:700;background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.18);transition:all var(--transition);min-height:40px}
+.tab-btn.active{background:var(--gold);color:var(--navy);border-color:transparent}
+.header-right{display:flex;align-items:center;gap:var(--space-2)}
+.match-badge{background:rgba(245,197,24,.18);border:1px solid rgba(245,197,24,.45);border-radius:var(--radius-full);padding:var(--space-1) var(--space-3);font-size:var(--text-xs);color:var(--gold);font-weight:700;white-space:nowrap}
+.btn-icon{width:42px;height:42px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);color:#fff;transition:background var(--transition)}
+.btn-icon:hover{background:rgba(255,255,255,.22)}
+.btn-icon svg{width:20px;height:20px}
 
-/* ── Stock KPI bar ────────────────────────────────────────────────────── */
-.stock-bar{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:var(--space-3) var(--space-4);display:flex;gap:var(--space-4);overflow-x:auto;scrollbar-width:none}
-.stock-bar::-webkit-scrollbar{display:none}
-.stock-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:64px}
-.stock-qty{font-size:var(--text-lg);font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-.stock-qty.ok{color:var(--success)}
-.stock-qty.warn{color:var(--warning)}
-.stock-qty.crit{color:var(--error)}
-.stock-label{font-size:var(--text-xs);color:var(--text-muted);text-align:center;line-height:1.2}
-.stock-divider{width:1px;background:var(--divider);flex-shrink:0;align-self:stretch}
+/* ── Zone produits ────────────────────────────────────────────────────── */
+.main{overflow-y:auto;overscroll-behavior:contain;padding:var(--space-4) var(--space-5) var(--space-8);display:flex;flex-direction:column;gap:var(--space-5)}
+.section-title{font-size:var(--text-sm);font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--space-3);display:flex;align-items:center;gap:var(--space-2)}
+.section-title::after{content:'';flex:1;height:2px;background:var(--divider);border-radius:2px}
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:var(--space-4)}
 
-/* ── Alert banner ─────────────────────────────────────────────────────── */
-.alert-banner{border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:600;display:flex;align-items:center;gap:var(--space-2);animation:slideIn .3s ease}
-.alert-banner.warn{background:var(--warning-bg);color:var(--warning);border:1px solid rgba(253,171,67,.3)}
-.alert-banner.err{background:var(--error-bg);color:var(--error);border:1px solid rgba(221,105,116,.3)}
-@keyframes slideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-
-/* ── Product grid ─────────────────────────────────────────────────────── */
-.section-title{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
-.product-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
-.product-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);transition:box-shadow var(--transition),border-color var(--transition);position:relative;overflow:hidden}
-.product-card:active{transform:scale(.98)}
-.product-card.consigne::after{content:'CONSIGNE';position:absolute;top:var(--space-2);right:var(--space-2);font-size:10px;font-weight:700;background:rgba(253,171,67,.2);color:var(--warning);border-radius:var(--radius-full);padding:1px 6px}
-.product-name{font-size:var(--text-sm);font-weight:600;line-height:1.2}
-.product-price{font-size:var(--text-xs);color:var(--text-muted)}
-.product-price span{color:var(--primary);font-weight:700}
-.qty-control{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
-.qty-btn{width:38px;height:38px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;background:var(--surface-2);border:1px solid var(--border);transition:all var(--transition);flex-shrink:0}
-.qty-btn:hover{background:var(--surface-3)}
-.qty-btn.minus:active{background:var(--error-bg);color:var(--error)}
-.qty-btn.plus:active{background:var(--success-bg);color:var(--success)}
-.qty-display{font-size:var(--text-lg);font-weight:700;font-variant-numeric:tabular-nums;min-width:32px;text-align:center}
-.stock-remaining{font-size:var(--text-xs);color:var(--text-faint);text-align:right}
+.product-card{--accent:#1a2e4a;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);display:flex;flex-direction:column;overflow:hidden;position:relative;transition:box-shadow var(--transition),border-color var(--transition),transform var(--transition)}
+.product-card.has-sale{border-color:var(--accent);box-shadow:var(--card-shadow-active),0 0 0 2px var(--accent) inset}
+.product-card.is-empty{opacity:.55}
+.card-band{height:8px;background:var(--accent)}
+.card-body{padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);flex:1}
+.product-head{display:flex;align-items:center;gap:var(--space-3)}
+.product-icon{width:48px;height:48px;border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;background:color-mix(in srgb,var(--accent) 16%,transparent);border:1.5px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.product-name{font-size:1.125rem;font-weight:800;line-height:1.15;color:var(--text)}
+.product-price{font-size:var(--text-lg);font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1;margin-top:2px}
+.product-price small{font-size:var(--text-xs);font-weight:600;color:var(--text-muted)}
+.qty-control{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin-top:auto}
+.qty-btn{width:56px;height:56px;border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:1.75rem;font-weight:700;line-height:1;transition:transform var(--transition),background var(--transition);flex-shrink:0}
+.qty-btn:active{transform:scale(.94)}
+.qty-btn.minus{background:var(--surface-2);border:1.5px solid var(--border);color:var(--text)}
+.qty-btn.plus{background:var(--primary);color:var(--on-primary)}
+.qty-btn:disabled{opacity:.35}
+.qty-display{font-size:2rem;font-weight:800;font-variant-numeric:tabular-nums;min-width:44px;text-align:center;color:var(--text)}
+.stock-remaining{font-size:var(--text-xs);font-weight:600;color:var(--text-muted)}
 .stock-remaining.low{color:var(--warning)}
 .stock-remaining.empty{color:var(--error)}
 
-/* ── Écocup section ───────────────────────────────────────────────────── */
-.ecocup-card{background:var(--surface);border:1px solid rgba(253,171,67,.25);border-radius:var(--radius-lg);padding:var(--space-4)}
-.ecocup-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)}
-.ecocup-title{font-size:var(--text-sm);font-weight:700;display:flex;align-items:center;gap:var(--space-2)}
-.consigne-tag{font-size:10px;font-weight:700;background:rgba(253,171,67,.2);color:var(--warning);border-radius:var(--radius-full);padding:2px 8px}
-.ecocup-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
-.ecocup-item{background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3)}
-.ecocup-label{font-size:var(--text-xs);color:var(--text-muted);margin-bottom:var(--space-2)}
-.ecocup-controls{display:flex;align-items:center;gap:var(--space-2)}
-.ecocup-controls .qty-btn{width:34px;height:34px}
-.ecocup-net{font-size:var(--text-xs);color:var(--text-muted);margin-top:var(--space-2);padding-top:var(--space-2);border-top:1px solid var(--divider);display:flex;justify-content:space-between}
-.ecocup-net b{color:var(--warning)}
+/* ── Colonne caisse (droite) ──────────────────────────────────────────── */
+.side{background:var(--surface);border-left:1.5px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.side-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-4)}
+.side-title{font-size:var(--text-xs);font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
 
-/* ── Bottom bar ───────────────────────────────────────────────────────── */
-.bottom-bar{background:var(--surface);border-top:1px solid var(--border);padding:var(--space-3) var(--space-4);display:flex;align-items:center;gap:var(--space-3)}
-.ca-total{flex:1}
-.ca-label{font-size:var(--text-xs);color:var(--text-muted)}
-.ca-value{font-size:var(--text-xl);font-weight:700;font-variant-numeric:tabular-nums;color:var(--success);line-height:1}
-.btn-sync{flex-shrink:0;background:var(--primary);color:#fff;border-radius:var(--radius-lg);padding:var(--space-3) var(--space-5);font-size:var(--text-sm);font-weight:700;display:flex;align-items:center;gap:var(--space-2);transition:background var(--transition)}
+.alert-banner{border-radius:var(--radius-md);padding:var(--space-3);font-size:var(--text-sm);font-weight:700;display:flex;align-items:center;gap:var(--space-2)}
+.alert-banner+.alert-banner{margin-top:var(--space-2)}
+.alert-banner.warn{background:var(--warning-bg);color:var(--warning);border:1.5px solid color-mix(in srgb,var(--warning) 40%,transparent)}
+.alert-banner.err{background:var(--error-bg);color:var(--error);border:1.5px solid color-mix(in srgb,var(--error) 40%,transparent)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+.stock-list{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-2)}
+.stock-item{min-width:0;background:var(--surface-2);border:1px solid var(--divider);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
+.stock-label{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stock-qty{font-size:var(--text-base);font-weight:800;font-variant-numeric:tabular-nums}
+.stock-qty.ok{color:var(--success)}
+.stock-qty.warn{color:var(--warning)}
+.stock-qty.crit{color:var(--error)}
+
+.ecocup-card{background:var(--surface-2);border:1.5px solid color-mix(in srgb,var(--warning) 35%,transparent);border-radius:var(--radius-lg);padding:var(--space-3)}
+.ecocup-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
+.ecocup-item{background:var(--surface);border:1px solid var(--divider);border-radius:var(--radius-md);padding:var(--space-2)}
+.ecocup-label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted);margin-bottom:var(--space-2);text-align:center}
+.ecocup-controls{display:flex;align-items:center;justify-content:space-between;gap:var(--space-1)}
+.ecocup-controls .qty-btn{width:44px;height:44px;font-size:1.4rem}
+.ecocup-controls .qty-display{font-size:var(--text-lg);min-width:28px}
+.ecocup-net{font-size:var(--text-sm);font-weight:600;color:var(--text-muted);margin-top:var(--space-3);display:flex;justify-content:space-between}
+.ecocup-net b{color:var(--warning);font-weight:800}
+
+.side-footer{border-top:1.5px solid var(--border);padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);background:var(--surface)}
+.ca-label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+.ca-value{font-size:2.25rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--success);line-height:1.05}
+.btn-sync{background:var(--primary);color:var(--on-primary);border-radius:var(--radius-lg);padding:var(--space-4);font-size:var(--text-base);font-weight:800;display:flex;align-items:center;justify-content:center;gap:var(--space-2);transition:background var(--transition);min-height:60px}
 .btn-sync:hover{background:var(--primary-hover)}
-.btn-sync svg{width:18px;height:18px}
+.btn-sync svg{width:22px;height:22px}
+
+/* ── Indication portrait ──────────────────────────────────────────────── */
+.rotate-hint{display:none}
+@media (orientation: portrait) {
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr auto;grid-template-areas:"header" "hint" "main" "side"}
+  .rotate-hint{display:flex;grid-area:hint;align-items:center;justify-content:center;gap:var(--space-2);background:var(--gold);color:var(--navy);font-weight:800;font-size:var(--text-sm);padding:var(--space-2) var(--space-4)}
+  .side{border-left:none;border-top:1.5px solid var(--border);max-height:42dvh}
+  .header{flex-wrap:wrap}
+}
+@media (max-width: 1100px) and (orientation: landscape) { :root{--sidebar-w:320px} .product-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))} }
 
 /* ── Modals ───────────────────────────────────────────────────────────── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:100;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay{position:fixed;inset:0;background:rgba(8,16,30,.55);backdrop-filter:blur(4px);z-index:100;display:none;align-items:center;justify-content:center;padding:var(--space-4)}
 .modal-overlay.open{display:flex;animation:fadeIn .2s ease}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.modal{background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:var(--space-6) var(--space-4);width:100%;max-width:480px;max-height:90dvh;overflow-y:auto;animation:slideUp .25s cubic-bezier(.16,1,.3,1)}
-@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
-.modal-handle{width:36px;height:4px;background:var(--border);border-radius:var(--radius-full);margin:0 auto var(--space-4)}
-.modal-title{font-size:var(--text-lg);font-weight:700;margin-bottom:var(--space-4)}
-.modal-close{position:absolute;top:var(--space-4);right:var(--space-4);width:32px;height:32px;border-radius:var(--radius-full);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--text-muted)}
+.modal{background:var(--surface);border-radius:var(--radius-xl);padding:var(--space-6);width:100%;max-width:560px;max-height:92dvh;overflow-y:auto;box-shadow:var(--shadow);animation:slideUp .25s cubic-bezier(.16,1,.3,1);user-select:text;-webkit-user-select:text}
+@keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-title{font-size:var(--text-lg);font-weight:800;margin-bottom:var(--space-4);padding-right:var(--space-8)}
+.modal-close{position:absolute;top:var(--space-4);right:var(--space-4);width:40px;height:40px;border-radius:var(--radius-full);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--text-muted)}
 
-/* ── Settings modal ───────────────────────────────────────────────────── */
 .settings-form{display:flex;flex-direction:column;gap:var(--space-4)}
 .form-row{display:flex;flex-direction:column;gap:var(--space-2)}
-.form-label{font-size:var(--text-sm);font-weight:600;color:var(--text-muted)}
-.form-input{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-base);color:var(--text);width:100%}
+.form-label{font-size:var(--text-sm);font-weight:700;color:var(--text-muted)}
+.form-input{background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-base);color:var(--text);width:100%}
 .form-input:focus{outline:2px solid var(--primary);outline-offset:2px}
-.btn-primary{background:var(--primary);color:#fff;border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:700;width:100%;transition:background var(--transition)}
+.btn-primary{background:var(--primary);color:var(--on-primary);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:800;width:100%;min-height:50px;transition:background var(--transition)}
 .btn-primary:hover{background:var(--primary-hover)}
+.btn-secondary{background:var(--surface-2);color:var(--text);border:1.5px solid var(--border)}
 
-/* ── Rapport modal ────────────────────────────────────────────────────── */
 .rapport-section{margin-bottom:var(--space-4)}
-.rapport-section-title{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
+.rapport-section-title{font-size:var(--text-xs);font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--space-2)}
 .rapport-row{display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) 0;border-bottom:1px solid var(--divider);font-size:var(--text-sm)}
 .rapport-row:last-child{border-bottom:none}
 .rapport-row b{font-variant-numeric:tabular-nums}
 .rapport-total{background:var(--success-bg);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);display:flex;justify-content:space-between;align-items:center;margin:var(--space-3) 0}
-.rapport-total-label{font-weight:700;color:var(--success)}
-.rapport-total-value{font-size:var(--text-lg);font-weight:700;color:var(--success);font-variant-numeric:tabular-nums}
+.rapport-total-label{font-weight:800;color:var(--success)}
+.rapport-total-value{font-size:var(--text-lg);font-weight:800;color:var(--success);font-variant-numeric:tabular-nums}
 .json-block{background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3);font-size:11px;font-family:monospace;color:var(--text-muted);white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;margin-top:var(--space-3)}
-.btn-copy{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-2) var(--space-4);font-size:var(--text-sm);font-weight:600;width:100%;margin-top:var(--space-2);transition:background var(--transition)}
+.btn-copy{background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-2) var(--space-4);font-size:var(--text-sm);font-weight:700;width:100%;margin-top:var(--space-2);min-height:46px}
 .btn-copy:hover{background:var(--surface-3)}
 
-/* ── Synchro modal ────────────────────────────────────────────────────── */
-.sync-url-input{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);color:var(--text);width:100%;margin-bottom:var(--space-3)}
-.sync-status{border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:600;display:none;margin-top:var(--space-3)}
+.sync-status{border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);font-size:var(--text-sm);font-weight:700;display:none;margin-top:var(--space-3)}
 .sync-status.ok{background:var(--success-bg);color:var(--success);display:block}
 .sync-status.err{background:var(--error-bg);color:var(--error);display:block}
-
-/* ── Theme toggle ─────────────────────────────────────────────────────── */
-[data-theme-toggle]{position:relative}
 </style>
 </head>
 <body>
@@ -198,6 +213,8 @@ input,select{font:inherit;color:inherit}
           <div class="logo-sub" id="match-label">Aucun match configuré</div>
         </div>
       </div>
+      <!-- Sélecteur tablette -->
+      <div class="tab-selector" id="tab-selector"></div>
     </div>
     <div class="header-right">
       <div class="match-badge" id="tab-badge">Tab. 1</div>
@@ -210,106 +227,82 @@ input,select{font:inherit;color:inherit}
     </div>
   </header>
 
-  <!-- MAIN -->
-  <main class="main" id="main-content">
+  <div class="rotate-hint">↻ Tournez la tablette en mode paysage pour un meilleur affichage</div>
 
-    <!-- Sélecteur tablette -->
-    <div class="tab-selector" id="tab-selector"></div>
+  <!-- PRODUITS -->
+  <main class="main" id="products-zone"></main>
 
-    <!-- Alertes -->
-    <div id="alerts-zone"></div>
+  <!-- CAISSE -->
+  <aside class="side">
+    <div class="side-scroll">
+      <div id="alerts-zone"></div>
 
-    <!-- Stock KPIs -->
-    <div class="stock-bar" id="stock-bar">
-      <div class="stock-item"><div class="stock-qty ok" id="kpi-biere33">—</div><div class="stock-label">Bière 33cl</div></div>
-      <div class="stock-divider"></div>
-      <div class="stock-item"><div class="stock-qty ok" id="kpi-biere50">—</div><div class="stock-label">Bière 50cl</div></div>
-      <div class="stock-divider"></div>
-      <div class="stock-item"><div class="stock-qty ok" id="kpi-soda">—</div><div class="stock-label">Soda</div></div>
-      <div class="stock-divider"></div>
-      <div class="stock-item"><div class="stock-qty ok" id="kpi-eau">—</div><div class="stock-label">Eau</div></div>
-      <div class="stock-divider"></div>
-      <div class="stock-item"><div class="stock-qty" id="kpi-ca" style="color:var(--primary)">0 €</div><div class="stock-label">CA shift</div></div>
-    </div>
+      <div>
+        <div class="side-title">Stock restant</div>
+        <div class="stock-list" id="stock-list"></div>
+      </div>
 
-    <!-- Bières -->
-    <div>
-      <div class="section-title">🍺 Bière pression (fût 30L)</div>
-      <div class="product-grid" id="grid-biere"></div>
-    </div>
-
-    <!-- Softs -->
-    <div>
-      <div class="section-title">🥤 Softs</div>
-      <div class="product-grid" id="grid-softs"></div>
-    </div>
-
-    <!-- Écocups -->
-    <div>
-      <div class="section-title">♻️ Écocups — Consigne 1 €</div>
-      <div class="ecocup-card" id="ecocup-section">
-        <div class="ecocup-header">
-          <div class="ecocup-title">Gestion consignes <span class="consigne-tag">+1 € / vente</span></div>
-        </div>
-        <div class="ecocup-grid">
-          <div class="ecocup-item">
-            <div class="ecocup-label">Écocup 33cl vendus</div>
-            <div class="ecocup-controls">
-              <button class="qty-btn minus" onclick="changeEcocup('E01',-1)">−</button>
-              <div class="qty-display" id="qty-E01">0</div>
-              <button class="qty-btn plus" onclick="changeEcocup('E01',1)">+</button>
+      <div>
+        <div class="side-title">♻️ Écocups — consigne 1 €</div>
+        <div class="ecocup-card" id="ecocup-section">
+          <div class="ecocup-grid">
+            <div class="ecocup-item">
+              <div class="ecocup-label">Vendus 33cl</div>
+              <div class="ecocup-controls">
+                <button class="qty-btn minus" onclick="changeEcocup('E01',-1)">−</button>
+                <div class="qty-display" id="qty-E01">0</div>
+                <button class="qty-btn plus" onclick="changeEcocup('E01',1)">+</button>
+              </div>
+            </div>
+            <div class="ecocup-item">
+              <div class="ecocup-label">Vendus 50cl</div>
+              <div class="ecocup-controls">
+                <button class="qty-btn minus" onclick="changeEcocup('E02',-1)">−</button>
+                <div class="qty-display" id="qty-E02">0</div>
+                <button class="qty-btn plus" onclick="changeEcocup('E02',1)">+</button>
+              </div>
+            </div>
+            <div class="ecocup-item">
+              <div class="ecocup-label">Rendus 33cl</div>
+              <div class="ecocup-controls">
+                <button class="qty-btn minus" onclick="changeRemb('E01',-1)">−</button>
+                <div class="qty-display" id="remb-E01">0</div>
+                <button class="qty-btn plus" onclick="changeRemb('E01',1)">+</button>
+              </div>
+            </div>
+            <div class="ecocup-item">
+              <div class="ecocup-label">Rendus 50cl</div>
+              <div class="ecocup-controls">
+                <button class="qty-btn minus" onclick="changeRemb('E02',-1)">−</button>
+                <div class="qty-display" id="remb-E02">0</div>
+                <button class="qty-btn plus" onclick="changeRemb('E02',1)">+</button>
+              </div>
             </div>
           </div>
-          <div class="ecocup-item">
-            <div class="ecocup-label">Écocup 50cl vendus</div>
-            <div class="ecocup-controls">
-              <button class="qty-btn minus" onclick="changeEcocup('E02',-1)">−</button>
-              <div class="qty-display" id="qty-E02">0</div>
-              <button class="qty-btn plus" onclick="changeEcocup('E02',1)">+</button>
-            </div>
+          <div class="ecocup-net">
+            <span>Net consignes</span>
+            <b id="net-consigne">0,00 €</b>
           </div>
-          <div class="ecocup-item">
-            <div class="ecocup-label">Remboursements 33cl</div>
-            <div class="ecocup-controls">
-              <button class="qty-btn minus" onclick="changeRemb('E01',-1)">−</button>
-              <div class="qty-display" id="remb-E01">0</div>
-              <button class="qty-btn plus" onclick="changeRemb('E01',1)">+</button>
-            </div>
-          </div>
-          <div class="ecocup-item">
-            <div class="ecocup-label">Remboursements 50cl</div>
-            <div class="ecocup-controls">
-              <button class="qty-btn minus" onclick="changeRemb('E02',-1)">−</button>
-              <div class="qty-display" id="remb-E02">0</div>
-              <button class="qty-btn plus" onclick="changeRemb('E02',1)">+</button>
-            </div>
-          </div>
-        </div>
-        <div class="ecocup-net">
-          <span>Net consignes encaissées</span>
-          <b id="net-consigne">0,00 €</b>
         </div>
       </div>
     </div>
-  </main>
 
-  <!-- BOTTOM BAR -->
-  <div class="bottom-bar">
-    <div class="ca-total">
-      <div class="ca-label">CA Total (dont consignes)</div>
-      <div class="ca-value" id="ca-total-display">0,00 €</div>
+    <div class="side-footer">
+      <div>
+        <div class="ca-label">CA total (dont consignes)</div>
+        <div class="ca-value" id="ca-total-display">0,00 €</div>
+      </div>
+      <button class="btn-sync" onclick="openRapport()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Rapport de caisse
+      </button>
     </div>
-    <button class="btn-sync" onclick="openRapport()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      Rapport
-    </button>
-  </div>
+  </aside>
 </div>
 
 <!-- MODAL SETTINGS -->
 <div class="modal-overlay" id="modal-settings">
   <div class="modal" style="position:relative">
-    <div class="modal-handle"></div>
     <button class="modal-close" onclick="closeModal('modal-settings')">✕</button>
     <div class="modal-title">⚙️ Configuration</div>
     <div class="settings-form">
@@ -332,8 +325,8 @@ input,select{font:inherit;color:inherit}
         <label class="form-label">URL Web App (Google Apps Script)</label>
         <input class="form-input" id="inp-url" placeholder="https://script.google.com/..." type="url">
       </div>
-      <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer & Synchroniser</button>
-      <button class="btn-primary" style="background:var(--surface-2);color:var(--text-muted)" onclick="syncPreMatch()">📡 Synchro pré-match (GET)</button>
+      <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer</button>
+      <button class="btn-primary btn-secondary" onclick="syncPreMatch()">📡 Synchro pré-match (GET)</button>
       <div class="sync-status" id="sync-status-pre"></div>
     </div>
   </div>
@@ -342,7 +335,6 @@ input,select{font:inherit;color:inherit}
 <!-- MODAL RAPPORT -->
 <div class="modal-overlay" id="modal-rapport">
   <div class="modal" style="position:relative">
-    <div class="modal-handle"></div>
     <button class="modal-close" onclick="closeModal('modal-rapport')">✕</button>
     <div class="modal-title">📊 Rapport de caisse</div>
     <div id="rapport-content"></div>
@@ -358,35 +350,47 @@ const state = {
   matchId: '',
   date:    new Date().toISOString().slice(0,10),
   url:     '',
-  // Stocks initiaux par tablette
-  stocks: {},
-  // Ventes en cours { ref: qty }
-  ventes: {},
-  // Écocups
+  stocks:  {},             // Stocks initiaux par tablette { 'Tab. 1': { ref: qty } }
+  ventes:  {},             // Ventes en cours { ref: qty }
   ecocups: { E01: 0, E02: 0 },
   rembs:   { E01: 0, E02: 0 },
 };
 
-// Catalogue produits (chargé depuis le Sheet via doGet, fallback local)
+// Catégories affichées (ordre d'affichage)
+const CATS = {
+  biere: { label:'🍺 Bières pression', order:1 },
+  soft:  { label:'🥤 Softs',           order:2 },
+  eau:   { label:'💧 Eaux',            order:3 },
+  snack: { label:'🍿 Snacks',          order:4 },
+  autre: { label:'🛒 Autres',          order:9 },
+};
+
+// Catalogue produits (complété / mis à jour par la synchro Sheet, fallback local)
+// unite : libellé de stock ; color : couleur d'accent de la carte ; icon : pictogramme
 const CATALOGUE = [
-  { ref:'P01_33', nom:'Bière 33cl',      cat:'biere', pv:3.00,  pv50:null, consigne:0,    seuil:15 },
-  { ref:'P01_50', nom:'Bière 50cl',      cat:'biere', pv:null,  pv50:6.00, consigne:0,    seuil:10 },
-  { ref:'P02',    nom:'Soda',            cat:'soft',  pv:3.00,  pv50:null, consigne:0,    seuil:0  },
-  { ref:'P03',    nom:'Eau Plate',       cat:'soft',  pv:1.50,  pv50:null, consigne:0,    seuil:0  },
-  { ref:'P04',    nom:'Eau Pétillante',  cat:'soft',  pv:1.50,  pv50:null, consigne:0,    seuil:0  },
-  { ref:'E01',    nom:'Écocup 33cl',     cat:'eco',   pv:0,     pv50:null, consigne:1.00, seuil:0  },
-  { ref:'E02',    nom:'Écocup 50cl',     cat:'eco',   pv:0,     pv50:null, consigne:1.00, seuil:0  },
+  { ref:'P01_33',   nom:'Bière 33cl',        cat:'biere', pv:3.00, pv50:null, consigne:0, seuil:15, unite:'verres', color:'#d99a00', icon:'🍺' },
+  { ref:'P01_50',   nom:'Bière 50cl',        cat:'biere', pv:null, pv50:6.00, consigne:0, seuil:10, unite:'verres', color:'#b86e00', icon:'🍺' },
+  { ref:'P02_COCA', nom:'Coca-Cola',         cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#d7141f', icon:'🥤' },
+  { ref:'P02_ORAN', nom:'Orangina',          cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#ef7d00', icon:'🍊' },
+  { ref:'P02_ICET', nom:'Ice Tea',           cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#a8690f', icon:'🍑' },
+  { ref:'P02_SCHW', nom:'Schweppes Agrumes', cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#d4a800', icon:'🍋' },
+  { ref:'P03',      nom:'Eau plate',         cat:'eau',   pv:1.50, pv50:null, consigne:0, seuil:5,  color:'#1f7fd1', icon:'💧' },
+  { ref:'P04',      nom:'Eau pétillante',    cat:'eau',   pv:1.50, pv50:null, consigne:0, seuil:5,  color:'#0f98a8', icon:'🫧' },
+  { ref:'E01',      nom:'Écocup 33cl',       cat:'eco',   pv:0,    pv50:null, consigne:1.00, seuil:0 },
+  { ref:'E02',      nom:'Écocup 50cl',       cat:'eco',   pv:0,    pv50:null, consigne:1.00, seuil:0 },
 ];
 
 const PARAMS = { rdt33: 90, rdt50: 60, seuil33: 15, seuil50: 10 };
+
+function sellable() { return CATALOGUE.filter(p => p.cat !== 'eco'); }
+function priceOf(p) { return p.pv || p.pv50 || 0; }
 
 // ── Init stocks par défaut ──────────────────────────────────────────
 function initDefaultStocks() {
   for (let t = 1; t <= 5; t++) {
     const k = 'Tab. ' + t;
-    state.stocks[k] = {
-      P01_33: 0, P01_50: 0, P02: 0, P03: 0, P04: 0
-    };
+    state.stocks[k] = {};
+    sellable().forEach(p => { state.stocks[k][p.ref] = 0; });
   }
 }
 initDefaultStocks();
@@ -394,26 +398,30 @@ initDefaultStocks();
 // ── Ventes init ─────────────────────────────────────────────────────
 function resetVentes() {
   state.ventes = {};
-  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => { state.ventes[p.ref] = 0; });
+  sellable().forEach(p => { state.ventes[p.ref] = 0; });
   state.ecocups = { E01:0, E02:0 };
   state.rembs   = { E01:0, E02:0 };
 }
 resetVentes();
 
 // ═══════════════════════════════════════════════════════════════════
-// THEME
+// THEME (clair par défaut)
 // ═══════════════════════════════════════════════════════════════════
-let currentTheme = 'dark';
+let currentTheme = 'light';
+const ICON_MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+const ICON_SUN  = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  // Icône = thème vers lequel on bascule
+  document.querySelector('[data-theme-toggle] svg').innerHTML = currentTheme === 'light' ? ICON_MOON : ICON_SUN;
+}
 function toggleTheme() {
   currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', currentTheme);
-  const btn = document.querySelector('[data-theme-toggle] svg');
-  if (currentTheme === 'light') {
-    btn.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
-  } else {
-    btn.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-  }
+  try { localStorage.setItem('buvette_theme', currentTheme); } catch(e) {}
+  applyTheme();
 }
+try { const t = localStorage.getItem('buvette_theme'); if (t === 'dark' || t === 'light') currentTheme = t; } catch(e) {}
+applyTheme();
 
 // ═══════════════════════════════════════════════════════════════════
 // TABS
@@ -421,15 +429,8 @@ function toggleTheme() {
 function renderTabs() {
   const c = document.getElementById('tab-selector');
   c.innerHTML = '';
-  const tabs = Object.keys(state.stocks).filter(k => {
-    const s = state.stocks[k];
-    return Object.values(s).some(v => v > 0);
-  });
-  if (tabs.length === 0) {
-    ['Tab. 1','Tab. 2','Tab. 3'].forEach(t => addTabBtn(c, t));
-    return;
-  }
-  tabs.forEach(t => addTabBtn(c, t));
+  const tabs = Object.keys(state.stocks).filter(k => Object.values(state.stocks[k]).some(v => v > 0));
+  (tabs.length ? tabs : ['Tab. 1','Tab. 2','Tab. 3']).forEach(t => addTabBtn(c, t));
 }
 function addTabBtn(c, t) {
   const b = document.createElement('button');
@@ -445,44 +446,83 @@ function addTabBtn(c, t) {
 function renderAll() {
   renderTabs();
   renderAlerts();
-  renderStockBar();
-  renderGridBiere();
-  renderGridSofts();
+  renderStockList();
+  renderProducts();
   renderCA();
 }
 
-function stockDispo(ref) {
-  const s = state.stocks[state.tab] || {};
-  return Math.max(0, (s[ref] || 0) - (state.ventes[ref] || 0));
+function stockInit(ref) { return (state.stocks[state.tab] || {})[ref] || 0; }
+function stockDispo(ref) { return Math.max(0, stockInit(ref) - (state.ventes[ref] || 0)); }
+function seuilOf(p) {
+  if (p.ref === 'P01_33') return PARAMS.seuil33;
+  if (p.ref === 'P01_50') return PARAMS.seuil50;
+  return p.seuil || 0;
+}
+function stockClass(p) {
+  const d = stockDispo(p.ref);
+  if (d === 0) return 'crit';
+  if (d <= seuilOf(p)) return 'warn';
+  return 'ok';
 }
 
-function renderStockBar() {
-  const b33 = stockDispo('P01_33');
-  const b50 = stockDispo('P01_50');
-  const sd  = stockDispo('P02');
-  const eau = Math.min(stockDispo('P03'), stockDispo('P04'));
-  setKpi('kpi-biere33', b33, b33 <= PARAMS.seuil33 ? (b33 === 0 ? 'crit' : 'warn') : 'ok');
-  setKpi('kpi-biere50', b50, b50 <= PARAMS.seuil50 ? (b50 === 0 ? 'crit' : 'warn') : 'ok');
-  setKpi('kpi-soda',    sd,  sd === 0 ? 'crit' : 'ok');
-  setKpi('kpi-eau',     Math.max(stockDispo('P03'), stockDispo('P04')), 'ok');
-  const ca = calcCA();
-  document.getElementById('kpi-ca').textContent = fmt(ca);
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderProducts() {
+  const zone = document.getElementById('products-zone');
+  const groups = {};
+  sellable().forEach(p => { const c = CATS[p.cat] ? p.cat : 'autre'; (groups[c] = groups[c] || []).push(p); });
+  const order = Object.keys(groups).sort((a,b) => CATS[a].order - CATS[b].order);
+  let html = '';
+  order.forEach(cat => {
+    html += `<section><div class="section-title">${CATS[cat].label}</div><div class="product-grid">`;
+    groups[cat].forEach(p => {
+      const dispo = stockDispo(p.ref);
+      const vendu = state.ventes[p.ref] || 0;
+      const cls   = stockClass(p);
+      const lowCls = cls === 'crit' ? 'empty' : (cls === 'warn' ? 'low' : '');
+      const unite = p.unite ? ' ' + p.unite : '';
+      html += `
+        <div class="product-card${vendu > 0 ? ' has-sale' : ''}${dispo <= 0 && vendu === 0 ? ' is-empty' : ''}" style="--accent:${esc(p.color || '#1a2e4a')}">
+          <div class="card-band"></div>
+          <div class="card-body">
+            <div class="product-head">
+              <div class="product-icon" aria-hidden="true">${p.icon || '🛒'}</div>
+              <div>
+                <div class="product-name">${esc(p.nom)}</div>
+                <div class="product-price">${fmt(priceOf(p))}</div>
+              </div>
+            </div>
+            <div class="qty-control">
+              <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)" ${vendu <= 0 ? 'disabled' : ''} aria-label="Retirer ${esc(p.nom)}">−</button>
+              <div class="qty-display">${vendu}</div>
+              <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)" ${dispo <= 0 ? 'disabled' : ''} aria-label="Ajouter ${esc(p.nom)}">+</button>
+            </div>
+            <div class="stock-remaining ${lowCls}">${dispo <= 0 ? 'Épuisé' : 'Dispo : ' + dispo + unite}</div>
+          </div>
+        </div>`;
+    });
+    html += '</div></section>';
+  });
+  zone.innerHTML = html;
 }
-function setKpi(id, val, cls) {
-  const el = document.getElementById(id);
-  el.textContent = val;
-  el.className = 'stock-qty ' + cls;
+
+function renderStockList() {
+  const l = document.getElementById('stock-list');
+  l.innerHTML = sellable().map(p =>
+    `<div class="stock-item"><span class="stock-label">${esc(p.nom)}</span><span class="stock-qty ${stockClass(p)}">${stockDispo(p.ref)}</span></div>`
+  ).join('');
 }
 
 function renderAlerts() {
   const z = document.getElementById('alerts-zone');
   z.innerHTML = '';
-  const b33 = stockDispo('P01_33');
-  const b50 = stockDispo('P01_50');
-  if (b33 > 0 && b33 <= PARAMS.seuil33) addAlert(z, 'warn', '⚠️ Bière 33cl : ' + b33 + ' verres restants — prévoir changement de fût');
-  if (b50 > 0 && b50 <= PARAMS.seuil50) addAlert(z, 'warn', '⚠️ Bière 50cl : ' + b50 + ' verres restants — prévoir changement de fût');
-  if (b33 === 0 && (state.stocks[state.tab]||{}).P01_33 > 0) addAlert(z, 'err', '🚨 Bière 33cl ÉPUISÉE — changer le fût !');
-  if (b50 === 0 && (state.stocks[state.tab]||{}).P01_50 > 0) addAlert(z, 'err', '🚨 Bière 50cl ÉPUISÉE — changer le fût !');
+  sellable().forEach(p => {
+    if (stockInit(p.ref) <= 0) return;           // produit non approvisionné sur cette tablette
+    const d = stockDispo(p.ref);
+    const isBiere = p.cat === 'biere';
+    if (d === 0) addAlert(z, 'err', isBiere ? `🚨 ${p.nom} ÉPUISÉE — changer le fût !` : `🚨 ${p.nom} épuisé`);
+    else if (d <= seuilOf(p)) addAlert(z, 'warn', isBiere ? `⚠️ ${p.nom} : ${d} verres restants — prévoir le fût` : `⚠️ ${p.nom} : plus que ${d}`);
+  });
 }
 function addAlert(z, type, msg) {
   const d = document.createElement('div');
@@ -491,59 +531,12 @@ function addAlert(z, type, msg) {
   z.appendChild(d);
 }
 
-function renderGridBiere() {
-  const g = document.getElementById('grid-biere');
-  g.innerHTML = '';
-  CATALOGUE.filter(p => p.cat === 'biere').forEach(p => {
-    const dispo = stockDispo(p.ref);
-    const vendu = state.ventes[p.ref] || 0;
-    const pv    = p.pv || p.pv50;
-    const lowCls = dispo <= (p.seuil || 0) ? (dispo === 0 ? 'empty' : 'low') : '';
-    g.innerHTML += `
-      <div class="product-card">
-        <div>
-          <div class="product-name">${p.nom}</div>
-          <div class="product-price">Prix : <span>${fmt(pv)}</span></div>
-        </div>
-        <div class="qty-control">
-          <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)">−</button>
-          <div class="qty-display">${vendu}</div>
-          <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)" ${dispo <= 0 ? 'disabled style="opacity:.4"' : ''}>+</button>
-        </div>
-        <div class="stock-remaining ${lowCls}">Dispo : ${dispo} verres</div>
-      </div>`;
-  });
-}
-
-function renderGridSofts() {
-  const g = document.getElementById('grid-softs');
-  g.innerHTML = '';
-  CATALOGUE.filter(p => p.cat === 'soft').forEach(p => {
-    const dispo = stockDispo(p.ref);
-    const vendu = state.ventes[p.ref] || 0;
-    g.innerHTML += `
-      <div class="product-card">
-        <div>
-          <div class="product-name">${p.nom}</div>
-          <div class="product-price">Prix : <span>${fmt(p.pv)}</span></div>
-        </div>
-        <div class="qty-control">
-          <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)">−</button>
-          <div class="qty-display">${vendu}</div>
-          <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)" ${dispo <= 0 ? 'disabled style="opacity:.4"' : ''}>+</button>
-        </div>
-        <div class="stock-remaining ${dispo === 0 ? 'empty' : ''}">Dispo : ${dispo}</div>
-      </div>`;
-  });
-}
-
 function renderEcocups() {
   ['E01','E02'].forEach(ref => {
     document.getElementById('qty-' + ref).textContent  = state.ecocups[ref] || 0;
     document.getElementById('remb-' + ref).textContent = state.rembs[ref] || 0;
   });
-  const net = ((state.ecocups.E01||0) - (state.rembs.E01||0)) * 1
-            + ((state.ecocups.E02||0) - (state.rembs.E02||0)) * 1;
+  const net = ((state.ecocups.E01||0) - (state.rembs.E01||0)) + ((state.ecocups.E02||0) - (state.rembs.E02||0));
   document.getElementById('net-consigne').textContent = fmt(net);
 }
 
@@ -553,12 +546,9 @@ function renderCA() {
 
 function calcCA() {
   let ca = 0;
-  CATALOGUE.filter(p => p.cat !== 'eco').forEach(p => {
-    ca += (state.ventes[p.ref] || 0) * (p.pv || p.pv50 || 0);
-  });
-  // Consignes
-  ca += (state.ecocups.E01||0) * 1 - (state.rembs.E01||0) * 1;
-  ca += (state.ecocups.E02||0) * 1 - (state.rembs.E02||0) * 1;
+  sellable().forEach(p => { ca += (state.ventes[p.ref] || 0) * priceOf(p); });
+  ca += (state.ecocups.E01||0) - (state.rembs.E01||0);
+  ca += (state.ecocups.E02||0) - (state.rembs.E02||0);
   return ca;
 }
 
@@ -567,8 +557,7 @@ function calcCA() {
 // ═══════════════════════════════════════════════════════════════════
 function changeQty(ref, delta) {
   const current = state.ventes[ref] || 0;
-  const dispo   = stockDispo(ref);
-  if (delta > 0 && dispo <= 0) return;
+  if (delta > 0 && stockDispo(ref) <= 0) return;
   if (delta < 0 && current <= 0) return;
   state.ventes[ref] = current + delta;
   renderAll();
@@ -592,7 +581,7 @@ function changeRemb(ref, delta) {
 // SETTINGS
 // ═══════════════════════════════════════════════════════════════════
 function openSettings() {
-  document.getElementById('sel-tab').value  = state.tab;
+  document.getElementById('sel-tab').value   = state.tab;
   document.getElementById('inp-match').value = state.matchId;
   document.getElementById('inp-date').value  = state.date;
   document.getElementById('inp-url').value   = state.url;
@@ -611,15 +600,16 @@ function saveSettings() {
 
 // ── Synchro pré-match GET ───────────────────────────────────────────
 async function syncPreMatch() {
-  const url = state.url;
+  const url = state.url || document.getElementById('inp-url').value.trim();
   const statusEl = document.getElementById('sync-status-pre');
   if (!url) { statusEl.className = 'sync-status err'; statusEl.textContent = '❌ URL non configurée.'; return; }
+  state.url = url;
   statusEl.className = 'sync-status'; statusEl.textContent = '⏳ Connexion…'; statusEl.style.display = 'block';
   try {
     const r = await fetch(url);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const cfg = await r.json();
-    applyTabletConfig(cfg);
+    if (applyTabletConfig(cfg) === false) return;
     statusEl.className = 'sync-status ok';
     statusEl.textContent = '✅ Config reçue — Match ' + (cfg.matchId || '?');
   } catch(e) {
@@ -631,18 +621,16 @@ async function syncPreMatch() {
 // ── GARDE-FOU ÉTANCHÉITÉ BUVETTE / BOUTIQUE ──────────────────
 const APP_ID = 'BUVETTE';
 function alertWrongCatalog(t){
-  const msg = '\u26D4 Mauvais catalogue : ce lien renvoie la ' + String(t).toUpperCase() +
+  const msg = '⛔ Mauvais catalogue : ce lien renvoie la ' + String(t).toUpperCase() +
     '.\nCette tablette est la BUVETTE.\nCorrige l\'URL Apps Script dans Configuration.';
   const el = document.getElementById('sync-status-pre');
   if (el){ el.className='sync-status err'; el.style.display='block';
-    el.textContent='\u26D4 Catalogue \u00AB '+t+' \u00BB refus\u00E9 \u2014 cette tablette est la BUVETTE.'; }
+    el.textContent='⛔ Catalogue « '+t+' » refusé — cette tablette est la BUVETTE.'; }
   try { alert(msg); } catch(e){}
 }
 function guardCatalogSource(cfg){
   if (!cfg || typeof cfg !== 'object') return true;
-  // 1) Marqueur explicite si l'Apps Script le renseigne (recommand\u00E9)
   if (cfg.app && String(cfg.app).toLowerCase() !== 'buvette'){ alertWrongCatalog(cfg.app); return false; }
-  // 2) Signature boutique \u2192 on refuse (maillots, prix_vente, stock_B1/B2)
   const looksBoutique =
     ('stock_B1' in cfg) || ('stock_B2' in cfg) ||
     (Array.isArray(cfg.produits) && cfg.produits.some(function(p){
@@ -651,15 +639,47 @@ function guardCatalogSource(cfg){
   if (looksBoutique){ alertWrongCatalog('boutique'); return false; }
   return true;
 }
-function applyTabletConfig(cfg) {
-  if (!guardCatalogSource(cfg)) return;
 
-  if (cfg.matchId)    { state.matchId = cfg.matchId; document.getElementById('inp-match').value = cfg.matchId; document.getElementById('match-label').textContent = cfg.matchId; }
+// Normalise une catégorie venant du Sheet vers une clé de CATS
+function mapCat(raw) {
+  const c = String(raw || '').toLowerCase();
+  if (c.includes('bi')) return 'biere';
+  if (c.includes('eau')) return 'eau';
+  if (c.includes('eco') || c.includes('éco') || c.includes('consigne')) return 'eco';
+  if (c.includes('snack') || c.includes('sucr') || c.includes('sal') || c.includes('confis') || c.includes('chips')) return 'snack';
+  if (c.includes('soft') || c.includes('soda') || c.includes('boisson')) return 'soft';
+  return 'autre';
+}
+
+function applyTabletConfig(cfg) {
+  if (!guardCatalogSource(cfg)) return false;
+
+  if (cfg.matchId) { state.matchId = cfg.matchId; document.getElementById('inp-match').value = cfg.matchId; document.getElementById('match-label').textContent = cfg.matchId; }
   if (cfg.params_fut) {
     PARAMS.rdt33   = cfg.params_fut.rdt33   || 90;
     PARAMS.rdt50   = cfg.params_fut.rdt50   || 60;
     PARAMS.seuil33 = cfg.params_fut.seuil_alerte_33cl || 15;
     PARAMS.seuil50 = cfg.params_fut.seuil_alerte_50cl || 10;
+  }
+  // Produits : mise à jour des prix + ajout automatique des produits du Sheet absents du catalogue local
+  if (Array.isArray(cfg.produits)) {
+    cfg.produits.forEach(p => {
+      if (!p || !p.ref) return;
+      let local = CATALOGUE.find(c => c.ref === p.ref);
+      if (!local) {
+        const cat = mapCat(p.categorie || p.cat);
+        local = { ref:p.ref, nom:p.nom || p.produit || p.ref, cat, pv:0, pv50:null, consigne:0, seuil:5, color:p.couleur || '#1a2e4a', icon:p.icone || '' };
+        CATALOGUE.push(local);
+      }
+      if (p.nom || p.produit) local.nom = p.nom || p.produit;
+      if (p.pv_33cl) local.pv  = Number(p.pv_33cl);
+      if (p.pv_50cl) local.pv50 = Number(p.pv_50cl);
+      if (p.pv)      local.pv  = Number(p.pv);
+      if (p.prix)    local.pv  = Number(p.prix);
+      if (p.consigne !== undefined) local.consigne = p.consigne;
+      if (p.seuil !== undefined && p.seuil !== '') local.seuil = Number(p.seuil);
+      if (p.actif === false || p.actif === 'NON') local.cat = 'eco_off'; // masqué
+    });
   }
   if (cfg.stocks_tablettes) {
     Object.entries(cfg.stocks_tablettes).forEach(([tab, items]) => {
@@ -667,21 +687,22 @@ function applyTabletConfig(cfg) {
       items.forEach(item => {
         if (item.type === 'biere_33') state.stocks[tab].P01_33 = item.qty_verres;
         else if (item.type === 'biere_50') state.stocks[tab].P01_50 = item.qty_verres;
-        else state.stocks[tab][item.ref] = item.qty_unites;
+        else {
+          state.stocks[tab][item.ref] = item.qty_unites;
+          // Produit présent en stock mais inconnu du catalogue → on l'affiche quand même
+          if (item.ref && !CATALOGUE.find(c => c.ref === item.ref)) {
+            CATALOGUE.push({ ref:item.ref, nom:item.nom || item.produit || item.ref, cat:mapCat(item.categorie), pv:Number(item.pv || item.prix || 0), pv50:null, consigne:0, seuil:5, color:'#1a2e4a', icon:'' });
+          }
+        }
       });
     });
   }
-  if (cfg.produits) {
-    cfg.produits.forEach(p => {
-      const local = CATALOGUE.find(c => c.ref === p.ref);
-      if (!local) return;
-      if (p.pv_33cl) local.pv  = p.pv_33cl;
-      if (p.pv_50cl) local.pv50 = p.pv_50cl;
-      if (p.consigne !== undefined) local.consigne = p.consigne;
-    });
-  }
+  // Les produits désactivés (cat 'eco_off') ne sont ni vendables ni affichés
+  for (let i = CATALOGUE.length - 1; i >= 0; i--) if (CATALOGUE[i].cat === 'eco_off') CATALOGUE.splice(i, 1);
   resetVentes();
   renderAll();
+  renderEcocups();
+  return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -689,8 +710,8 @@ function applyTabletConfig(cfg) {
 // ═══════════════════════════════════════════════════════════════════
 function openRapport() {
   const c = document.getElementById('rapport-content');
-  const ventes = CATALOGUE.filter(p => p.cat !== 'eco' && (state.ventes[p.ref] || 0) > 0)
-    .map(p => ({ ref: p.ref, produit: p.nom, qty: state.ventes[p.ref], pv: p.pv || p.pv50, consigne: 0 }));
+  const ventes = sellable().filter(p => (state.ventes[p.ref] || 0) > 0)
+    .map(p => ({ ref: p.ref, produit: p.nom, qty: state.ventes[p.ref], pv: priceOf(p), consigne: 0 }));
   if ((state.ecocups.E01||0) > 0) ventes.push({ ref:'E01', produit:'Écocup 33cl', qty: state.ecocups.E01, pv: 0, consigne: 1.00 });
   if ((state.ecocups.E02||0) > 0) ventes.push({ ref:'E02', produit:'Écocup 50cl', qty: state.ecocups.E02, pv: 0, consigne: 1.00 });
 
@@ -707,23 +728,24 @@ function openRapport() {
   };
 
   let html = '<div class="rapport-section"><div class="rapport-section-title">Ventes</div>';
+  if (!ventes.length) html += '<div class="rapport-row"><span>Aucune vente enregistrée</span><b>—</b></div>';
   ventes.forEach(v => {
     const total = v.qty * v.pv + v.qty * v.consigne;
-    html += `<div class="rapport-row"><span>${v.produit} × ${v.qty}</span><b>${fmt(total)}</b></div>`;
+    html += `<div class="rapport-row"><span>${esc(v.produit)} × ${v.qty}</span><b>${fmt(total)}</b></div>`;
   });
   html += '</div>';
 
   if (rembs.length > 0) {
     html += '<div class="rapport-section"><div class="rapport-section-title">Remboursements consigne</div>';
     rembs.forEach(r => {
-      html += `<div class="rapport-row"><span>Remb. écocup × ${r.qty}</span><b style="color:var(--error)">−${fmt(r.montant)}</b></div>`;
+      html += `<div class="rapport-row"><span>Remb. écocup ${r.ref === 'E01' ? '33cl' : '50cl'} × ${r.qty}</span><b style="color:var(--error)">−${fmt(r.montant)}</b></div>`;
     });
     html += '</div>';
   }
 
   html += `<div class="rapport-total"><span class="rapport-total-label">💰 CA Total</span><span class="rapport-total-value">${fmt(calcCA())}</span></div>`;
   html += '<div class="rapport-section-title">JSON à envoyer au Sheet</div>';
-  html += `<div class="json-block" id="json-block">${JSON.stringify(json, null, 2)}</div>`;
+  html += `<div class="json-block" id="json-block">${esc(JSON.stringify(json, null, 2))}</div>`;
   html += `<button class="btn-copy" onclick="copyJson()">📋 Copier le JSON</button>`;
   html += `<button class="btn-primary" style="margin-top:var(--space-2)" onclick="sendReport()">📤 Envoyer au Sheet</button>`;
   html += `<div class="sync-status" id="sync-status-post"></div>`;
@@ -743,7 +765,7 @@ function copyJson() {
 }
 
 async function sendReport() {
-  const url     = state.url;
+  const url      = state.url;
   const statusEl = document.getElementById('sync-status-post');
   const content  = document.getElementById('rapport-content')._json;
   if (!url) { statusEl.className = 'sync-status err'; statusEl.textContent = '❌ URL non configurée dans les paramètres.'; return; }
@@ -772,13 +794,14 @@ function fmt(n) {
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// Fermer sur clic overlay
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
 });
 
-// Date par défaut
 document.getElementById('inp-date').value = state.date;
+
+// Verrouillage paysage quand le navigateur l'autorise (PWA installée / plein écran)
+try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch(e) {}
 
 // ── Init ─────────────────────────────────────────────────────────────
 renderAll();
