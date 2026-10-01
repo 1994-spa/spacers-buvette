@@ -99,6 +99,7 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .ubtn small{display:block;font-size:.8rem;font-weight:700;color:var(--muted)}
 .ubtn .ico{font-size:1.9rem}
 .ubtn:active{transform:scale(.98)}
+.ubtn.gob{border-color:color-mix(in srgb,var(--primary) 55%,transparent);background:color-mix(in srgb,var(--gold) 18%,var(--surface))}
 .ubtn.eco{border-color:color-mix(in srgb,var(--ok) 55%,transparent)}
 .ubtn.scan{border:2px dashed var(--primary);background:color-mix(in srgb,var(--day) 22%,var(--surface))}
 .ubtn.scan.lie{border:2px solid var(--ok);background:var(--ok-bg)}
@@ -256,8 +257,8 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <div class="banner" id="banner" hidden></div>
     <div class="tiles" id="tiles"></div>
     <div class="utils">
-      <button class="ubtn eco" onclick="ecocupRendue()"><span class="ico">♻️</span><span>Gobelet rendu<small>−1 € déduit</small></span></button>
-      <button class="ubtn" onclick="gobeletEau()"><span class="ico">🥛</span><span>+ Gobelet<small>eau servie au gobelet · +1 €</small></span></button>
+      <button class="ubtn gob" onclick="gobeletConsigne()"><span class="ico">🥤</span><span>+ Gobelet<small>consigne +1 €</small></span></button>
+      <button class="ubtn eco" onclick="ecocupRendue()"><span class="ico">♻️</span><span>Gobelet rendu<small>consigne −1 €</small></span></button>
       <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span></button>
     </div>
   </main>
@@ -324,8 +325,8 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
   <div class="modal aide">
     <h3>👋 Bienvenue à la buvette !</h3>
     <ol>
-      <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson. Le gobelet consigné (1 €) s'ajoute tout seul avec chaque bière et chaque soft. L'eau est en bouteille : si le client veut un gobelet, touche 🥛 + Gobelet.</span></li>
-      <li><span><b>Le client rend un gobelet ? Touche ♻️.</b>1 € est déduit. S'il reprend une boisson dans son gobelet, ça s'annule : il ne paie pas de consigne.</span></li>
+      <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson.</span></li>
+      <li><span><b>Gobelet : 🥤 + Gobelet si le client n'en a pas.</b>Une touche par gobelet donné = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Gobelet rendu.</span></li>
       <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Le client gagne des points et le club sait qui consomme. Pas de billet ? On continue.</span></li>
       <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>En espèces, touche le billet donné : la tablette affiche la monnaie à rendre.</span></li>
     </ol>
@@ -357,7 +358,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
           <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
         </div>
       </details>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-ux2</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-ux3</p>
     </div>
   </div>
 </div>
@@ -376,17 +377,17 @@ const DELAI_ANNUL = 10000;       // une vente reste annulable 10 s avant de part
 const CONSIGNE = 1.00;
 
 // Ordre des tuiles = ordre de la grille 4×2 (les plus vendues en haut à gauche)
-// ecocup:true → la boisson est versée dans un gobelet consigné (bière pression, softs en bouteille).
-// L'eau est servie en bouteille, gobelet au choix du client (bouton « + Gobelet »).
+// La consigne écocup n'est jamais automatique : le bénévole l'ajoute (bouton « + Gobelet »)
+// seulement si le client n'a pas déjà son verre.
 const CATALOGUE = [
-  { ref:'P01_25',   nom:'Bière 25cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺', ecocup:true },
-  { ref:'P01_50',   nom:'Bière 50cl',        pv:6.00, seuil:10, color:'#a86400', icon:'🍺', ecocup:true },
+  { ref:'P01_25',   nom:'Bière 25cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺'},
+  { ref:'P01_50',   nom:'Bière 50cl',        pv:6.00, seuil:10, color:'#a86400', icon:'🍺'},
   { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧' },
   { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧' },
-  { ref:'P02_COCA', nom:'Coca-Cola',         pv:3.00, seuil:5,  color:'#d7141f', icon:'🥤' , ecocup:true },
-  { ref:'P02_ORAN', nom:'Orangina',          pv:3.00, seuil:5,  color:'#ef7d00', icon:'🍊' , ecocup:true },
-  { ref:'P02_ICET', nom:'Ice Tea',           pv:3.00, seuil:5,  color:'#8a5a12', icon:'🍑' , ecocup:true },
-  { ref:'P02_SCHW', nom:'Schweppes Agrumes', pv:3.00, seuil:5,  color:'#c9a000', icon:'🍋' , ecocup:true },
+  { ref:'P02_COCA', nom:'Coca-Cola',         pv:3.00, seuil:5,  color:'#d7141f', icon:'🥤' },
+  { ref:'P02_ORAN', nom:'Orangina',          pv:3.00, seuil:5,  color:'#ef7d00', icon:'🍊' },
+  { ref:'P02_ICET', nom:'Ice Tea',           pv:3.00, seuil:5,  color:'#8a5a12', icon:'🍑' },
+  { ref:'P02_SCHW', nom:'Schweppes Agrumes', pv:3.00, seuil:5,  color:'#c9a000', icon:'🍋' },
 ];
 const prod = ref => CATALOGUE.find(p => p.ref === ref) || {};
 const priceOf = p => p.pv || 0;
@@ -536,7 +537,7 @@ function ligneHtml(label, sub, qte, montant, moins, plus, neg) {
 function renderPanier() {
   const rows = [];
   CATALOGUE.forEach(p => { const q = panier.lignes[p.ref] || 0; if (q) rows.push(ligneHtml(esc(p.nom), fmt(p.pv) + ' pièce', q, q * p.pv, `retirer('${p.ref}')`, `ajouter('${p.ref}')`)); });
-  if (panier.consigne) rows.push(ligneHtml('♻️ Gobelet consigné', 'ajouté avec la boisson', panier.consigne, panier.consigne * CONSIGNE, 'changeConsigne(-1)', 'changeConsigne(1)'));
+  if (panier.consigne) rows.push(ligneHtml('♻️ Gobelet consigné', '+1 € par gobelet', panier.consigne, panier.consigne * CONSIGNE, 'changeConsigne(-1)', 'changeConsigne(1)'));
   if (panier.rendue) rows.push(ligneHtml('♻️ Gobelet rendu', 'consigne remboursée', panier.rendue, panier.rendue * CONSIGNE, 'changeRendue(-1)', 'changeRendue(1)', true));
   document.getElementById('lines').innerHTML = rows.length ? rows.join('')
     : `<div class="empty"><big>👈</big>Touche les boissons<br>demandées par le client</div>`;
@@ -596,7 +597,6 @@ function ajouter(ref) {
   const p = prod(ref);
   if (!peutAjouter(ref)) { vibre(60); info(aStock(ref) || !stockSuivi() ? `🚫 ${p.nom} : plus de stock` : `🚫 Pas de ${p.nom} dans cette buvette`); return; }
   panier.lignes[ref] = (panier.lignes[ref] || 0) + 1;
-  if (p.ecocup) panier.consigne++;          // bière et softs sont servis en écocup consignée
   vibre();
   renderTiles(); renderPanier(); renderAlerts();
   const q = document.getElementById('q-' + ref); if (q) q.classList.add('pop');
@@ -606,13 +606,12 @@ function retirer(ref) {
   if (!q) return;
   panier.lignes[ref] = q - 1;
   if (!panier.lignes[ref]) delete panier.lignes[ref];
-  if (prod(ref).ecocup && panier.consigne > 0) panier.consigne--;
   vibre();
   renderTiles(); renderPanier(); renderAlerts();
 }
 function changeConsigne(d) { if (d < 0 && !panier.consigne) return; panier.consigne += d; renderPanier(); }
 function changeRendue(d) { if (d < 0 && !panier.rendue) return; panier.rendue += d; renderPanier(); }
-function gobeletEau() { panier.consigne++; vibre(); renderPanier(); }
+function gobeletConsigne() { panier.consigne++; vibre(); renderPanier(); }
 function ecocupRendue() { panier.rendue++; vibre(); renderPanier(); }
 function viderPanier() { panier = nouveauPanier(); billet = null; renderAll(); }
 
