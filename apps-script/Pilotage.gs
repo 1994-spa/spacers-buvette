@@ -569,8 +569,8 @@ function pilDonneesCommande_(eventId) {
 const PIL_APP_URL = 'https://spacers-buvette.spacersytb.workers.dev/';
 function pilLienConfig_(page, extra) {
   const p = PropertiesService.getScriptProperties();
-  const url = ScriptApp.getService().getUrl() || p.getProperty('PIL_WEBAPP_URL');
-  if (!url) throw new Error("Application web non déployée");
+  const url = pilUrlWebApp_();
+  if (!url) throw new Error("URL de l'application web introuvable : colle-la dans PILOTAGE (cellule sous le tableau) ou dans la propriété PIL_WEBAPP_URL");
   const cfg = Object.assign({ url: url, token: p.getProperty('PILOTAGE_TOKEN') }, extra || {});
   return PIL_APP_URL + page + '?cfg=' + encodeURIComponent(Utilities.base64Encode(JSON.stringify(cfg), Utilities.Charset.UTF_8));
 }
@@ -591,4 +591,21 @@ function pilotageOuvrir() {
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
     JSON.stringify(tabs.map(function (t) { return t.url; })) + '.forEach(function(u,i){new QRCode(document.getElementById("q"+i),{text:u,width:150,height:150,correctLevel:QRCode.CorrectLevel.L});});</script>';
   SpreadsheetApp.getUi().showModelessDialog(HtmlService.createHtmlOutput(html).setWidth(560).setHeight(380), 'Pilotage buvette');
+}
+
+// URL publique (…/exec) du déploiement : ScriptApp.getService().getUrl() peut renvoyer l'URL /dev
+// (réservée à l'éditeur), qui échoue depuis les tablettes. On prend donc d'abord l'URL /exec écrite dans le Sheet.
+function pilUrlWebApp_() {
+  const p = PropertiesService.getScriptProperties();
+  const prop = p.getProperty('PIL_WEBAPP_URL');
+  if (prop && /\/exec$/.test(prop)) return prop;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const re = /https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/;
+  for (const n of ['PILOTAGE', '06_STOCKS']) {
+    const sh = ss.getSheetByName(n); if (!sh) continue;
+    const f = sh.createTextFinder('script.google.com/macros/s/').findNext();
+    if (f) { const m = String(f.getValue()).match(re) || String(f.getFormula()).match(re); if (m) { p.setProperty('PIL_WEBAPP_URL', m[0]); return m[0]; } }
+  }
+  const u = ScriptApp.getService().getUrl();
+  return u && /\/exec$/.test(u) ? u : '';
 }

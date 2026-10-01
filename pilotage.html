@@ -235,7 +235,7 @@ async function start(){
   try {
     events = (await api({ action:'events' })).events || [];
     const today = new Date().toISOString().slice(0,10);
-    const next = events.find(e => e.dateMatch >= today) || events[events.length-1];
+    const next = events.find(e => e.dateMatch >= today && /spacer/i.test(e.nom)) || events.find(e => e.dateMatch >= today) || events[events.length-1];
     current = current || (next ? next.id : '');
     $('ev-select').innerHTML = events.map(e => `<option value="${esc(e.id)}"${e.id===current?' selected':''}>${esc(e.nom)} · ${new Date(e.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</option>`).join('');
   } catch(e) {
