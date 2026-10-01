@@ -137,10 +137,13 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .ecocup-item{background:var(--surface);border:1px solid var(--divider);border-radius:var(--radius-md);padding:var(--space-2)}
 .ecocup-label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted);margin-bottom:var(--space-2);text-align:center}
 .ecocup-controls{display:flex;align-items:center;justify-content:space-between;gap:var(--space-1)}
-.ecocup-controls .qty-btn{height:44px;font-size:1.4rem}
+.ecocup-controls .qty-btn{height:52px;font-size:1.5rem}
 .ecocup-controls .qty-display{font-size:var(--text-lg);min-width:28px}
 .ecocup-net{font-size:var(--text-sm);font-weight:600;color:var(--text-muted);margin-top:var(--space-3);display:flex;justify-content:space-between}
 .ecocup-net b{color:var(--warning);font-weight:800}
+.eco-sign{display:inline-block;margin-top:2px;font-size:var(--text-sm);font-weight:800}
+.eco-sign.plus{color:var(--success)}
+.eco-sign.minus{color:var(--error)}
 
 .side-footer{border-top:1.5px solid var(--border);padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);background:var(--surface)}
 .ca-label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
@@ -217,7 +220,7 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
       <div class="tab-selector" id="tab-selector"></div>
     </div>
     <div class="header-right">
-      <div class="match-badge" id="tab-badge">Tab. 1</div>
+      <div class="match-badge" id="tab-badge" hidden>Buvette 1</div>
       <button class="btn-icon" onclick="openSettings()" aria-label="Paramètres">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -243,39 +246,23 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
       </div>
 
       <div>
-        <div class="side-title">♻️ Écocups — consigne 1 €</div>
+        <div class="side-title">♻️ Écocup — consigne 1 €</div>
         <div class="ecocup-card" id="ecocup-section">
           <div class="ecocup-grid">
             <div class="ecocup-item">
-              <div class="ecocup-label">Vendus 33cl</div>
+              <div class="ecocup-label">Consigne encaissée<br><span class="eco-sign plus">+1 €</span></div>
               <div class="ecocup-controls">
-                <button class="qty-btn minus" onclick="changeEcocup('E01',-1)">−</button>
+                <button class="qty-btn minus" onclick="changeEcocup('E01',-1)" aria-label="Retirer une consigne">−</button>
                 <div class="qty-display" id="qty-E01">0</div>
-                <button class="qty-btn plus" onclick="changeEcocup('E01',1)">+</button>
+                <button class="qty-btn plus" onclick="changeEcocup('E01',1)" aria-label="Ajouter une consigne">+</button>
               </div>
             </div>
             <div class="ecocup-item">
-              <div class="ecocup-label">Vendus 50cl</div>
+              <div class="ecocup-label">Consigne rendue<br><span class="eco-sign minus">−1 €</span></div>
               <div class="ecocup-controls">
-                <button class="qty-btn minus" onclick="changeEcocup('E02',-1)">−</button>
-                <div class="qty-display" id="qty-E02">0</div>
-                <button class="qty-btn plus" onclick="changeEcocup('E02',1)">+</button>
-              </div>
-            </div>
-            <div class="ecocup-item">
-              <div class="ecocup-label">Rendus 33cl</div>
-              <div class="ecocup-controls">
-                <button class="qty-btn minus" onclick="changeRemb('E01',-1)">−</button>
+                <button class="qty-btn minus" onclick="changeRemb('E01',-1)" aria-label="Retirer une remise">−</button>
                 <div class="qty-display" id="remb-E01">0</div>
-                <button class="qty-btn plus" onclick="changeRemb('E01',1)">+</button>
-              </div>
-            </div>
-            <div class="ecocup-item">
-              <div class="ecocup-label">Rendus 50cl</div>
-              <div class="ecocup-controls">
-                <button class="qty-btn minus" onclick="changeRemb('E02',-1)">−</button>
-                <div class="qty-display" id="remb-E02">0</div>
-                <button class="qty-btn plus" onclick="changeRemb('E02',1)">+</button>
+                <button class="qty-btn plus" onclick="changeRemb('E01',1)" aria-label="Ajouter une remise">+</button>
               </div>
             </div>
           </div>
@@ -307,10 +294,9 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
     <div class="modal-title">⚙️ Configuration</div>
     <div class="settings-form">
       <div class="form-row">
-        <label class="form-label">Tablette</label>
+        <label class="form-label">Point de vente</label>
         <select class="form-input" id="sel-tab">
-          <option>Tab. 1</option><option>Tab. 2</option><option>Tab. 3</option>
-          <option>Tab. 4</option><option>Tab. 5</option>
+          <option>Buvette 1</option><option>Buvette 2</option><option>Buvette 3</option>
         </select>
       </div>
       <div class="form-row">
@@ -346,56 +332,50 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 // STATE
 // ═══════════════════════════════════════════════════════════════════
 const state = {
-  tab:     'Tab. 1',
+  tab:     'Buvette 1',
   matchId: '',
   date:    new Date().toISOString().slice(0,10),
   url:     '',
-  stocks:  {},             // Stocks initiaux par tablette { 'Tab. 1': { ref: qty } }
+  stocks:  {},             // Stocks initiaux par point de vente { 'Buvette 1': { ref: qty } }
   ventes:  {},             // Ventes en cours { ref: qty }
-  ecocups: { E01: 0, E02: 0 },
-  rembs:   { E01: 0, E02: 0 },
+  ecocups: { E01: 0 },      // consignes encaissées
+  rembs:   { E01: 0 },      // consignes rendues
 };
 
 // Catégories affichées (ordre d'affichage)
-const CATS = {
-  boissons: { label:'🍺 Boissons', order:1 },
-  food:     { label:'🌭 Food',     order:2 },
-  autre:    { label:'🛒 Autres',   order:9 },
-};
-// Sous-catégorie produit → section d'affichage
-const GROUP_OF = { biere:'boissons', soft:'boissons', eau:'boissons', food:'food', sucre:'food', snack:'food' };
+const NB_BUVETTES = 3;
 
-// Catalogue produits — prix saison 25-26 (mis à jour par la synchro Sheet)
-// suivi:false → produit vendable sans stock initial (food), sauf si le Sheet envoie un stock pour lui
+const CATS = {
+  biere: { label:'🍺 Bières pression', order:1 },
+  soft:  { label:'🥤 Softs',           order:2 },
+  eau:   { label:'💧 Eaux 50cl',       order:3 },
+  autre: { label:'🛒 Autres',          order:9 },
+};
+
+// Catalogue produits 26-27 (prix mis à jour par la synchro Sheet)
 const CATALOGUE = [
-  { ref:'P01_33',   nom:'Bière 33cl',        cat:'biere', pv:3.00, pv50:null, consigne:0, seuil:15, unite:'verres', color:'#d99a00', icon:'🍺' },
-  { ref:'P01_50',   nom:'Bière 50cl',        cat:'biere', pv:null, pv50:6.00, consigne:0, seuil:10, unite:'verres', color:'#b86e00', icon:'🍺' },
-  { ref:'P02_COCA', nom:'Coca-Cola',         cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#d7141f', icon:'🥤' },
-  { ref:'P02_ORAN', nom:'Orangina',          cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#ef7d00', icon:'🍊' },
-  { ref:'P02_ICET', nom:'Ice Tea',           cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#a8690f', icon:'🍑' },
-  { ref:'P02_SCHW', nom:'Schweppes Agrumes', cat:'soft',  pv:3.00, pv50:null, consigne:0, seuil:5,  color:'#d4a800', icon:'🍋' },
-  { ref:'P03',      nom:'Eau',               cat:'eau',   pv:1.00, pv50:null, consigne:0, seuil:5,  color:'#1f7fd1', icon:'💧' },
-  { ref:'F01',      nom:'Hot-dog',           cat:'food',  pv:6.00, pv50:null, consigne:0, seuil:5,  color:'#c2410c', icon:'🌭', suivi:false },
-  { ref:'F02',      nom:'Frites',            cat:'food',  pv:3.50, pv50:null, consigne:0, seuil:10, color:'#e0a800', icon:'🍟', suivi:false },
-  { ref:'F03',      nom:'Panini',            cat:'food',  pv:6.00, pv50:null, consigne:0, seuil:5,  color:'#9a5b2b', icon:'🥪', suivi:false },
-  { ref:'F04',      nom:'Panini VG',         cat:'food',  pv:6.00, pv50:null, consigne:0, seuil:3,  color:'#2f8f3a', icon:'🥗', suivi:false },
-  { ref:'F05',      nom:'Tenders',           cat:'food',  pv:6.00, pv50:null, consigne:0, seuil:5,  color:'#b7791f', icon:'🍗', suivi:false },
-  { ref:'F06',      nom:'Sucré',             cat:'sucre', pv:1.50, pv50:null, consigne:0, seuil:5,  color:'#c026a3', icon:'🍬', suivi:false },
-  { ref:'E01',      nom:'Écocup 33cl',       cat:'eco',   pv:0,    pv50:null, consigne:1.00, seuil:0 },
-  { ref:'E02',      nom:'Écocup 50cl',       cat:'eco',   pv:0,    pv50:null, consigne:1.00, seuil:0 },
+  { ref:'P01_25',   nom:'Bière 25cl',        cat:'biere', pv:3.00, consigne:0, seuil:15, unite:'verres', color:'#d99a00', icon:'🍺' },
+  { ref:'P01_50',   nom:'Bière 50cl',        cat:'biere', pv:6.00, consigne:0, seuil:10, unite:'verres', color:'#b86e00', icon:'🍺' },
+  { ref:'P02_COCA', nom:'Coca-Cola',         cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#d7141f', icon:'🥤' },
+  { ref:'P02_ORAN', nom:'Orangina',          cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#ef7d00', icon:'🍊' },
+  { ref:'P02_ICET', nom:'Ice Tea',           cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#a8690f', icon:'🍑' },
+  { ref:'P02_SCHW', nom:'Schweppes Agrumes', cat:'soft',  pv:3.00, consigne:0, seuil:5,  color:'#d4a800', icon:'🍋' },
+  { ref:'P03',      nom:'Eau plate 50cl',    cat:'eau',   pv:1.00, consigne:0, seuil:5,  color:'#1f7fd1', icon:'💧' },
+  { ref:'P04',      nom:'Eau gazeuse 50cl',  cat:'eau',   pv:1.00, consigne:0, seuil:5,  color:'#0f98a8', icon:'🫧' },
+  { ref:'E01',      nom:'Écocup',            cat:'eco',   pv:0,    consigne:1.00, seuil:0 },
 ];
 
-const PARAMS = { rdt33: 90, rdt50: 60, seuil33: 15, seuil50: 10 };
+const PARAMS = { rdt25: 120, rdt50: 60, seuil25: 15, seuil50: 10 };
 
 function sellable() { return CATALOGUE.filter(p => p.cat !== 'eco'); }
-function priceOf(p) { return p.pv || p.pv50 || 0; }
+function priceOf(p) { return p.pv || 0; }
 
 // ── Init stocks par défaut ──────────────────────────────────────────
 function initDefaultStocks() {
-  for (let t = 1; t <= 5; t++) {
-    const k = 'Tab. ' + t;
+  for (let t = 1; t <= NB_BUVETTES; t++) {
+    const k = 'Buvette ' + t;
     state.stocks[k] = {};
-    sellable().filter(p => p.suivi !== false).forEach(p => { state.stocks[k][p.ref] = 0; });
+    sellable().forEach(p => { state.stocks[k][p.ref] = 0; });
   }
 }
 initDefaultStocks();
@@ -404,8 +384,8 @@ initDefaultStocks();
 function resetVentes() {
   state.ventes = {};
   sellable().forEach(p => { state.ventes[p.ref] = 0; });
-  state.ecocups = { E01:0, E02:0 };
-  state.rembs   = { E01:0, E02:0 };
+  state.ecocups = { E01:0 };
+  state.rembs   = { E01:0 };
 }
 resetVentes();
 
@@ -434,8 +414,7 @@ applyTheme();
 function renderTabs() {
   const c = document.getElementById('tab-selector');
   c.innerHTML = '';
-  const tabs = Object.keys(state.stocks).filter(k => Object.values(state.stocks[k]).some(v => v > 0));
-  (tabs.length ? tabs : ['Tab. 1','Tab. 2','Tab. 3']).forEach(t => addTabBtn(c, t));
+  Object.keys(state.stocks).forEach(t => addTabBtn(c, t));
 }
 function addTabBtn(c, t) {
   const b = document.createElement('button');
@@ -456,18 +435,10 @@ function renderAll() {
   renderCA();
 }
 
-function isTracked(ref) {
-  const s = state.stocks[state.tab] || {};
-  const p = CATALOGUE.find(c => c.ref === ref);
-  return (ref in s) || !p || p.suivi !== false;
-}
 function stockInit(ref) { return (state.stocks[state.tab] || {})[ref] || 0; }
-function stockDispo(ref) {
-  if (!isTracked(ref)) return Infinity;                 // food non suivie en stock : jamais bloquée
-  return Math.max(0, stockInit(ref) - (state.ventes[ref] || 0));
-}
+function stockDispo(ref) { return Math.max(0, stockInit(ref) - (state.ventes[ref] || 0)); }
 function seuilOf(p) {
-  if (p.ref === 'P01_33') return PARAMS.seuil33;
+  if (p.ref === 'P01_25') return PARAMS.seuil25;
   if (p.ref === 'P01_50') return PARAMS.seuil50;
   return p.seuil || 0;
 }
@@ -483,7 +454,7 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 function renderProducts() {
   const zone = document.getElementById('products-zone');
   const groups = {};
-  sellable().forEach(p => { const c = GROUP_OF[p.cat] || 'autre'; (groups[c] = groups[c] || []).push(p); });
+  sellable().forEach(p => { const c = CATS[p.cat] ? p.cat : 'autre'; (groups[c] = groups[c] || []).push(p); });
   const order = Object.keys(groups).sort((a,b) => CATS[a].order - CATS[b].order);
   let html = '';
   order.forEach(cat => {
@@ -510,7 +481,7 @@ function renderProducts() {
               <div class="qty-display">${vendu}</div>
               <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)" ${dispo <= 0 ? 'disabled' : ''} aria-label="Ajouter ${esc(p.nom)}">+</button>
             </div>
-            ${dispo === Infinity ? '' : `<div class="stock-remaining ${lowCls}">${dispo <= 0 ? 'Épuisé' : 'Dispo : ' + dispo + unite}</div>`}
+            <div class="stock-remaining ${lowCls}">${dispo <= 0 ? 'Épuisé' : 'Dispo : ' + dispo + unite}</div>
           </div>
         </div>`;
     });
@@ -521,7 +492,7 @@ function renderProducts() {
 
 function renderStockList() {
   const l = document.getElementById('stock-list');
-  l.innerHTML = sellable().filter(p => isTracked(p.ref)).map(p =>
+  l.innerHTML = sellable().map(p =>
     `<div class="stock-item"><span class="stock-label">${esc(p.nom)}</span><span class="stock-qty ${stockClass(p)}">${stockDispo(p.ref)}</span></div>`
   ).join('');
 }
@@ -545,11 +516,11 @@ function addAlert(z, type, msg) {
 }
 
 function renderEcocups() {
-  ['E01','E02'].forEach(ref => {
+  ['E01'].forEach(ref => {
     document.getElementById('qty-' + ref).textContent  = state.ecocups[ref] || 0;
     document.getElementById('remb-' + ref).textContent = state.rembs[ref] || 0;
   });
-  const net = ((state.ecocups.E01||0) - (state.rembs.E01||0)) + ((state.ecocups.E02||0) - (state.rembs.E02||0));
+  const net = (state.ecocups.E01||0) - (state.rembs.E01||0);
   document.getElementById('net-consigne').textContent = fmt(net);
 }
 
@@ -561,7 +532,6 @@ function calcCA() {
   let ca = 0;
   sellable().forEach(p => { ca += (state.ventes[p.ref] || 0) * priceOf(p); });
   ca += (state.ecocups.E01||0) - (state.rembs.E01||0);
-  ca += (state.ecocups.E02||0) - (state.rembs.E02||0);
   return ca;
 }
 
@@ -585,7 +555,6 @@ function changeRemb(ref, delta) {
   const cur   = state.rembs[ref] || 0;
   const vendu = state.ecocups[ref] || 0;
   if (delta < 0 && cur <= 0) return;
-  if (delta > 0 && cur >= vendu) return;
   state.rembs[ref] = cur + delta;
   renderEcocups(); renderCA();
 }
@@ -657,13 +626,17 @@ function guardCatalogSource(cfg){
 function mapCat(raw) {
   const c = String(raw || '').toLowerCase();
   if (c.includes('bi')) return 'biere';
-  if (c.includes('sucr') || c.includes('crêpe') || c.includes('crepe') || c.includes('bonbon')) return 'sucre';
-  if (c.includes('food') || c.includes('salé') || c.includes('sale') || c.includes('chaud') || c.includes('repas')) return 'food';
   if (c.includes('eau')) return 'eau';
   if (c.includes('eco') || c.includes('éco') || c.includes('consigne')) return 'eco';
-  if (c.includes('snack') || c.includes('sucr') || c.includes('sal') || c.includes('confis') || c.includes('chips')) return 'snack';
   if (c.includes('soft') || c.includes('soda') || c.includes('boisson')) return 'soft';
   return 'autre';
+}
+
+// 'Tab. 2', 'Buvette 2', 'B2', '2' → 'Buvette 2' (null si hors des 3 buvettes)
+function normTab(raw) {
+  const m = String(raw).match(/(\d+)/);
+  const n = m ? parseInt(m[1], 10) : 0;
+  return (n >= 1 && n <= NB_BUVETTES) ? 'Buvette ' + n : null;
 }
 
 function applyTabletConfig(cfg) {
@@ -671,49 +644,41 @@ function applyTabletConfig(cfg) {
 
   if (cfg.matchId) { state.matchId = cfg.matchId; document.getElementById('inp-match').value = cfg.matchId; document.getElementById('match-label').textContent = cfg.matchId; }
   if (cfg.params_fut) {
-    PARAMS.rdt33   = cfg.params_fut.rdt33   || 90;
+    PARAMS.rdt25   = cfg.params_fut.rdt25   || cfg.params_fut.rdt33 || 120;
     PARAMS.rdt50   = cfg.params_fut.rdt50   || 60;
-    PARAMS.seuil33 = cfg.params_fut.seuil_alerte_33cl || 15;
+    PARAMS.seuil25 = cfg.params_fut.seuil_alerte_25cl || cfg.params_fut.seuil_alerte_33cl || 15;
     PARAMS.seuil50 = cfg.params_fut.seuil_alerte_50cl || 10;
   }
-  // Produits : mise à jour des prix + ajout automatique des produits du Sheet absents du catalogue local
+  // Produits : mise à jour des prix / noms des produits du catalogue
   if (Array.isArray(cfg.produits)) {
     cfg.produits.forEach(p => {
       if (!p || !p.ref) return;
-      let local = CATALOGUE.find(c => c.ref === p.ref);
-      if (!local) {
-        const cat = mapCat(p.categorie || p.cat);
-        local = { ref:p.ref, nom:p.nom || p.produit || p.ref, cat, pv:0, pv50:null, consigne:0, seuil:5, color:p.couleur || '#1a2e4a', icon:p.icone || '' };
-        CATALOGUE.push(local);
-      }
-      if (p.nom || p.produit) local.nom = p.nom || p.produit;
-      if (p.pv_33cl) local.pv  = Number(p.pv_33cl);
-      if (p.pv_50cl) local.pv50 = Number(p.pv_50cl);
+      const ref = p.ref === 'P01_33' ? 'P01_25' : p.ref;   // ancienne réf. bière 33cl
+      const local = CATALOGUE.find(c => c.ref === ref);
+      if (!local) return;            // catalogue figé : les produits hors liste sont ignorés
+      if (p.pv_25cl) local.pv = Number(p.pv_25cl);
+      if (p.pv_33cl && ref === 'P01_25') local.pv = Number(p.pv_33cl);
+      if (p.pv_50cl) local.pv = Number(p.pv_50cl);
       if (p.pv)      local.pv  = Number(p.pv);
       if (p.prix)    local.pv  = Number(p.prix);
       if (p.consigne !== undefined) local.consigne = p.consigne;
       if (p.seuil !== undefined && p.seuil !== '') local.seuil = Number(p.seuil);
-      if (p.actif === false || p.actif === 'NON') local.cat = 'eco_off'; // masqué
     });
   }
   if (cfg.stocks_tablettes) {
-    Object.entries(cfg.stocks_tablettes).forEach(([tab, items]) => {
+    Object.entries(cfg.stocks_tablettes).forEach(([rawTab, items]) => {
+      const tab = normTab(rawTab);
+      if (!tab) return;
       if (!state.stocks[tab]) state.stocks[tab] = {};
       items.forEach(item => {
-        if (item.type === 'biere_33') state.stocks[tab].P01_33 = item.qty_verres;
+        if (item.type === 'biere_25' || item.type === 'biere_33') state.stocks[tab].P01_25 = item.qty_verres;
         else if (item.type === 'biere_50') state.stocks[tab].P01_50 = item.qty_verres;
         else {
-          state.stocks[tab][item.ref] = item.qty_unites;
-          // Produit présent en stock mais inconnu du catalogue → on l'affiche quand même
-          if (item.ref && !CATALOGUE.find(c => c.ref === item.ref)) {
-            CATALOGUE.push({ ref:item.ref, nom:item.nom || item.produit || item.ref, cat:mapCat(item.categorie), pv:Number(item.pv || item.prix || 0), pv50:null, consigne:0, seuil:5, color:'#1a2e4a', icon:'' });
-          }
+          state.stocks[tab][item.ref === 'P01_33' ? 'P01_25' : item.ref] = item.qty_unites;
         }
       });
     });
   }
-  // Les produits désactivés (cat 'eco_off') ne sont ni vendables ni affichés
-  for (let i = CATALOGUE.length - 1; i >= 0; i--) if (CATALOGUE[i].cat === 'eco_off') CATALOGUE.splice(i, 1);
   resetVentes();
   renderAll();
   renderEcocups();
@@ -727,16 +692,15 @@ function openRapport() {
   const c = document.getElementById('rapport-content');
   const ventes = sellable().filter(p => (state.ventes[p.ref] || 0) > 0)
     .map(p => ({ ref: p.ref, produit: p.nom, qty: state.ventes[p.ref], pv: priceOf(p), consigne: 0 }));
-  if ((state.ecocups.E01||0) > 0) ventes.push({ ref:'E01', produit:'Écocup 33cl', qty: state.ecocups.E01, pv: 0, consigne: 1.00 });
-  if ((state.ecocups.E02||0) > 0) ventes.push({ ref:'E02', produit:'Écocup 50cl', qty: state.ecocups.E02, pv: 0, consigne: 1.00 });
+  if ((state.ecocups.E01||0) > 0) ventes.push({ ref:'E01', produit:'Écocup (consigne)', qty: state.ecocups.E01, pv: 0, consigne: 1.00 });
 
   const rembs = [];
   if ((state.rembs.E01||0) > 0) rembs.push({ ref:'E01', qty: state.rembs.E01, montant: state.rembs.E01 });
-  if ((state.rembs.E02||0) > 0) rembs.push({ ref:'E02', qty: state.rembs.E02, montant: state.rembs.E02 });
 
   const json = {
     matchId:   state.matchId || 'NON_CONFIGURE',
     tablette:  state.tab,
+    point_vente: state.tab,
     dateMatch: state.date,
     ventes,
     remboursements_consigne: rembs
@@ -753,7 +717,7 @@ function openRapport() {
   if (rembs.length > 0) {
     html += '<div class="rapport-section"><div class="rapport-section-title">Remboursements consigne</div>';
     rembs.forEach(r => {
-      html += `<div class="rapport-row"><span>Remb. écocup ${r.ref === 'E01' ? '33cl' : '50cl'} × ${r.qty}</span><b style="color:var(--error)">−${fmt(r.montant)}</b></div>`;
+      html += `<div class="rapport-row"><span>Consigne rendue × ${r.qty}</span><b style="color:var(--error)">−${fmt(r.montant)}</b></div>`;
     });
     html += '</div>';
   }
