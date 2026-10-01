@@ -168,6 +168,7 @@ function pilotagePost_(body) {
       if (body.buvette) pilJournal_(body.buvette, null, 4);
       return pilJson_({ status: 'ok', recus: recus });
     }
+    if (body.action === 'cloture') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerCloture_(body.cloture || {})));
     if (body.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerPrepa_(body.eventId, body.stocks || {})));
     return pilJson_({ status: 'error', message: 'Action inconnue' });
   } catch (err) { return pilJson_({ status: 'error', message: String(err && err.message || err) });
@@ -395,6 +396,19 @@ function pilEnregistrerVentes_(ventes) {
   return recus;
 }
 
+// ── Clôture de caisse envoyée par une tablette (rapport de fin de match) ──
+function pilEnregistrerCloture_(c) {
+  if (!c.buvette) throw new Error('Clôture incomplète');
+  const idm = c.matchId || 'SANS_MATCH';
+  const all = pilProp_('PIL_CLOTURE_' + idm, {});
+  all[c.buvette] = { ts: c.ts, recu: new Date().toISOString(), ventes: c.ventes, ca: c.ca, cb: c.cb, nbCb: c.nbCb,
+    esp: c.esp, nbEsp: c.nbEsp, fond: c.fond, attendu: c.attendu, compte: c.compte, ecart: c.ecart,
+    gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, stock: c.stock || {} };
+  pilSetProp_('PIL_CLOTURE_' + idm, all);
+  if (c.stock && Object.keys(c.stock).length) pilMajStock_(c.buvette, c.stock);
+  return { recu: c.id };
+}
+
 function pilMajStock_(buvette, stock) {
   const all = pilProp_('PIL_STOCK', {}), now = new Date().toISOString();
   all[buvette] = {};
@@ -439,7 +453,8 @@ function pilDashboard_(eventId) {
   });
   const buv = { ca: 0, ventes: rows.length, consignes: 0, rendues: 0, parBuvette: {}, parProduit: {}, parQuartHeure: {},
     reliees: { ventes: 0, ca: 0 }, parFamilleTarif: {}, paiement: { CB: 0, ESP: 0, inconnu: 0 }, annulations: 0 };
-  PIL.BUVETTES.forEach(function (b) { buv.parBuvette[b] = { ca: 0, ventes: 0 }; });
+  const nb0 = function () { return { ca: 0, ventes: 0, cb: 0, esp: 0, consignes: 0, rendues: 0, reliees: 0, produits: {} }; };
+  PIL.BUVETTES.forEach(function (b) { buv.parBuvette[b] = nb0(); });
   PIL.PRODUITS.forEach(function (p) { buv.parProduit[p[0]] = { nom: p[1], qte: 0 }; });
   rows.forEach(function (r) {
     const tot = Number(r[PIL_I['Total €']]) || 0, b = r[PIL_I['Buvette']] || '?';
@@ -450,9 +465,17 @@ function pilDashboard_(eventId) {
     buv.ca += tot;
     buv.consignes += Number(r[PIL_I['Consignes +']]) || 0;
     buv.rendues += Number(r[PIL_I['Consignes rendues']]) || 0;
-    buv.parBuvette[b] = buv.parBuvette[b] || { ca: 0, ventes: 0 };
-    buv.parBuvette[b].ca += tot; buv.parBuvette[b].ventes += annul ? -1 : 1;
-    PIL.PRODUITS.forEach(function (p, i) { buv.parProduit[p[0]].qte += Number(r[PIL_NB + i]) || 0; });
+    const pb = buv.parBuvette[b] = buv.parBuvette[b] || nb0();
+    pb.ca += tot; pb.ventes += annul ? -1 : 1;
+    if (pay === 'CB') pb.cb += tot; else if (pay === 'ESP') pb.esp += tot;
+    pb.consignes += Number(r[PIL_I['Consignes +']]) || 0;
+    pb.rendues += Number(r[PIL_I['Consignes rendues']]) || 0;
+    if (r[PIL_I['ID billet']] || r[PIL_I['Code-barres']]) pb.reliees++;
+    PIL.PRODUITS.forEach(function (p, i) {
+      const q = Number(r[PIL_NB + i]) || 0;
+      buv.parProduit[p[0]].qte += q;
+      if (q) pb.produits[p[0]] = (pb.produits[p[0]] || 0) + q;
+    });
     const d = new Date(r[PIL_I['Horodatage']]);
     const q = Utilities.formatDate(new Date(Math.floor(d.getTime() / 900000) * 900000), pilTz_(), 'HH:mm');
     buv.parQuartHeure[q] = (buv.parQuartHeure[q] || 0) + tot;
@@ -462,7 +485,8 @@ function pilDashboard_(eventId) {
     if (r[PIL_I['ID billet']] || r[PIL_I['Code-barres']]) { buv.reliees.ventes++; buv.reliees.ca += tot; }
   });
   const stock = pilProp_('PIL_STOCK', {});
-  return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(),
+  const clotures = idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {};
+  return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(), clotures: clotures,
     produits: PIL.PRODUITS.map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString() };
 }
 

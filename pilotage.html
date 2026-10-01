@@ -61,6 +61,12 @@ button,select,input{font:inherit;color:inherit}
 .meter{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin-top:4px}
 .meter div{height:100%;background:var(--good)}
 .kpi.hero .meter{background:rgba(255,255,255,.18)}.kpi.hero .meter div{background:var(--day)}
+.rap{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px;font-size:.85rem}
+.rap div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--divider);padding:3px 0}
+.rap span{color:var(--muted);font-weight:600}.rap b{font-variant-numeric:tabular-nums}
+.clot{margin-top:10px;border-radius:8px;padding:8px 10px;font-size:.82rem;font-weight:700;background:var(--surface-2);color:var(--muted)}
+.clot.ok{background:var(--good-bg);color:var(--good)}.clot.warn{background:var(--warn-bg);color:var(--warn)}.clot.bad{background:var(--bad-bg);color:var(--bad)}
+@media print{.top-r,#setup,.no-print{display:none!important}.top{position:static}body{background:#fff}.panel,.kpi{box-shadow:none;break-inside:avoid}}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);min-width:0}
 .panel h2{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;gap:8px}
@@ -302,8 +308,18 @@ function render(d){
       return '';
     }).join('');
     const maj = Object.values(st).map(s => new Date(s.maj)).sort((a,b)=>b-a)[0];
+    const cl = (d.clotures||{})[nom];
+    const prods = Object.entries(x.produits||{}).filter(([,q]) => q).map(([r,q]) => `${int(q)} ${esc(noms[r]||r)}`).join(' · ');
+    const rapport = `<div class="rap">
+        <div><span>💳 CB</span><b>${eur(x.cb||0, 2)}</b></div><div><span>💶 Espèces</span><b>${eur(x.esp||0, 2)}</b></div>
+        <div><span>♻️ Gobelets sortis/rendus</span><b style="white-space:nowrap">${int(x.consignes||0)} / ${int(x.rendues||0)}</b></div>
+        <div><span>🎫 Avec billet</span><b>${pct(x.reliees||0, x.ventes)}</b></div></div>
+      ${prods ? `<p class="note" style="margin-top:6px">${prods}</p>` : ''}
+      ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b></div>`
+           : `<div class="clot">⏳ Caisse pas encore clôturée sur la tablette</div>`}`;
     return `<article class="panel"><div class="buv-h"><b>${esc(nom)}</b><span class="ca">${eur(x.ca)}</span></div>
       <div class="buv-s">${int(x.ventes)} ventes · panier ${eur(x.ventes ? x.ca/x.ventes : null, 2)} · ${pct(x.ca, v.ca)} du CA</div>
+      ${rapport}
       <div class="chips">${alerts || (Object.keys(st).length ? '<span class="chip ok">Stock OK</span>' : '<span class="chip">Stock pas encore reçu</span>')}</div>
       ${maj ? `<p class="note" style="margin-top:8px">Dernière remontée de la tablette à ${maj.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}${(Date.now()-maj) > 15*60000 ? ' · hors ligne ou sans vente depuis ' + Math.round((Date.now()-maj)/60000) + ' min' : ''}</p>` : '<p class="note" style="margin-top:8px">Aucune remontée pour l\'instant (tablette hors ligne ou pas encore de vente).</p>'}</article>`;
   }).join('');

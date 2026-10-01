@@ -1,7 +1,7 @@
 // Service worker — Spacer's Buvette : l'app s'ouvre même sans réseau.
 // Pages : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
 // Fichiers statiques (icônes, polices, lecteur QR) : cache d'abord.
-const CACHE = 'buvette-v11';
+const CACHE = 'buvette-v12';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './charte/logo-panoramic-fonce.svg', './charte/logo-panoramic-clair.svg',
   './fonts/Sansation_Light.ttf', './fonts/Sansation_Regular.ttf', './fonts/Sansation_Bold.ttf',
