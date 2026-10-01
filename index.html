@@ -397,7 +397,7 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
         <input class="form-input" id="inp-token" type="text" autocomplete="off">
       </div>
       <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer</button>
-      <p class="hint" style="text-align:center">Version 2026.10.01-d</p>
+      <p class="hint" style="text-align:center">Version 2026.10.01-e</p>
     </div>
   </div>
 </div>
@@ -638,7 +638,7 @@ function renderMatchBanner() {
   if (m) { b.hidden = true; return; }
   b.hidden = false;
   b.innerHTML = state.url && state.token
-    ? `<b>Aucun match chargé.</b> Il se charge tout seul dès que la tablette a le wifi. <button onclick="chargerMatch()">📥 Charger maintenant</button>`
+    ? `<b>Aucun match chargé.</b> Il se charge tout seul dès que le stock est enregistré au tableau de bord et que la tablette a le wifi. <button onclick="chargerMatch()">📥 Charger maintenant</button>`
     : `<b>Tablette non configurée.</b> Ouvre le lien de configuration envoyé par Clément (ou scanne son QR code).`;
 }
 
@@ -1029,8 +1029,9 @@ async function chargerMatch(auto) {
     dire('ok', '✅ ' + d.match.nom + ' chargé' + (d.billetsOk ? ` · ${d.billets.length} billets en mémoire` : ' · liste des billets indisponible, les scans seront vérifiés plus tard'));
   } catch(e) {
     if (auto) return;
-    dire('err', '❌ Chargement impossible : ' + e.message + '. Vérifie le wifi, puis recommence.');
-    toast('❌ Chargement impossible');
+    const pasPrepare = /aucun match préparé/i.test(e.message);
+    dire('err', pasPrepare ? '⏳ Le stock de ce match n\'a pas encore été enregistré au tableau de bord.' : '❌ Chargement impossible : ' + e.message + '. Vérifie le wifi, puis recommence.');
+    toast(pasPrepare ? '⏳ Match pas encore préparé au tableau de bord' : '❌ Chargement impossible : ' + e.message);
   }
 }
 function appliquerChargement(d, nouveau, auto) {
