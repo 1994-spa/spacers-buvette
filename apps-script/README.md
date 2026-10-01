@@ -6,7 +6,7 @@ Les tablettes et le tableau de bord utilisent la même URL de déploiement que l
 ## Installation (une fois)
 1. Ouvrir le Sheet → **Extensions → Apps Script** (projet « Buvette »).
 2. **Code.gs** : remplacer tout le contenu par `Code.gs` (V12). Les changements par rapport à la V11 sont limités et commentés en tête de fichier.
-3. **Fichiers ➕ → Script**, nommer `Pilotage`, coller `Pilotage.gs`. Ne pas toucher à `Fidelite.gs`.
+3. **Fichiers ➕ → Script**, nommer `Pilotage`, coller `Pilotage.gs`. Idem avec `Historique.gs` (nommé `Historique`). Ne pas toucher à `Fidelite.gs`.
 4. **Paramètres du projet → Propriétés du script** : ajouter `VIVENU_API_KEY` = la clé API Tickie (la même que celle du relais tickie-proxy).
 5. Enregistrer, recharger le Sheet → menu **🏐 Matchday → 📡 Pilotage live → ⚙️ Initialiser le pilotage**. Autoriser le script, noter le **jeton** affiché.
 6. Menu **📡 Pilotage live → ⏱️ Activer le traitement auto (10 min)**.
@@ -22,7 +22,10 @@ Les tablettes et le tableau de bord utilisent la même URL de déploiement que l
 4. **Retour du wifi** : tout repart seul. Les ventes arrivent dans `51_VENTES_LIVE` (détail) et `50_VENTES_DIRECTES` (lignes produits, lues par les KPI).
 5. **Réassort pendant le match** : modifier le stock au tableau de bord, puis « Charger le match » sur la tablette concernée (les compteurs sont conservés).
 
-Pour que DASHBOARD / 80_KPI_MATCH comptent les ventes, PILOTAGE!B8 doit être sur **DIRECT**.
+Le mode buvette est maintenant **par match** (colonne MODE_BUVETTE de 10_MATCHS) : les matchs préparés au tableau de bord passent en DIRECT, les matchs 25-26 gardent LOCATION. PILOTAGE!B8 ne sert plus que de valeur par défaut.
+
+## Historique 22-23 à 25-26
+Menu **📡 Pilotage live → 📚 Importer l'historique 22-26** : 51 matchs (ID du type `NIC-08-10-22`, STATUT HISTORIQUE), leurs lignes produits dans 50_VENTES_DIRECTES et les KPI. Relançable sans doublon ; « Retirer l'historique » annule. Les reportings n'ont pas d'affluence : la saisir dans 10_MATCHS (AFFLUENCE) puis « Recalculer tous les KPI saison ».
 
 ## Onglets ajoutés
 | Onglet | Contenu |

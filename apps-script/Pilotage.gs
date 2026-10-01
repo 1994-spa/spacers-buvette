@@ -58,7 +58,10 @@ function pilotageMenu_(ui) {
     .addItem('⚙️ Initialiser le pilotage', 'pilotageInitialiser')
     .addItem('🔑 Afficher le jeton', 'pilotageAfficherJeton')
     .addItem('🎫 Relier les billets scannés + fidélité', 'pilotageTraiterBillets')
-    .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur');
+    .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
+    .addSeparator()
+    .addItem("📚 Importer l'historique 22-26", 'importerHistoriqueBuvette')
+    .addItem("🗑️ Retirer l'historique 22-26", 'retirerHistoriqueBuvette');
 }
 
 function pilotageInitialiser() {
@@ -246,12 +249,23 @@ function pilIdMatch_(ev, creer) {
       case 'STATUT': return 'OPEN';
       case 'ID_SAISON': return pilSaison_(ev.dateMatch);
       case 'TICKIE_EVENT_ID': return ev.id;
+      case 'MODE_BUVETTE': return 'DIRECT';
       default: return '';
     }
   }));
   const k = pilSheet_('80_KPI_MATCH');
   if (k) { const kh = k.getRange(1, 1, 1, k.getLastColumn()).getValues()[0].map(String); k.appendRow(kh.map(function (c) { return c === 'MATCH' ? idm : ''; })); }
   return idm;
+}
+function pilModeDirect_(idm) {
+  const sh = pilSheet_('10_MATCHS');
+  const d = sh.getDataRange().getValues(), h = d[0].map(String), cId = h.indexOf('ID_MATCH');
+  let c = h.indexOf('MODE_BUVETTE');
+  for (let r = 1; r < d.length; r++) if (String(d[r][cId]) === idm) {
+    if (c < 0) c = pilAjouterColonne_(sh, 'MODE_BUVETTE');
+    sh.getRange(r + 1, c + 1).setValue('DIRECT');
+    return;
+  }
 }
 function pilAjouterColonne_(sh, nom) {
   const c = sh.getLastColumn();
@@ -274,6 +288,7 @@ function pilEnregistrerPrepa_(eventId, stocks) {
   const ev = pilEvent_(eventId);
   if (!ev) throw new Error('Match introuvable dans Tickie');
   const idm = pilIdMatch_(ev, true);
+  pilModeDirect_(idm);                                    // la buvette 26-27 est exploitée en direct
   const sh = pilSheet_(PIL.SH_PREPA);
   if (!sh) throw new Error('Pilotage non initialisé (menu 📡 Pilotage live → Initialiser)');
   const data = sh.getDataRange().getValues(), now = new Date();
