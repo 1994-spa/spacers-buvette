@@ -150,9 +150,6 @@ function reorganiser_() {
     p.getRange(2, 1, PRODUITS_26_27.length, 7).setValues(PRODUITS_26_27);
     p.getRange(2, 8).setValue('Prix d\'achat d\'un fût de 30 L. Rendement : 120 × 25cl ou 60 × 50cl.');
     p.getRange(4, 8).setValue('Même fût que la 25cl.');
-    // Coût d'un verre, calculé depuis le prix du fût (5 % de perte)
-    p.getRange('E3').setFormula('=IF($E$2="","",ROUND($E$2/30/0.95*0.25,2))');
-    p.getRange('E4').setFormula('=IF($E$2="","",ROUND($E$2/30/0.95*0.5,2))');
     p.getRange('E3:E4').setFontColor('#64778A').setFontStyle('italic');
     mettreEnForme_(p, { euros: [4, 5], entiers: [6, 7], largeurs: { 2: 190, 8: 380 } });
     p.getRange('A2:A').setFontColor('#64778A');
@@ -198,7 +195,7 @@ function reorganiser_() {
   ft.getRange('C2:C').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Gratuit', 'Forfait', '% du CA', 'Forfait + %'], true).build());
   ft.getRange('H2:H300').setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
   // Montant dû calculé : gratuit = 0 ; forfait ; % du CA déclaré ; ou les deux
-  ft.getRange('G2').setFormula('=ARRAYFORMULA(IF(B2:B="","",IF(C2:C="Gratuit",0,IF(REGEXMATCH(C2:C&"","Forfait"),D2:D,0)+IF(REGEXMATCH(C2:C&"","%"),E2:E*F2:F,0))))');
+  ft.getRange('G2').setFormula(f_('=ARRAYFORMULA(IF(B2:B="","",IF(C2:C="Gratuit",0,IF(REGEXMATCH(C2:C&"","Forfait"),D2:D,0)+IF(REGEXMATCH(C2:C&"","%"),E2:E*F2:F,0))))'));
   ft.getRange('G2:G').setBackground(DAY_SOFT);
   ft.getRange('G1').setNote('Calculé automatiquement selon la formule : ne pas saisir.');
   ft.getRange('F1').setNote('À remplir après le match pour les foodtrucks au pourcentage.');
@@ -222,6 +219,7 @@ function reorganiser_() {
   }
   construireTableauDeBord_();
   construireAccueil_(actif);
+  formulesProduits_();
 
   // ── 12. Suppression des onglets obsolètes ───────────────────────────────
   const supprimes = [];
@@ -251,6 +249,33 @@ function pilotageInitialiser_sansAlerte_() {
   const sh = ss.insertSheet(ONG.VENTES);
   const head = PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; })).concat(['Paiement']);
   sh.getRange(1, 1, 1, head.length).setValues([head]);
+}
+
+// Formules de 📦 PRODUITS (coût d'un verre depuis le prix du fût, 5 % de perte) et de 🚚 FOODTRUCKS
+function formulesProduits_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), p = ss.getSheetByName(ONG.PRODUITS);
+  if (p) {
+    const refs = p.getRange('A1:A20').getValues().map(function (r) { return String(r[0]); });
+    const lf = refs.indexOf('FUT') + 1;
+    [['P01_25', 0.25], ['P01_50', 0.5]].forEach(function (x) {
+      const l = refs.indexOf(x[0]) + 1;
+      if (lf && l) p.getRange(l, 5).setFormula(f_('=IF($E$' + lf + '="","",ROUND($E$' + lf + '/30/0.95*' + x[1] + ',2))'));
+    });
+  }
+  const ft = ss.getSheetByName(ONG.FOODTRUCKS);
+  if (ft) ft.getRange('G2').setFormula(f_('=ARRAYFORMULA(IF(B2:B="","",IF(C2:C="Gratuit",0,IF(REGEXMATCH(C2:C&"","Forfait"),D2:D,0)+IF(REGEXMATCH(C2:C&"","%"),E2:E*F2:F,0))))'));
+}
+
+// Menu 🛠️ : reconstruit les formules (tableau de bord, accueil, produits, foodtrucks) sans toucher aux données
+function reparerFormules() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const actif = ss.getRangeByName('MATCH_ACTIF') ? String(ss.getRangeByName('MATCH_ACTIF').getValue() || '') : '';
+  construireTableauDeBord_();
+  construireAccueil_(actif);
+  formulesProduits_();
+  const t = ss.getSheetByName(ONG.TDB); if (t) { ss.setActiveSheet(t); ss.moveActiveSheet(2); }
+  const a = ss.getSheetByName(ONG.ACCUEIL); if (a) { ss.setActiveSheet(a); ss.moveActiveSheet(1); }
+  alerte_('✅ Formules reconstruites (langue du fichier : ' + ss.getSpreadsheetLocale() + ').');
 }
 
 // ── Mise en forme commune : en-tête charte, figé, filtre, formats ─────────
@@ -305,9 +330,9 @@ function construireAccueil_(matchActif) {
     ['Onglets techniques masqués (⚙️) : saisons, détail des ventes ligne par ligne, journal fidélité. Menu → ⚙️ Onglets techniques → Afficher.', '', ''],
     ['URL de l\'application web (ne pas modifier)', url, ''],
   ];
-  sh.getRange(1, 1, L.length, 3).setValues(L.map(function (r) { return r.map(function (v) { return v; }); }));
+  sh.getRange(1, 1, L.length, 3).setValues(L.map(function (r) { return r.map(function (v) { return String(v).indexOf('=') === 0 ? '' : v; }); }));
   // Liens (formules)
-  L.forEach(function (r, i) { if (String(r[0]).indexOf('=HYPERLINK') === 0) sh.getRange(i + 1, 1).setFormula(r[0]); });
+  L.forEach(function (r, i) { if (String(r[0]).indexOf('=HYPERLINK') === 0) sh.getRange(i + 1, 1).setFormula(f_(r[0])); });
   sh.setColumnWidth(1, 330); sh.setColumnWidth(2, 640); sh.setColumnWidth(3, 260);
   sh.getRange('A1:C1').merge().setBackground(NIGHT).setFontColor(DAY).setFontSize(18).setFontWeight('bold');
   sh.setRowHeight(1, 46);
@@ -362,7 +387,7 @@ function construireTableauDeBord_(saisonForcee) {
   ];
   kpis.forEach(function (k, i) {
     sh.getRange(6, i + 1).setValue(k[0]);
-    sh.getRange(7, i + 1).setFormula(k[1]).setNumberFormat(k[2]);
+    sh.getRange(7, i + 1).setFormula(f_(k[1])).setNumberFormat(k[2]);
   });
   styleEntete_(sh.getRange(6, 1, 1, 8)).setFontSize(9).setHorizontalAlignment('center').setWrap(true);
   sh.getRange(7, 1, 1, 8).setFontSize(20).setFontWeight('bold').setHorizontalAlignment('center').setBackground(DAY_SOFT).setFontColor(NIGHT);
@@ -385,7 +410,7 @@ function construireTableauDeBord_(saisonForcee) {
       '=IFERROR(SUMIFS(' + S('I') + ',' + c + ',' + S('H') + ',">0")/SUMIFS(' + S('H') + ',' + c + ',' + S('I') + ',">0"),"—")',
       '=IFERROR(SUMIFS(' + S('I') + ',' + c + ',' + S('K') + ',">0")/SUMIFS(' + S('K') + ',' + c + '),"—")',
       i === 0 ? '="—"' : '=IFERROR(E' + r + '/E' + (r - 1) + '-1,"—")',
-    ]]);
+    ].map(f_)]);
     sh.getRange(r, 1, 1, 8).setBackground(i % 2 ? DAY_SOFT : WHITE);
   });
   const r1 = r0 + 2, n = liste.length;
@@ -404,7 +429,7 @@ function construireTableauDeBord_(saisonForcee) {
   // Matchs de la saison
   const r2 = r1 + n + 2;
   sh.getRange(r2, 1).setValue('MATCHS DE LA SAISON');
-  sh.getRange(r2 + 1, 1).setFormula('=IFERROR(QUERY(' + M + 'A1:V,"select C, D, E, H, I, M, L, K, R, U where B = \'"&$B$4&"\' order by C",1),"Aucun match pour cette saison")');
+  sh.getRange(r2 + 1, 1).setFormula(f_('=IFERROR(QUERY(' + M + 'A1:V,"select C, D, E, H, I, M, L, K, R, U where B = \'"&$B$4&"\' order by C",1),"Aucun match pour cette saison")'));
   styleEntete_(sh.getRange(r2 + 1, 1, 1, 10)).setFontSize(9).setWrap(true);
   sh.getRange(r2 + 2, 1, 60, 1).setNumberFormat('dd/mm/yyyy');
   sh.getRange(r2 + 2, 4, 60, 1).setNumberFormat('#,##0');
