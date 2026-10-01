@@ -1,0 +1,6 @@
+apps-script
+README.md
+.git
+.gitignore
+.assetsignore
+wrangler.jsonc

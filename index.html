@@ -57,6 +57,7 @@
 
 /* ── Reset ────────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 html{height:100%;overflow:hidden;-webkit-text-size-adjust:none;text-size-adjust:none}
 body{height:100%;font-family:var(--font-body);font-size:var(--text-base);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;touch-action:manipulation}
@@ -147,10 +148,59 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 
 .side-footer{border-top:1.5px solid var(--border);padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);background:var(--surface)}
 .ca-label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
-.ca-value{font-size:2.25rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--success);line-height:1.05}
+.ca-value{font-size:1.75rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--success);line-height:1.05}
 .btn-sync{background:var(--primary);color:var(--on-primary);border-radius:var(--radius-lg);padding:var(--space-4);font-size:var(--text-base);font-weight:800;display:flex;align-items:center;justify-content:center;gap:var(--space-2);transition:background var(--transition);min-height:60px}
 .btn-sync:hover{background:var(--primary-hover)}
 .btn-sync svg{width:22px;height:22px}
+
+/* ── Vente en cours ───────────────────────────────────────────────── */
+.cart{background:var(--surface);border:2px solid var(--primary);border-radius:var(--radius-lg);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);box-shadow:var(--card-shadow)}
+.cart-lines{display:flex;flex-direction:column;gap:2px;max-height:150px;overflow-y:auto}
+.cart-row{display:flex;justify-content:space-between;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;padding:3px 0;border-bottom:1px dashed var(--divider)}
+.cart-row b{font-variant-numeric:tabular-nums}
+.cart-row.neg b{color:var(--error)}
+.cart-empty{font-size:var(--text-sm);color:var(--text-faint);padding:var(--space-2) 0;text-align:center}
+.cart-total-row{display:flex;justify-content:space-between;align-items:baseline;font-weight:800}
+.cart-total-row span{font-size:var(--text-sm);color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
+.cart-total-row b{font-size:2rem;font-variant-numeric:tabular-nums;color:var(--text)}
+.cart-actions{display:flex;gap:var(--space-2)}
+.btn-validate{flex:1;min-height:58px;border-radius:var(--radius-lg);background:var(--success);color:#fff;font-size:var(--text-base);font-weight:800}
+.btn-validate.danger{background:var(--error)}
+.btn-validate:disabled{opacity:.35}
+.btn-cancel{min-height:58px;padding:0 var(--space-4);border-radius:var(--radius-lg);background:var(--surface-2);border:1.5px solid var(--border);color:var(--text);font-weight:700}
+.btn-cancel:disabled{opacity:.4}
+.btn-scan{width:100%;min-height:48px;border-radius:var(--radius-md);border:2px dashed color-mix(in srgb,var(--primary) 45%,transparent);color:var(--text);font-weight:800;font-size:var(--text-sm);display:flex;align-items:center;justify-content:center;gap:var(--space-2);background:var(--surface-2)}
+.btn-scan small{font-weight:600;color:var(--text-muted)}
+.ticket-badge{display:flex;align-items:center;gap:var(--space-3);background:color-mix(in srgb,var(--success) 12%,var(--surface));border:2px solid var(--success);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);font-size:1.3rem}
+.ticket-badge div{flex:1;display:flex;flex-direction:column;line-height:1.2}
+.ticket-badge b{font-size:var(--text-sm);color:var(--text)}
+.ticket-badge small{font-size:var(--text-xs);color:var(--text-muted);font-weight:600}
+.ticket-badge button{width:36px;height:36px;border-radius:var(--radius-full);background:var(--surface-2);font-size:1rem;color:var(--text-muted)}
+.footer-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
+.ca-sub{font-size:var(--text-xs);color:var(--text-muted);font-weight:600;margin-top:2px}
+.btn-report{background:var(--surface-2);border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-4);font-weight:800;display:flex;align-items:center;gap:var(--space-2);min-height:52px}
+.btn-report svg{width:20px;height:20px}
+.sync-dot{font-size:var(--text-xs);font-weight:700;display:flex;align-items:center;gap:6px;color:var(--text-muted)}
+.sync-dot::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--text-faint)}
+.sync-dot.ok::before{background:var(--success)}
+.sync-dot.wait{color:var(--warning)}.sync-dot.wait::before{background:var(--warning)}
+.reset-confirm{background:var(--warning-bg);border-radius:var(--radius-md);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-3);font-size:var(--text-sm);font-weight:600}
+/* ── Scanner ──────────────────────────────────────────────────────── */
+.scan-frame{position:relative;border-radius:var(--radius-lg);overflow:hidden;background:#000;aspect-ratio:16/10;max-width:100%}
+.scan-frame video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-target{position:absolute;inset:18% 30%;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.25)}
+.scan-status{text-align:center;font-size:var(--text-sm);font-weight:600;color:var(--text-muted);margin:var(--space-3) 0}
+.scan-manual{display:flex;gap:var(--space-2)}
+.scan-card{border-radius:var(--radius-lg);padding:var(--space-4);border:2px solid var(--success);background:var(--success-bg);display:flex;flex-direction:column;gap:4px}
+.scan-card.ko{border-color:var(--error);background:var(--error-bg)}
+.scan-state{font-size:var(--text-xs);font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--success)}
+.scan-card.ko .scan-state{color:var(--error)}
+.scan-tarif{font-size:var(--text-lg);font-weight:800}
+.scan-name{font-size:var(--text-base);font-weight:600}
+.scan-meta{font-size:var(--text-sm);color:var(--text-muted)}
+.scan-skip{display:block;width:100%;text-align:center;margin-top:var(--space-3);padding:var(--space-3);font-weight:700;color:var(--text-muted)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--navy);color:#fff;padding:var(--space-3) var(--space-5);border-radius:var(--radius-full);font-weight:700;font-size:var(--text-sm);opacity:0;pointer-events:none;transition:all .2s;z-index:200;box-shadow:var(--shadow)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
 
 /* ── Indication portrait ──────────────────────────────────────────────── */
 .rotate-hint{display:none}
@@ -240,10 +290,19 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
     <div class="side-scroll">
       <div id="alerts-zone"></div>
 
-      <div>
-        <div class="side-title">Stock restant</div>
-        <div class="stock-list" id="stock-list"></div>
-      </div>
+      <section class="cart" aria-label="Vente en cours">
+        <div class="cart-head"><span class="side-title" style="margin:0">Vente en cours</span></div>
+        <div id="billet-zone"></div>
+        <div class="cart-lines" id="cart-lines"></div>
+        <div class="cart-total-row">
+          <span id="cart-total-label">À encaisser</span>
+          <b id="cart-total">0,00 €</b>
+        </div>
+        <div class="cart-actions">
+          <button class="btn-cancel" id="btn-annuler" onclick="annulerVente()">Annuler</button>
+          <button class="btn-validate" id="btn-valider" onclick="validerVente()">✓ Valider la vente</button>
+        </div>
+      </section>
 
       <div>
         <div class="side-title">♻️ Écocup — consigne 1 €</div>
@@ -266,23 +325,28 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
               </div>
             </div>
           </div>
-          <div class="ecocup-net">
-            <span>Net consignes</span>
-            <b id="net-consigne">0,00 €</b>
-          </div>
         </div>
+      </div>
+
+      <div>
+        <div class="side-title">Stock restant</div>
+        <div class="stock-list" id="stock-list"></div>
       </div>
     </div>
 
     <div class="side-footer">
-      <div>
-        <div class="ca-label">CA total (dont consignes)</div>
-        <div class="ca-value" id="ca-total-display">0,00 €</div>
+      <div class="footer-row">
+        <div>
+          <div class="ca-label">CA du match</div>
+          <div class="ca-value" id="ca-total-display">0,00 €</div>
+          <div class="ca-sub" id="ca-sub"></div>
+        </div>
+        <button class="btn-report" onclick="openRapport()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Rapport
+        </button>
       </div>
-      <button class="btn-sync" onclick="openRapport()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        Rapport de caisse
-      </button>
+      <div class="sync-dot off" id="sync-dot" role="status"></div>
     </div>
   </aside>
 </div>
@@ -294,7 +358,7 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
     <div class="modal-title">⚙️ Configuration</div>
     <div class="settings-form">
       <div class="form-row">
-        <label class="form-label">Point de vente</label>
+        <label class="form-label" for="sel-tab">Point de vente</label>
         <select class="form-input" id="sel-tab">
           <option>Buvette 1</option><option>Buvette 2</option><option>Buvette 3</option>
         </select>
@@ -311,9 +375,25 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
         <label class="form-label">URL Web App (Google Apps Script)</label>
         <input class="form-input" id="inp-url" placeholder="https://script.google.com/..." type="url">
       </div>
+      <div class="form-row">
+        <label class="form-label" for="inp-pilotage">URL pilotage (ventes en direct)</label>
+        <input class="form-input" id="inp-pilotage" placeholder="https://script.google.com/macros/s/…/exec" type="url">
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="inp-token">Jeton pilotage</label>
+        <input class="form-input" id="inp-token" type="text" autocomplete="off">
+      </div>
       <button class="btn-primary" onclick="saveSettings()">💾 Enregistrer</button>
       <button class="btn-primary btn-secondary" onclick="syncPreMatch()">📡 Synchro pré-match (GET)</button>
       <div class="sync-status" id="sync-status-pre"></div>
+      <button class="btn-primary btn-secondary" onclick="nouveauMatch()">🔄 Nouveau match (remise à zéro)</button>
+      <div class="reset-confirm" id="reset-confirm" hidden>
+        <p></p>
+        <div class="cart-actions">
+          <button class="btn-cancel" onclick="document.getElementById('reset-confirm').hidden=true">Non</button>
+          <button class="btn-validate danger" onclick="confirmerNouveauMatch()">Oui, remettre à zéro</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -327,23 +407,40 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
   </div>
 </div>
 
+<!-- MODAL SCANNER BILLET -->
+<div class="modal-overlay" id="modal-scan">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="fermerScanner()" aria-label="Fermer">✕</button>
+    <div class="modal-title">🎫 Scanner le billet</div>
+    <div id="scan-zone">
+      <div class="scan-frame"><video id="scan-video" playsinline autoplay muted></video><div class="scan-target" aria-hidden="true"></div></div>
+      <canvas id="scan-canvas" hidden></canvas>
+      <div class="scan-status" id="scan-status" role="status"></div>
+      <form class="scan-manual" onsubmit="saisieManuelle(event)">
+        <input class="form-input" id="scan-manual" placeholder="Code du billet (ou douchette)" autocomplete="off" aria-label="Code du billet">
+        <button class="btn-primary" type="submit" style="width:auto">Chercher</button>
+      </form>
+    </div>
+    <div id="scan-result" hidden>
+      <div class="scan-card" id="scan-card"></div>
+      <div class="cart-actions" style="margin-top:var(--space-3)">
+        <button class="btn-cancel" onclick="relancerScan()">Rescanner</button>
+        <button class="btn-validate" id="btn-use-ticket" onclick="utiliserBillet()">✓ Relier à la vente</button>
+      </div>
+    </div>
+    <button class="scan-skip" onclick="fermerScanner()">Continuer sans billet →</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
 <script>
 // ═══════════════════════════════════════════════════════════════════
-// STATE
+// CONSTANTES
 // ═══════════════════════════════════════════════════════════════════
-const state = {
-  tab:     'Buvette 1',
-  matchId: '',
-  date:    new Date().toISOString().slice(0,10),
-  url:     '',
-  stocks:  {},             // Stocks initiaux par point de vente { 'Buvette 1': { ref: qty } }
-  ventes:  {},             // Ventes en cours { ref: qty }
-  ecocups: { E01: 0 },      // consignes encaissées
-  rembs:   { E01: 0 },      // consignes rendues
-};
-
-// Catégories affichées (ordre d'affichage)
 const NB_BUVETTES = 3;
+const TICKIE_PROXY_URL = 'https://tickie-proxy.spacersytb.workers.dev';
+const STORE_KEY = 'buvette_etat_v2';
 
 const CATS = {
   biere: { label:'🍺 Bières pression', order:1 },
@@ -364,30 +461,77 @@ const CATALOGUE = [
   { ref:'P04',      nom:'Eau gazeuse 50cl',  cat:'eau',   pv:1.00, consigne:0, seuil:5,  color:'#0f98a8', icon:'🫧' },
   { ref:'E01',      nom:'Écocup',            cat:'eco',   pv:0,    consigne:1.00, seuil:0 },
 ];
-
+const CONSIGNE = 1.00;
 const PARAMS = { rdt25: 120, rdt50: 60, seuil25: 15, seuil50: 10 };
 
 function sellable() { return CATALOGUE.filter(p => p.cat !== 'eco'); }
 function priceOf(p) { return p.pv || 0; }
+function nomOf(ref) { const p = CATALOGUE.find(c => c.ref === ref); return p ? p.nom : ref; }
 
-// ── Init stocks par défaut ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// ÉTAT
+// ═══════════════════════════════════════════════════════════════════
+// Un point de vente = une tablette en général, mais chaque buvette garde ses propres compteurs.
+const state = {
+  tab:      'Buvette 1',
+  matchId:  '',
+  date:     new Date().toISOString().slice(0,10),
+  url:      '',            // Apps Script stocks / rapport (existant)
+  pilotage: '',            // Apps Script pilotage (ventes en direct)
+  token:    '',            // jeton pilotage
+  stocks:   {},            // { 'Buvette 1': { ref: qty initiale } }
+  cumul:    {},            // { 'Buvette 1': { lignes:{ref:qty}, consigne:n, rendue:n, ventes:n, ca:n } }
+  outbox:   [],            // ventes validées pas encore reçues par le pilotage
+  envoyees: 0,
+};
+// Vente en cours (non persistée tant qu'elle n'est pas validée)
+let panier = { lignes:{}, consigne:0, rendue:0 };
+let billet = null;         // { ticket_id, barcode, tarif, prenom, valide }
+
 function initDefaultStocks() {
   for (let t = 1; t <= NB_BUVETTES; t++) {
     const k = 'Buvette ' + t;
-    state.stocks[k] = {};
-    sellable().forEach(p => { state.stocks[k][p.ref] = 0; });
+    if (!state.stocks[k]) { state.stocks[k] = {}; sellable().forEach(p => { state.stocks[k][p.ref] = 0; }); }
   }
 }
-initDefaultStocks();
-
-// ── Ventes init ─────────────────────────────────────────────────────
-function resetVentes() {
-  state.ventes = {};
-  sellable().forEach(p => { state.ventes[p.ref] = 0; });
-  state.ecocups = { E01:0 };
-  state.rembs   = { E01:0 };
+function cumulTab(tab) {
+  tab = tab || state.tab;
+  if (!state.cumul[tab]) state.cumul[tab] = { lignes:{}, consigne:0, rendue:0, ventes:0, ca:0 };
+  return state.cumul[tab];
 }
-resetVentes();
+
+function save() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      tab:state.tab, matchId:state.matchId, date:state.date, url:state.url, pilotage:state.pilotage, token:state.token,
+      stocks:state.stocks, cumul:state.cumul, outbox:state.outbox, envoyees:state.envoyees, prix: CATALOGUE.map(p => [p.ref, p.pv]) }));
+  } catch(e) {}
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (!s) return;
+    ['tab','matchId','date','url','pilotage','token','stocks','cumul','outbox','envoyees'].forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
+    (s.prix || []).forEach(([ref, pv]) => { const p = CATALOGUE.find(c => c.ref === ref); if (p && pv) p.pv = pv; });
+  } catch(e) {}
+}
+
+// Lien de configuration : ?cfg=<base64 JSON> {url, pilotage, token, tab, matchId}
+function lireLienConfig() {
+  try {
+    const q = new URLSearchParams(location.search);
+    const raw = q.get('cfg');
+    if (!raw) return;
+    const cfg = JSON.parse(decodeURIComponent(escape(atob(raw))));
+    if (cfg.url) state.url = cfg.url;
+    if (cfg.pilotage) state.pilotage = cfg.pilotage;
+    if (cfg.token) state.token = cfg.token;
+    if (cfg.matchId) state.matchId = cfg.matchId;
+    if (cfg.tab) { const n = normTab(cfg.tab); if (n) state.tab = n; }
+    history.replaceState(null, '', location.pathname);
+    setTimeout(() => toast('✅ Configuration reçue'), 300);
+  } catch(e) { setTimeout(() => toast('⚠️ Lien de configuration illisible'), 300); }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // THEME (clair par défaut)
@@ -397,7 +541,6 @@ const ICON_MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
 const ICON_SUN  = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
 function applyTheme() {
   document.documentElement.setAttribute('data-theme', currentTheme);
-  // Icône = thème vers lequel on bascule
   document.querySelector('[data-theme-toggle] svg').innerHTML = currentTheme === 'light' ? ICON_MOON : ICON_SUN;
 }
 function toggleTheme() {
@@ -409,34 +552,31 @@ try { const t = localStorage.getItem('buvette_theme'); if (t === 'dark' || t ===
 applyTheme();
 
 // ═══════════════════════════════════════════════════════════════════
-// TABS
+// ONGLETS BUVETTE
 // ═══════════════════════════════════════════════════════════════════
 function renderTabs() {
   const c = document.getElementById('tab-selector');
   c.innerHTML = '';
-  Object.keys(state.stocks).forEach(t => addTabBtn(c, t));
-}
-function addTabBtn(c, t) {
-  const b = document.createElement('button');
-  b.className = 'tab-btn' + (t === state.tab ? ' active' : '');
-  b.textContent = t;
-  b.onclick = () => { state.tab = t; document.getElementById('tab-badge').textContent = t; renderAll(); };
-  c.appendChild(b);
+  Object.keys(state.stocks).forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tab-btn' + (t === state.tab ? ' active' : '');
+    b.textContent = t;
+    b.onclick = () => {
+      if (t === state.tab) return;
+      if (panierVide()) { state.tab = t; save(); renderAll(); }
+      else toast('Valide ou annule la vente en cours avant de changer de buvette');
+    };
+    c.appendChild(b);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// RENDER
+// STOCK
 // ═══════════════════════════════════════════════════════════════════
-function renderAll() {
-  renderTabs();
-  renderAlerts();
-  renderStockList();
-  renderProducts();
-  renderCA();
-}
-
 function stockInit(ref) { return (state.stocks[state.tab] || {})[ref] || 0; }
-function stockDispo(ref) { return Math.max(0, stockInit(ref) - (state.ventes[ref] || 0)); }
+function venduValide(ref) { return cumulTab().lignes[ref] || 0; }
+function stockApresVentes(ref) { return Math.max(0, stockInit(ref) - venduValide(ref)); }
+function stockDispo(ref) { return Math.max(0, stockApresVentes(ref) - (panier.lignes[ref] || 0)); }
 function seuilOf(p) {
   if (p.ref === 'P01_25') return PARAMS.seuil25;
   if (p.ref === 'P01_50') return PARAMS.seuil50;
@@ -448,8 +588,22 @@ function stockClass(p) {
   if (d <= seuilOf(p)) return 'warn';
   return 'ok';
 }
+function stockSnapshot() { const o = {}; sellable().forEach(p => o[p.ref] = stockApresVentes(p.ref)); return o; }
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ═══════════════════════════════════════════════════════════════════
+// RENDU
+// ═══════════════════════════════════════════════════════════════════
+function renderAll() {
+  renderTabs();
+  renderAlerts();
+  renderProducts();
+  renderPanier();
+  renderStockList();
+  renderFooter();
+  document.getElementById('match-label').textContent = state.matchId || 'Aucun match configuré';
+}
 
 function renderProducts() {
   const zone = document.getElementById('products-zone');
@@ -461,12 +615,12 @@ function renderProducts() {
     html += `<section><div class="section-title">${CATS[cat].label}</div><div class="product-grid">`;
     groups[cat].forEach(p => {
       const dispo = stockDispo(p.ref);
-      const vendu = state.ventes[p.ref] || 0;
+      const qte   = panier.lignes[p.ref] || 0;
       const cls   = stockClass(p);
       const lowCls = cls === 'crit' ? 'empty' : (cls === 'warn' ? 'low' : '');
       const unite = p.unite ? ' ' + p.unite : '';
       html += `
-        <div class="product-card${vendu > 0 ? ' has-sale' : ''}${dispo <= 0 && vendu === 0 ? ' is-empty' : ''}" style="--accent:${esc(p.color || '#1a2e4a')}">
+        <div class="product-card${qte > 0 ? ' has-sale' : ''}${dispo <= 0 && qte === 0 ? ' is-empty' : ''}" style="--accent:${esc(p.color || '#1a2e4a')}">
           <div class="card-band"></div>
           <div class="card-body">
             <div class="product-head">
@@ -477,8 +631,8 @@ function renderProducts() {
               </div>
             </div>
             <div class="qty-control">
-              <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)" ${vendu <= 0 ? 'disabled' : ''} aria-label="Retirer ${esc(p.nom)}">−</button>
-              <div class="qty-display">${vendu}</div>
+              <button class="qty-btn minus" onclick="changeQty('${p.ref}',-1)" ${qte <= 0 ? 'disabled' : ''} aria-label="Retirer ${esc(p.nom)}">−</button>
+              <div class="qty-display">${qte}</div>
               <button class="qty-btn plus" onclick="changeQty('${p.ref}',1)" ${dispo <= 0 ? 'disabled' : ''} aria-label="Ajouter ${esc(p.nom)}">+</button>
             </div>
             <div class="stock-remaining ${lowCls}">${dispo <= 0 ? 'Épuisé' : 'Dispo : ' + dispo + unite}</div>
@@ -488,6 +642,35 @@ function renderProducts() {
     html += '</div></section>';
   });
   zone.innerHTML = html;
+}
+
+function totalPanier() {
+  let t = 0;
+  Object.entries(panier.lignes).forEach(([ref, q]) => { const p = CATALOGUE.find(c => c.ref === ref); if (p) t += q * priceOf(p); });
+  return t + panier.consigne * CONSIGNE - panier.rendue * CONSIGNE;
+}
+function panierVide() { return !Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue; }
+
+function renderPanier() {
+  const lines = document.getElementById('cart-lines');
+  const rows = [];
+  sellable().forEach(p => { const q = panier.lignes[p.ref] || 0; if (q) rows.push(`<div class="cart-row"><span>${q} × ${esc(p.nom)}</span><b>${fmt(q * priceOf(p))}</b></div>`); });
+  if (panier.consigne) rows.push(`<div class="cart-row"><span>${panier.consigne} × consigne écocup</span><b>${fmt(panier.consigne * CONSIGNE)}</b></div>`);
+  if (panier.rendue)   rows.push(`<div class="cart-row neg"><span>${panier.rendue} × consigne rendue</span><b>−${fmt(panier.rendue * CONSIGNE)}</b></div>`);
+  lines.innerHTML = rows.length ? rows.join('') : '<div class="cart-empty">Touche + sur un produit pour commencer une vente</div>';
+  const tot = totalPanier();
+  document.getElementById('cart-total').textContent = (tot < 0 ? '−' : '') + fmt(Math.abs(tot));
+  document.getElementById('cart-total-label').textContent = tot < 0 ? 'À rendre au client' : 'À encaisser';
+  document.getElementById('btn-valider').disabled = panierVide();
+  document.getElementById('btn-annuler').disabled = panierVide() && !billet;
+  document.getElementById('qty-E01').textContent  = panier.consigne;
+  document.getElementById('remb-E01').textContent = panier.rendue;
+  const bz = document.getElementById('billet-zone');
+  if (billet) {
+    bz.innerHTML = `<div class="ticket-badge"><span aria-hidden="true">🎫</span><div><b>${esc(billet.tarif || 'Billet')}</b>${billet.prenom ? '<small>' + esc(billet.prenom) + '</small>' : ''}</div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>`;
+  } else {
+    bz.innerHTML = `<button class="btn-scan" onclick="ouvrirScanner()"><span aria-hidden="true">🎫</span> Scanner le billet <small>(facultatif)</small></button>`;
+  }
 }
 
 function renderStockList() {
@@ -501,7 +684,7 @@ function renderAlerts() {
   const z = document.getElementById('alerts-zone');
   z.innerHTML = '';
   sellable().forEach(p => {
-    if (stockInit(p.ref) <= 0) return;           // produit non approvisionné sur cette tablette
+    if (stockInit(p.ref) <= 0) return;
     const d = stockDispo(p.ref);
     const isBiere = p.cat === 'biere';
     if (d === 0) addAlert(z, 'err', isBiere ? `🚨 ${p.nom} ÉPUISÉE — changer le fût !` : `🚨 ${p.nom} épuisé`);
@@ -515,69 +698,246 @@ function addAlert(z, type, msg) {
   z.appendChild(d);
 }
 
-function renderEcocups() {
-  ['E01'].forEach(ref => {
-    document.getElementById('qty-' + ref).textContent  = state.ecocups[ref] || 0;
-    document.getElementById('remb-' + ref).textContent = state.rembs[ref] || 0;
-  });
-  const net = (state.ecocups.E01||0) - (state.rembs.E01||0);
-  document.getElementById('net-consigne').textContent = fmt(net);
-}
-
-function renderCA() {
-  document.getElementById('ca-total-display').textContent = fmt(calcCA());
-}
-
-function calcCA() {
-  let ca = 0;
-  sellable().forEach(p => { ca += (state.ventes[p.ref] || 0) * priceOf(p); });
-  ca += (state.ecocups.E01||0) - (state.rembs.E01||0);
-  return ca;
+function renderFooter() {
+  const c = cumulTab();
+  document.getElementById('ca-total-display').textContent = fmt(c.ca);
+  document.getElementById('ca-sub').textContent = c.ventes + ' vente' + (c.ventes > 1 ? 's' : '') + ' · ' + state.tab;
+  const s = document.getElementById('sync-dot');
+  if (!state.pilotage) { s.className = 'sync-dot off'; s.textContent = 'Pilotage non configuré'; }
+  else if (state.outbox.length) { s.className = 'sync-dot wait'; s.textContent = state.outbox.length + ' vente(s) en attente d\'envoi'; }
+  else { s.className = 'sync-dot ok'; s.textContent = 'Ventes envoyées au pilotage'; }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ACTIONS
+// ACTIONS VENTE
 // ═══════════════════════════════════════════════════════════════════
 function changeQty(ref, delta) {
-  const current = state.ventes[ref] || 0;
+  const cur = panier.lignes[ref] || 0;
   if (delta > 0 && stockDispo(ref) <= 0) return;
-  if (delta < 0 && current <= 0) return;
-  state.ventes[ref] = current + delta;
+  if (delta < 0 && cur <= 0) return;
+  panier.lignes[ref] = cur + delta;
   renderAll();
 }
 function changeEcocup(ref, delta) {
-  const cur = state.ecocups[ref] || 0;
-  if (delta < 0 && cur <= 0) return;
-  state.ecocups[ref] = cur + delta;
-  renderEcocups(); renderCA();
+  if (delta < 0 && panier.consigne <= 0) return;
+  panier.consigne += delta;
+  renderPanier();
 }
+// Une écocup achetée à une autre buvette peut être rendue ici : pas de plafond.
 function changeRemb(ref, delta) {
-  const cur   = state.rembs[ref] || 0;
-  const vendu = state.ecocups[ref] || 0;
-  if (delta < 0 && cur <= 0) return;
-  state.rembs[ref] = cur + delta;
-  renderEcocups(); renderCA();
+  if (delta < 0 && panier.rendue <= 0) return;
+  panier.rendue += delta;
+  renderPanier();
 }
+
+function annulerVente() {
+  panier = { lignes:{}, consigne:0, rendue:0 };
+  billet = null;
+  renderAll();
+}
+
+function validerVente() {
+  if (panierVide()) return;
+  const total = Math.round(totalPanier() * 100) / 100;
+  const lignes = {};
+  Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) lignes[r] = q; });
+  const vente = {
+    id: state.tab.replace(/\D/g,'') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,6),
+    ts: new Date().toISOString(),
+    matchId: state.matchId || '',
+    buvette: state.tab,
+    lignes, consigne: panier.consigne, rendue: panier.rendue, total,
+    ticket: billet ? { ticket_id: billet.ticket_id || '', barcode: billet.barcode || '', tarif: billet.tarif || '' } : null,
+  };
+  const c = cumulTab();
+  Object.entries(lignes).forEach(([r, q]) => c.lignes[r] = (c.lignes[r] || 0) + q);
+  c.consigne += panier.consigne; c.rendue += panier.rendue; c.ventes++; c.ca = Math.round((c.ca + total) * 100) / 100;
+  state.outbox.push(vente);
+  panier = { lignes:{}, consigne:0, rendue:0 };
+  billet = null;
+  save();
+  renderAll();
+  toast('✅ Vente validée — ' + (total < 0 ? 'rendre ' : '') + fmt(Math.abs(total)) + (vente.ticket ? ' · billet relié' : ''));
+  envoyerVentes();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ENVOI AU PILOTAGE (au fil de l'eau, file d'attente hors ligne)
+// ═══════════════════════════════════════════════════════════════════
+let envoiEnCours = false;
+async function envoyerVentes() {
+  if (envoiEnCours || !state.pilotage || !state.token || !state.outbox.length) { renderFooter(); return; }
+  envoiEnCours = true;
+  try {
+    const lot = state.outbox.slice(0, 50);
+    // text/plain : pas de pré-vérification CORS, accepté par Apps Script
+    const r = await fetch(state.pilotage, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'ventes', token: state.token, buvette: state.tab, ventes: lot, stock: stockSnapshot() }) });
+    const res = await r.json();
+    if (res.status !== 'ok') throw new Error(res.message || 'refus');
+    const recus = new Set(res.recus || []);
+    state.outbox = state.outbox.filter(v => !recus.has(v.id));
+    state.envoyees += recus.size;
+    save();
+  } catch(e) {
+    // réseau coupé ou jeton refusé : on réessaiera
+  } finally {
+    envoiEnCours = false;
+    renderFooter();
+    if (state.outbox.length && navigator.onLine !== false) setTimeout(envoyerVentes, 20000);
+  }
+}
+window.addEventListener('online', envoyerVentes);
+setInterval(() => { if (state.outbox.length) envoyerVentes(); }, 60000);
+
+// ═══════════════════════════════════════════════════════════════════
+// SCANNER BILLET (QR Tickie → relais tickie-proxy)
+// ═══════════════════════════════════════════════════════════════════
+let scanStream = null, scanTimer = null, detector = null;
+
+function chargerJsQR() {
+  return new Promise((ok, ko) => {
+    if (window.jsQR) return ok();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    s.onload = ok; s.onerror = () => ko(new Error('lecteur QR indisponible'));
+    document.head.appendChild(s);
+  });
+}
+
+async function ouvrirScanner() {
+  document.getElementById('scan-result').hidden = true;
+  document.getElementById('scan-zone').hidden = false;
+  document.getElementById('scan-manual').value = '';
+  setScanStatus('📷 Place le QR code du billet dans le cadre');
+  document.getElementById('modal-scan').classList.add('open');
+  try {
+    if ('BarcodeDetector' in window) {
+      try { detector = new BarcodeDetector({ formats:['qr_code','code_128','aztec','data_matrix'] }); } catch(e) { detector = null; }
+    }
+    if (!detector) await chargerJsQR();
+    scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } });
+    const v = document.getElementById('scan-video');
+    v.srcObject = scanStream; await v.play();
+    scanTimer = setInterval(lireImage, 250);
+  } catch(e) {
+    setScanStatus('Caméra indisponible (' + e.message + '). Tape le code du billet ou utilise une douchette.');
+    document.getElementById('scan-manual').focus();
+  }
+}
+
+async function lireImage() {
+  const v = document.getElementById('scan-video');
+  if (!v.videoWidth) return;
+  let code = null;
+  if (detector) {
+    try { const r = await detector.detect(v); if (r && r[0]) code = r[0].rawValue; } catch(e) {}
+  } else if (window.jsQR) {
+    const c = document.getElementById('scan-canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    const ctx = c.getContext('2d', { willReadFrequently:true }); ctx.drawImage(v, 0, 0);
+    const img = ctx.getImageData(0, 0, c.width, c.height);
+    const r = window.jsQR(img.data, img.width, img.height, { inversionAttempts:'dontInvert' });
+    if (r && r.data) code = r.data;
+  }
+  if (code) { arreterCamera(); chercherBillet(code.trim()); }
+}
+
+function arreterCamera() {
+  clearInterval(scanTimer); scanTimer = null;
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+}
+function setScanStatus(t) { document.getElementById('scan-status').textContent = t; }
+
+function saisieManuelle(e) {
+  e.preventDefault();
+  const v = document.getElementById('scan-manual').value.trim();
+  if (v) { arreterCamera(); chercherBillet(v); }
+}
+
+async function chercherBillet(barcode) {
+  setScanStatus('⏳ Recherche du billet…');
+  try {
+    const r = await fetch(TICKIE_PROXY_URL + '/ticket/' + encodeURIComponent(barcode));
+    if (!r.ok) throw new Error(r.status === 404 ? 'billet introuvable' : 'erreur ' + r.status);
+    const t = await r.json();
+    if (t.error) throw new Error(t.error);
+    afficherBillet(t, barcode);
+  } catch(e) {
+    setScanStatus('❌ ' + e.message + ' — rescanne ou continue sans billet');
+    setTimeout(() => { if (document.getElementById('modal-scan').classList.contains('open') && !scanStream) relancerScan(); }, 2500);
+  }
+}
+
+let billetLu = null;
+function afficherBillet(t, barcode) {
+  const valide = t.valide !== false;
+  const prenom = (t.prenom || (t.nom_complet || t.nom || '').split(' ')[0] || '').trim();
+  // Seuls ces champs quittent le scanner : pas d'email ni de nom complet stockés
+  billetLu = { ticket_id: t.ticket_id || t._id || '', barcode: t.barcode || barcode, tarif: t.tarif || '', prenom, valide };
+  document.getElementById('scan-zone').hidden = true;
+  document.getElementById('scan-result').hidden = false;
+  document.getElementById('scan-card').className = 'scan-card ' + (valide ? 'ok' : 'ko');
+  document.getElementById('scan-card').innerHTML =
+    `<div class="scan-state">${valide ? '✅ Billet valide' : '❌ Billet non valide'}</div>
+     <div class="scan-tarif">${esc(billetLu.tarif || 'Tarif inconnu')}</div>
+     ${prenom ? `<div class="scan-name">${esc(prenom)}</div>` : ''}
+     ${t.tribune ? `<div class="scan-meta">📍 ${esc(t.tribune)}</div>` : ''}`;
+  document.getElementById('btn-use-ticket').disabled = !valide;
+}
+
+function utiliserBillet() {
+  if (!billetLu || !billetLu.valide) return;
+  billet = billetLu; billetLu = null;
+  fermerScanner();
+  renderPanier();
+  toast('🎫 Billet relié à la vente en cours');
+}
+function relancerScan() { arreterCamera(); ouvrirScanner(); }
+function fermerScanner() { arreterCamera(); document.getElementById('modal-scan').classList.remove('open'); }
+function retirerBillet() { billet = null; renderPanier(); }
 
 // ═══════════════════════════════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════════════════════════════
 function openSettings() {
-  document.getElementById('sel-tab').value   = state.tab;
-  document.getElementById('inp-match').value = state.matchId;
-  document.getElementById('inp-date').value  = state.date;
-  document.getElementById('inp-url').value   = state.url;
+  document.getElementById('sel-tab').value      = state.tab;
+  document.getElementById('inp-match').value    = state.matchId;
+  document.getElementById('inp-date').value     = state.date;
+  document.getElementById('inp-url').value      = state.url;
+  document.getElementById('inp-pilotage').value = state.pilotage;
+  document.getElementById('inp-token').value    = state.token;
   document.getElementById('modal-settings').classList.add('open');
 }
 function saveSettings() {
-  state.tab     = document.getElementById('sel-tab').value;
-  state.matchId = document.getElementById('inp-match').value.trim();
-  state.date    = document.getElementById('inp-date').value;
-  state.url     = document.getElementById('inp-url').value.trim();
-  document.getElementById('tab-badge').textContent = state.tab;
-  document.getElementById('match-label').textContent = state.matchId || 'Aucun match configuré';
+  const tab = document.getElementById('sel-tab').value;
+  if (tab !== state.tab && !panierVide()) { toast('Valide ou annule la vente en cours avant de changer de buvette'); return; }
+  state.tab      = tab;
+  state.matchId  = document.getElementById('inp-match').value.trim();
+  state.date     = document.getElementById('inp-date').value;
+  state.url      = document.getElementById('inp-url').value.trim();
+  state.pilotage = document.getElementById('inp-pilotage').value.trim();
+  state.token    = document.getElementById('inp-token').value.trim();
+  save();
   closeModal('modal-settings');
   renderAll();
+  envoyerVentes();
+}
+
+// Fin de match : remet les compteurs à zéro (après rapport envoyé)
+function nouveauMatch() {
+  const enAttente = state.outbox.length;
+  const box = document.getElementById('reset-confirm');
+  box.hidden = false;
+  box.querySelector('p').textContent = enAttente
+    ? `⚠️ ${enAttente} vente(s) ne sont pas encore arrivées au pilotage. Elles seront gardées et renvoyées. Remettre les compteurs de toutes les buvettes à zéro ?`
+    : 'Remettre les compteurs de toutes les buvettes à zéro ? Envoie le rapport de caisse avant.';
+}
+function confirmerNouveauMatch() {
+  state.cumul = {}; panier = { lignes:{}, consigne:0, rendue:0 }; billet = null;
+  document.getElementById('reset-confirm').hidden = true;
+  save(); closeModal('modal-settings'); renderAll();
+  toast('Compteurs remis à zéro');
 }
 
 // ── Synchro pré-match GET ───────────────────────────────────────────
@@ -603,12 +963,9 @@ async function syncPreMatch() {
 // ── GARDE-FOU ÉTANCHÉITÉ BUVETTE / BOUTIQUE ──────────────────
 const APP_ID = 'BUVETTE';
 function alertWrongCatalog(t){
-  const msg = '⛔ Mauvais catalogue : ce lien renvoie la ' + String(t).toUpperCase() +
-    '.\nCette tablette est la BUVETTE.\nCorrige l\'URL Apps Script dans Configuration.';
   const el = document.getElementById('sync-status-pre');
   if (el){ el.className='sync-status err'; el.style.display='block';
-    el.textContent='⛔ Catalogue « '+t+' » refusé — cette tablette est la BUVETTE.'; }
-  try { alert(msg); } catch(e){}
+    el.textContent='⛔ Catalogue « '+t+' » refusé — cette tablette est la BUVETTE. Corrige l\'URL Apps Script.'; }
 }
 function guardCatalogSource(cfg){
   if (!cfg || typeof cfg !== 'object') return true;
@@ -622,16 +979,6 @@ function guardCatalogSource(cfg){
   return true;
 }
 
-// Normalise une catégorie venant du Sheet vers une clé de CATS
-function mapCat(raw) {
-  const c = String(raw || '').toLowerCase();
-  if (c.includes('bi')) return 'biere';
-  if (c.includes('eau')) return 'eau';
-  if (c.includes('eco') || c.includes('éco') || c.includes('consigne')) return 'eco';
-  if (c.includes('soft') || c.includes('soda') || c.includes('boisson')) return 'soft';
-  return 'autre';
-}
-
 // 'Tab. 2', 'Buvette 2', 'B2', '2' → 'Buvette 2' (null si hors des 3 buvettes)
 function normTab(raw) {
   const m = String(raw).match(/(\d+)/);
@@ -641,15 +988,13 @@ function normTab(raw) {
 
 function applyTabletConfig(cfg) {
   if (!guardCatalogSource(cfg)) return false;
-
-  if (cfg.matchId) { state.matchId = cfg.matchId; document.getElementById('inp-match').value = cfg.matchId; document.getElementById('match-label').textContent = cfg.matchId; }
+  if (cfg.matchId) { state.matchId = cfg.matchId; document.getElementById('inp-match').value = cfg.matchId; }
   if (cfg.params_fut) {
     PARAMS.rdt25   = cfg.params_fut.rdt25   || cfg.params_fut.rdt33 || 120;
     PARAMS.rdt50   = cfg.params_fut.rdt50   || 60;
     PARAMS.seuil25 = cfg.params_fut.seuil_alerte_25cl || cfg.params_fut.seuil_alerte_33cl || 15;
     PARAMS.seuil50 = cfg.params_fut.seuil_alerte_50cl || 10;
   }
-  // Produits : mise à jour des prix / noms des produits du catalogue
   if (Array.isArray(cfg.produits)) {
     cfg.produits.forEach(p => {
       if (!p || !p.ref) return;
@@ -659,9 +1004,8 @@ function applyTabletConfig(cfg) {
       if (p.pv_25cl) local.pv = Number(p.pv_25cl);
       if (p.pv_33cl && ref === 'P01_25') local.pv = Number(p.pv_33cl);
       if (p.pv_50cl) local.pv = Number(p.pv_50cl);
-      if (p.pv)      local.pv  = Number(p.pv);
-      if (p.prix)    local.pv  = Number(p.prix);
-      if (p.consigne !== undefined) local.consigne = p.consigne;
+      if (p.pv)      local.pv = Number(p.pv);
+      if (p.prix)    local.pv = Number(p.prix);
       if (p.seuil !== undefined && p.seuil !== '') local.seuil = Number(p.seuil);
     });
   }
@@ -673,62 +1017,55 @@ function applyTabletConfig(cfg) {
       items.forEach(item => {
         if (item.type === 'biere_25' || item.type === 'biere_33') state.stocks[tab].P01_25 = item.qty_verres;
         else if (item.type === 'biere_50') state.stocks[tab].P01_50 = item.qty_verres;
-        else {
-          state.stocks[tab][item.ref === 'P01_33' ? 'P01_25' : item.ref] = item.qty_unites;
-        }
+        else state.stocks[tab][item.ref === 'P01_33' ? 'P01_25' : item.ref] = item.qty_unites;
       });
     });
   }
-  resetVentes();
+  save();
   renderAll();
-  renderEcocups();
   return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// RAPPORT
+// RAPPORT (agrégé, pour le Sheet stocks existant)
 // ═══════════════════════════════════════════════════════════════════
 function openRapport() {
   const c = document.getElementById('rapport-content');
-  const ventes = sellable().filter(p => (state.ventes[p.ref] || 0) > 0)
-    .map(p => ({ ref: p.ref, produit: p.nom, qty: state.ventes[p.ref], pv: priceOf(p), consigne: 0 }));
-  if ((state.ecocups.E01||0) > 0) ventes.push({ ref:'E01', produit:'Écocup (consigne)', qty: state.ecocups.E01, pv: 0, consigne: 1.00 });
-
-  const rembs = [];
-  if ((state.rembs.E01||0) > 0) rembs.push({ ref:'E01', qty: state.rembs.E01, montant: state.rembs.E01 });
+  const cu = cumulTab();
+  const ventes = sellable().filter(p => (cu.lignes[p.ref] || 0) > 0)
+    .map(p => ({ ref: p.ref, produit: p.nom, qty: cu.lignes[p.ref], pv: priceOf(p), consigne: 0 }));
+  if (cu.consigne > 0) ventes.push({ ref:'E01', produit:'Écocup (consigne)', qty: cu.consigne, pv: 0, consigne: CONSIGNE });
+  const rembs = cu.rendue > 0 ? [{ ref:'E01', qty: cu.rendue, montant: cu.rendue * CONSIGNE }] : [];
 
   const json = {
     matchId:   state.matchId || 'NON_CONFIGURE',
     tablette:  state.tab,
     point_vente: state.tab,
     dateMatch: state.date,
+    nb_ventes: cu.ventes,
     ventes,
     remboursements_consigne: rembs
   };
 
-  let html = '<div class="rapport-section"><div class="rapport-section-title">Ventes</div>';
-  if (!ventes.length) html += '<div class="rapport-row"><span>Aucune vente enregistrée</span><b>—</b></div>';
+  let html = `<div class="rapport-section"><div class="rapport-section-title">${esc(state.tab)} · ${cu.ventes} vente(s)</div>`;
+  if (!ventes.length) html += '<div class="rapport-row"><span>Aucune vente validée</span><b>—</b></div>';
   ventes.forEach(v => {
     const total = v.qty * v.pv + v.qty * v.consigne;
     html += `<div class="rapport-row"><span>${esc(v.produit)} × ${v.qty}</span><b>${fmt(total)}</b></div>`;
   });
   html += '</div>';
-
-  if (rembs.length > 0) {
+  if (rembs.length) {
     html += '<div class="rapport-section"><div class="rapport-section-title">Remboursements consigne</div>';
-    rembs.forEach(r => {
-      html += `<div class="rapport-row"><span>Consigne rendue × ${r.qty}</span><b style="color:var(--error)">−${fmt(r.montant)}</b></div>`;
-    });
+    rembs.forEach(r => { html += `<div class="rapport-row"><span>Consigne rendue × ${r.qty}</span><b style="color:var(--error)">−${fmt(r.montant)}</b></div>`; });
     html += '</div>';
   }
-
-  html += `<div class="rapport-total"><span class="rapport-total-label">💰 CA Total</span><span class="rapport-total-value">${fmt(calcCA())}</span></div>`;
+  html += `<div class="rapport-total"><span class="rapport-total-label">💰 CA Total</span><span class="rapport-total-value">${fmt(cu.ca)}</span></div>`;
+  if (state.outbox.length) html += `<div class="alert-banner warn" style="margin-bottom:var(--space-3)">⚠️ ${state.outbox.length} vente(s) pas encore reçues par le pilotage — garde la tablette connectée.</div>`;
   html += '<div class="rapport-section-title">JSON à envoyer au Sheet</div>';
   html += `<div class="json-block" id="json-block">${esc(JSON.stringify(json, null, 2))}</div>`;
   html += `<button class="btn-copy" onclick="copyJson()">📋 Copier le JSON</button>`;
   html += `<button class="btn-primary" style="margin-top:var(--space-2)" onclick="sendReport()">📤 Envoyer au Sheet</button>`;
   html += `<div class="sync-status" id="sync-status-post"></div>`;
-
   c.innerHTML = html;
   document.getElementById('modal-rapport').classList.add('open');
   c._json = json;
@@ -736,11 +1073,11 @@ function openRapport() {
 
 function copyJson() {
   const txt = document.getElementById('json-block').textContent;
+  const btn = document.querySelector('.btn-copy');
   navigator.clipboard.writeText(txt).then(() => {
-    const btn = document.querySelector('.btn-copy');
     btn.textContent = '✅ Copié !';
     setTimeout(() => btn.textContent = '📋 Copier le JSON', 2000);
-  });
+  }).catch(() => toast('Copie impossible — sélectionne le texte'));
 }
 
 async function sendReport() {
@@ -750,7 +1087,7 @@ async function sendReport() {
   if (!url) { statusEl.className = 'sync-status err'; statusEl.textContent = '❌ URL non configurée dans les paramètres.'; return; }
   statusEl.className = 'sync-status'; statusEl.textContent = '⏳ Envoi en cours…'; statusEl.style.display = 'block';
   try {
-    const r = await fetch(url, { method:'POST', body: JSON.stringify(content), headers:{'Content-Type':'application/json'} });
+    const r = await fetch(url, { method:'POST', body: JSON.stringify(content), headers:{'Content-Type':'text/plain;charset=utf-8'} });
     const res = await r.json();
     if (res.status === 'ok') {
       statusEl.className = 'sync-status ok';
@@ -770,21 +1107,30 @@ async function sendReport() {
 function fmt(n) {
   return Number(n).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 }
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); if (id === 'modal-scan') arreterCamera(); }
 
 document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  o.addEventListener('click', e => { if (e.target === o) { if (o.id === 'modal-scan') fermerScanner(); else o.classList.remove('open'); } });
 });
-
-document.getElementById('inp-date').value = state.date;
 
 // Verrouillage paysage quand le navigateur l'autorise (PWA installée / plein écran)
 try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch(e) {}
 
 // ── Init ─────────────────────────────────────────────────────────────
+load();
+lireLienConfig();
+initDefaultStocks();
+document.getElementById('inp-date').value = state.date;
+save();
 renderAll();
-renderEcocups();
+envoyerVentes();
 </script>
 </body>
 </html>
