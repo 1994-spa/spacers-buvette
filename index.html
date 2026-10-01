@@ -396,16 +396,18 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         <div class="msg" id="load-status" hidden></div>
         <div class="msg warn" id="reset-confirm" hidden><p></p><div class="row2"><button class="btn" onclick="annulerNouveauMatch()">Garder l'ancien</button><button class="btn danger" onclick="confirmerNouveauMatch()">Changer de match</button></div></div>
       </div>
+      <label>🔒 Code responsable (4 chiffres : protège les réglages et le rapport)
+        <div class="row2" style="margin-top:0"><input class="input" id="inp-pin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="ex. 4821"><button class="btn prim" onclick="changerCode()">Changer le code</button></div>
+      </label>
       <details>
         <summary>Connexion au Sheet</summary>
         <div class="form" style="margin-top:8px">
           <label>URL Apps Script<input class="input" id="inp-url" placeholder="https://script.google.com/macros/s/…/exec" type="url"></label>
           <label>Jeton pilotage<input class="input" id="inp-token" type="text" autocomplete="off"></label>
-          <label>Code responsable (4 chiffres, protège ces réglages)<input class="input" id="inp-pin" inputmode="numeric" maxlength="4" autocomplete="off"></label>
           <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
         </div>
       </details>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-v13</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-v13b</p>
     </div>
   </div>
 </div>
@@ -1055,10 +1057,13 @@ function saveSettings() {
   state.url = document.getElementById('inp-url').value.trim();
   const jt = document.getElementById('inp-token').value.match(/[0-9a-f]{20}/i);
   state.token = jt ? jt[0] : document.getElementById('inp-token').value.trim();
-  const pin = document.getElementById('inp-pin').value.trim();
-  if (pin && !/^\d{4}$/.test(pin)) { info('Le code doit faire 4 chiffres'); return; }
-  state.pin = pin;
   save(); fermer('m-settings'); renderAll(); envoyerVentes(); chargerMatch(true);
+}
+function changerCode() {
+  const pin = document.getElementById('inp-pin').value.trim();
+  if (!/^\d{4}$/.test(pin)) { info('Le code doit faire exactement 4 chiffres'); return; }
+  state.pin = pin; save();
+  info('🔒 Nouveau code enregistré sur cette tablette');
 }
 function renderEtatMatch() {
   const m = state.match;
