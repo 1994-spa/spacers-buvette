@@ -960,7 +960,8 @@ function saveSettings() {
   if (tab !== state.tab && !panierVide()) { toast('Valide ou annule la vente en cours avant de changer de buvette'); return; }
   state.tab   = tab;
   state.url   = document.getElementById('inp-url').value.trim();
-  state.token = document.getElementById('inp-token').value.trim();
+  const jt = document.getElementById('inp-token').value.match(/[0-9a-f]{20}/i);
+  state.token = jt ? jt[0] : document.getElementById('inp-token').value.trim();
   save();
   closeModal('modal-settings');
   renderAll();

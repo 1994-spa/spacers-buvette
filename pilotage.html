@@ -91,6 +91,7 @@ th:first-child,td:first-child{text-align:left}
 .tab-state{font-size:.75rem;font-weight:700;display:block;margin-top:3px}
 .tab-state.ok{color:var(--good)}.tab-state.wait{color:var(--warn)}
 .tbl{overflow-x:auto}
+.err:empty{display:none}
 .err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:12px 14px;font-weight:700}
 .setup{max-width:560px;margin:40px auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
 .setup h2{font-size:1.2rem}
@@ -120,6 +121,7 @@ th:first-child,td:first-child{text-align:left}
   <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" required>
   <label for="cfg-token">Jeton</label>
   <input id="cfg-token" type="text" autocomplete="off" required>
+  <p class="err" id="setup-err" style="padding:8px 10px;font-size:.85rem" role="alert"></p>
   <button class="btn" type="submit">Se connecter</button>
 </form>
 
@@ -173,6 +175,8 @@ function loadCfg(){
     if (raw) { const c = JSON.parse(decodeURIComponent(escape(atob(raw)))); cfg = { url: c.url || c.pilotage, token: c.token }; saveCfg(); history.replaceState(null,'',location.pathname); }
   } catch(e){}
 }
+// Accepte un collage du type « Jeton de pilotage : 34de… » : on ne garde que le jeton
+function nettoyerJeton(t){ const m = String(t || '').match(/[0-9a-f]{20}/i); return m ? m[0] : String(t || '').trim(); }
 function saveCfg(){ try { localStorage.setItem(STORE, JSON.stringify(cfg)); } catch(e){} }
 
 async function api(params){
@@ -185,7 +189,7 @@ async function api(params){
 }
 
 function showSetup(){ $('setup').hidden = false; $('dash').hidden = true; $('cfg-url').value = cfg.url||''; $('cfg-token').value = cfg.token||''; }
-$('setup').addEventListener('submit', e => { e.preventDefault(); cfg = { url: $('cfg-url').value.trim(), token: $('cfg-token').value.trim() }; saveCfg(); renderLinks(); start(); });
+$('setup').addEventListener('submit', e => { e.preventDefault(); cfg = { url: $('cfg-url').value.trim(), token: nettoyerJeton($('cfg-token').value) }; saveCfg(); renderLinks(); start(); });
 $('btn-config').onclick = showSetup;
 $('btn-refresh').onclick = () => { refresh(); refreshTabState(); };
 $('ev-select').onchange = e => { current = e.target.value; loadPrepa(); refresh(); };
@@ -199,7 +203,10 @@ async function start(){
     const next = events.find(e => e.dateMatch >= today) || events[events.length-1];
     current = current || (next ? next.id : '');
     $('ev-select').innerHTML = events.map(e => `<option value="${esc(e.id)}"${e.id===current?' selected':''}>${esc(e.nom)} · ${new Date(e.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</option>`).join('');
-  } catch(e) { $('err').innerHTML = `<div class="err">Connexion impossible : ${esc(e.message)}. Vérifie l'URL et le jeton (⚙︎).</div>`; }
+  } catch(e) {
+    if (/jeton/i.test(e.message)) { showSetup(); $('setup-err').textContent = 'Jeton refusé : copie-le à nouveau depuis le Sheet (menu 📡 Pilotage live → 🔑 Afficher le jeton), 20 caractères.'; return; }
+    $('err').innerHTML = `<div class="err">Connexion impossible : ${esc(e.message)}. Vérifie l'URL et le jeton (⚙︎).</div>`;
+  }
   loadPrepa();
   refresh();
   clearInterval(timer); timer = setInterval(() => { refresh(); refreshTabState(); }, 30000);
