@@ -109,6 +109,8 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .ubtn.gob{border-color:color-mix(in srgb,var(--primary) 55%,transparent);background:color-mix(in srgb,var(--day) 30%,var(--surface))}
 .ubtn.eco{border-color:color-mix(in srgb,var(--ok) 55%,transparent)}
 .ubtn.scan{border:2px dashed var(--primary);background:color-mix(in srgb,var(--day) 22%,var(--surface))}
+@keyframes rappel{0%,100%{box-shadow:var(--shadow);border-color:var(--primary)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--day) 70%,transparent),var(--shadow);border-color:var(--day)}}
+.ubtn.scan.attente{animation:rappel 1.2s ease-in-out infinite;border-style:solid}
 .ubtn.scan.lie{border:2px solid var(--ok);background:var(--ok-bg)}
 
 /* ── Caisse ───────────────────────────────────────────────────────────── */
@@ -221,11 +223,18 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .seg button{min-height:56px;border-radius:12px;background:var(--surface-2);border:2px solid var(--border);font-weight:900;font-size:1.05rem}
 .seg button.on{background:var(--night);color:var(--day);border-color:var(--night)}
+.code-pts{display:flex;justify-content:center;gap:14px;margin:6px 0 14px}
+.code-pts span{width:22px;height:22px;border-radius:50%;border:3px solid var(--primary)}
+.code-pts span.on{background:var(--primary)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.pad button{min-height:70px;border-radius:16px;background:var(--surface-2);border:2px solid var(--border);font-size:1.8rem;font-weight:700}
+.pad button:active{background:var(--surface-3)}
 .hint{font-size:.85rem;color:var(--muted);font-weight:600;line-height:1.45}
 details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 
 /* Bandeau "vente enregistrée" + annuler */
 .snack{position:fixed;left:50%;top:72px;transform:translate(-50%,-20px);opacity:0;pointer-events:none;transition:all .2s;z-index:150;background:var(--navy);color:#fff;border-radius:16px;padding:10px 10px 10px 18px;display:flex;align-items:center;gap:16px;font-weight:800;font-size:1.02rem;box-shadow:var(--shadow-lg);border:2px solid var(--day);max-width:calc(100vw - 32px)}
+.snack.bas{top:auto;bottom:20px;transform:translate(-50%,20px)}
 .snack.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .snack button{background:var(--day);color:var(--night);border-radius:12px;min-height:50px;padding:0 18px;font-weight:900;font-size:1rem;white-space:nowrap}
 .snack.info button{display:none}
@@ -301,6 +310,16 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
   </div>
 </div>
 
+<!-- CB -->
+<div class="overlay" id="m-cb">
+  <div class="modal" style="max-width:520px;text-align:center">
+    <button class="x" onclick="fermer('m-cb')" aria-label="Fermer">✕</button>
+    <h3 style="padding:0">💳 Tape ce montant sur le TPE</h3>
+    <div class="rendu"><div class="v" id="cb-montant" style="color:var(--text)">0,00 €</div><div class="s">puis fais payer le client (carte ou sans contact)</div></div>
+    <div class="row2" style="margin-top:0"><button class="btn" style="min-height:70px" onclick="fermer('m-cb')">✕ Refusé / annuler</button><button class="btn prim" style="min-height:70px;font-size:1.2rem" onclick="fermer('m-cb');encaisser('CB')">✓ Paiement accepté</button></div>
+  </div>
+</div>
+
 <!-- SCANNER -->
 <div class="overlay" id="m-scan">
   <div class="modal">
@@ -338,10 +357,21 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
       <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson.</span></li>
       <li><span><b>Gobelet : 🥤 + Gobelet si le client n'en a pas.</b>Une touche par gobelet donné = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Gobelet rendu.</span></li>
       <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Le client gagne des points et le club sait qui consomme. Pas de billet ? On continue.</span></li>
-      <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>En espèces, touche le billet donné : la tablette affiche la monnaie à rendre.</span></li>
+      <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>CB : tape le montant affiché sur le TPE, puis touche « Paiement accepté ». Espèces : touche le billet donné, la tablette affiche la monnaie à rendre.</span></li>
     </ol>
     <p class="plus">Une erreur ? Le bouton <b>↶ Annuler</b> apparaît quelques secondes après chaque vente, ou retire une boisson avec <b>−</b>.<br>Pas de wifi ? Aucun souci : tout est gardé dans la tablette et part tout seul plus tard.</p>
     <button class="big-ok" style="margin-top:16px" onclick="fermerAide()">C'est parti !</button>
+  </div>
+</div>
+
+<!-- CODE RESPONSABLE -->
+<div class="overlay" id="m-code">
+  <div class="modal" style="max-width:420px;text-align:center">
+    <button class="x" onclick="fermer('m-code')" aria-label="Fermer">✕</button>
+    <h3 style="padding:0">🔒 Réglages réservés au responsable</h3>
+    <div class="code-pts" id="code-pts"></div>
+    <div class="msg err" id="code-err" hidden>Code incorrect</div>
+    <div class="pad" id="pad"></div>
   </div>
 </div>
 
@@ -365,10 +395,11 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         <div class="form" style="margin-top:8px">
           <label>URL Apps Script<input class="input" id="inp-url" placeholder="https://script.google.com/macros/s/…/exec" type="url"></label>
           <label>Jeton pilotage<input class="input" id="inp-token" type="text" autocomplete="off"></label>
+          <label>Code responsable (4 chiffres, protège ces réglages)<input class="input" id="inp-pin" inputmode="numeric" maxlength="4" autocomplete="off"></label>
           <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
         </div>
       </details>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-logos</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-code</p>
     </div>
   </div>
 </div>
@@ -421,7 +452,7 @@ const priceOf = p => p.pv || 0;
 // ÉTAT
 // ═══════════════════════════════════════════════════════════════════
 const state = {
-  tab:'Buvette 1', url:APPS_SCRIPT_URL, token:'',
+  tab:'Buvette 1', url:APPS_SCRIPT_URL, token:'', pin:'2627',
   match:null,        // { eventId, idMatch, nom, date, charge, prepa }
   futLitres:30,
   stocks:{},         // { 'Buvette 1': { FUT: fûts, P02_COCA: unités, … } }
@@ -443,7 +474,7 @@ function cumulTab(tab) {
   c.lignes = c.lignes || {};
   return c;
 }
-const CLES = ['tab','url','token','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique'];
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); } catch(e) {} }
 function load() {
   try {
@@ -464,6 +495,7 @@ function lireLienConfig() {
     if (cfg.url || cfg.pilotage) state.url = cfg.url || cfg.pilotage;
     if (cfg.token) state.token = cfg.token;
     if (cfg.tab) { const n = normTab(cfg.tab); if (n) state.tab = n; }
+    if (/^\d{4}$/.test(String(cfg.pin || ''))) state.pin = String(cfg.pin);
     history.replaceState(null, '', location.pathname);
     setTimeout(() => { info('✅ Tablette configurée pour la ' + state.tab); if (navigator.onLine !== false) chargerMatch(true); }, 300);
   } catch(e) { setTimeout(() => info('⚠️ Lien de configuration illisible'), 300); }
@@ -576,16 +608,18 @@ function renderPanier() {
   const pb = document.getElementById('paybtns');
   if (!vide && tot < 0) pb.innerHTML = `<button class="pbtn esp full" onclick="encaisser('ESP')">💶 Rendre ${fmt(-tot)}<small>remboursement des gobelets</small></button>`;
   else if (!vide && tot === 0) pb.innerHTML = `<button class="pbtn cb full" onclick="encaisser('ESP')">✓ Valider<small>rien à payer</small></button>`;
-  else pb.innerHTML = `<button class="pbtn cb" onclick="encaisser('CB')" ${vide ? 'disabled' : ''}>💳 CB<small>carte / sans contact</small></button>
+  else pb.innerHTML = `<button class="pbtn cb" onclick="ouvrirCB()" ${vide ? 'disabled' : ''}>💳 CB<small>carte / sans contact</small></button>
     <button class="pbtn esp" onclick="ouvrirEspeces()" ${vide ? 'disabled' : ''}>💶 Espèces<small>calcul de la monnaie</small></button>`;
 
   const bz = document.getElementById('billet'), bs = document.getElementById('btn-scan');
   if (billet) {
     bz.innerHTML = `<div class="billet"><span class="i">🎫</span><div><b>${esc(billet.prenom ? billet.prenom + ' · ' : '')}${esc(billet.tarif || (billet.nonVerifie ? 'Billet (vérifié plus tard)' : 'Billet'))}</b><small>relié à cette vente · points fidélité</small></div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>`;
-    bs.classList.add('lie'); bs.innerHTML = `<span class="ico">✅</span><span>Billet relié<small>Toucher pour en scanner un autre</small></span>`;
+    bs.classList.add('lie'); bs.classList.remove('attente'); bs.innerHTML = `<span class="ico">✅</span><span>Billet relié<small>Toucher pour en scanner un autre</small></span>`;
   } else {
     bz.innerHTML = '';
-    bs.classList.remove('lie'); bs.innerHTML = `<span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span>`;
+    bs.classList.remove('lie');
+    bs.classList.toggle('attente', !panierVide());   // rappel doux : demander le billet tant que la commande est en cours
+    bs.innerHTML = `<span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span>`;
   }
 }
 
@@ -643,6 +677,11 @@ function viderPanier() { panier = nouveauPanier(); billet = null; renderAll(); }
 // ═══════════════════════════════════════════════════════════════════
 // ENCAISSEMENT
 // ═══════════════════════════════════════════════════════════════════
+function ouvrirCB() {
+  if (panierVide()) return;
+  document.getElementById('cb-montant').textContent = fmt(totalPanier());
+  ouvrir('m-cb');
+}
 function ouvrirEspeces() {
   if (panierVide()) return;
   const tot = totalPanier();
@@ -900,8 +939,31 @@ function openBilan() {
 function openAide() { ouvrir('m-aide'); }
 function fermerAide() { try { localStorage.setItem('buvette_aide_vue', '1'); } catch(e) {} fermer('m-aide'); }
 
+// Réglages protégés par un code à 4 chiffres (déverrouillés 2 min après la saisie)
+let deverrouilleJusqua = 0, codeSaisi = '';
 function openSettings() {
+  if (state.pin && Date.now() > deverrouilleJusqua) { demanderCode(); return; }
+  ouvrirReglages();
+}
+function demanderCode() {
+  codeSaisi = '';
+  document.getElementById('code-err').hidden = true;
+  document.getElementById('pad').innerHTML = [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(k => k === '' ? '<span></span>'
+    : `<button onclick="toucheCode('${k}')">${k}</button>`).join('');
+  majPoints();
+  ouvrir('m-code');
+}
+function majPoints() { document.getElementById('code-pts').innerHTML = [0,1,2,3].map(i => `<span class="${i < codeSaisi.length ? 'on' : ''}"></span>`).join(''); }
+function toucheCode(k) {
+  if (k === '⌫') codeSaisi = codeSaisi.slice(0, -1); else if (codeSaisi.length < 4) codeSaisi += k;
+  majPoints();
+  if (codeSaisi.length < 4) return;
+  if (codeSaisi === state.pin) { deverrouilleJusqua = Date.now() + 120000; fermer('m-code'); ouvrirReglages(); }
+  else { vibre([80, 60, 80]); document.getElementById('code-err').hidden = false; codeSaisi = ''; setTimeout(majPoints, 300); }
+}
+function ouvrirReglages() {
   renderSeg();
+  document.getElementById('inp-pin').value = state.pin || '';
   document.getElementById('inp-url').value = state.url;
   document.getElementById('inp-token').value = state.token;
   renderEtatMatch();
@@ -921,6 +983,9 @@ function saveSettings() {
   state.url = document.getElementById('inp-url').value.trim();
   const jt = document.getElementById('inp-token').value.match(/[0-9a-f]{20}/i);
   state.token = jt ? jt[0] : document.getElementById('inp-token').value.trim();
+  const pin = document.getElementById('inp-pin').value.trim();
+  if (pin && !/^\d{4}$/.test(pin)) { info('Le code doit faire 4 chiffres'); return; }
+  state.pin = pin;
   save(); fermer('m-settings'); renderAll(); envoyerVentes(); chargerMatch(true);
 }
 function renderEtatMatch() {
@@ -991,6 +1056,7 @@ function snack(msg, annulable) {
   const s = document.getElementById('snack');
   document.getElementById('snack-txt').textContent = msg;
   s.classList.toggle('info', !annulable);
+  s.classList.toggle('bas', !!document.querySelector('.overlay.open'));
   s.classList.add('show');
   clearTimeout(snackTimer);
   snackTimer = setTimeout(() => { s.classList.remove('show'); if (annulable) derniere = null; }, annulable ? DELAI_ANNUL : 2600);
