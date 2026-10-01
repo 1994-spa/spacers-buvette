@@ -8,8 +8,8 @@ Les tablettes et le tableau de bord utilisent la même URL de déploiement que l
 2. **Code.gs** : remplacer tout le contenu par `Code.gs` (V12). Les changements par rapport à la V11 sont limités et commentés en tête de fichier.
 3. **Fichiers ➕ → Script**, nommer `Pilotage`, coller `Pilotage.gs`. Idem avec `Historique.gs` (nommé `Historique`). Ne pas toucher à `Fidelite.gs`.
 4. **Paramètres du projet → Propriétés du script** : ajouter `VIVENU_API_KEY` = la clé API Tickie (la même que celle du relais tickie-proxy).
-5. Enregistrer, recharger le Sheet → menu **🏐 Matchday → 📡 Pilotage live → ⚙️ Initialiser le pilotage**. Autoriser le script, noter le **jeton** affiché.
-6. Menu **📡 Pilotage live → ⏱️ Activer le traitement auto (10 min)**.
+5. Enregistrer, recharger le Sheet → menu **🏐 Matchday → 📡 Pilotage live → ⚙️ Initialiser le pilotage**. Autoriser le script, noter le **jeton** affiché. Les matchs Spacer's de Tickie sont recopiés dans 10_MATCHS avec leur affluence.
+6. Menu **📡 Pilotage live → ⏱️ Activer le traitement auto** (billets/fidélité toutes les 10 min, matchs et affluences Tickie toutes les heures).
 7. **Déployer → Gérer les déploiements → ✏️ → Version : Nouvelle version → Déployer**. L'URL `…/exec` ne change pas.
 8. Ouvrir `https://spacers-buvette.spacersytb.workers.dev/pilotage.html`, coller l'URL `…/exec` et le jeton.
 9. En bas du tableau de bord : envoyer à chaque bénévole le lien de sa buvette (il configure la tablette d'un clic).
@@ -27,18 +27,7 @@ Le mode buvette est maintenant **par match** (colonne MODE_BUVETTE de 10_MATCHS)
 ## Historique 22-23 à 25-26
 Menu **📡 Pilotage live → 📚 Importer l'historique 22-26** : 51 matchs (ID du type `NIC-08-10-22`, STATUT HISTORIQUE), leurs lignes produits dans 50_VENTES_DIRECTES et les KPI. Relançable sans doublon ; « Retirer l'historique » annule. Les reportings n'ont pas d'affluence : la saisir dans 10_MATCHS (AFFLUENCE) puis « Recalculer tous les KPI saison ».
 
-## Onglets ajoutés
-| Onglet | Contenu |
-|---|---|
-| 51_VENTES_LIVE | une ligne par vente : buvette, total, consignes, billet scanné (id, code, tarif), client Tickie, points fidélité |
-| 52_STOCK_LIVE | stock restant remonté par chaque tablette |
-| 53_PREPA | stock de départ par match et par buvette |
-| 54_TABLETTES | dernier chargement et dernière remontée de chaque tablette |
-
-Colonnes ajoutées à 10_MATCHS : `TICKIE_EVENT_ID`, `AFFLUENCE_TICKIE` (reprise par les KPI quand l'export OandB du match est vide).
-
-## Données personnelles
-- La tablette ne reçoit et n'envoie que : identifiant du billet, code-barres, tarif. Ni nom ni email.
-- Le lien vers l'acheteur (id client Tickie, email pour la fidélité) est fait par le script, côté serveur.
-- Le tableau de bord ne reçoit que des totaux.
-- À afficher en buvette et dans la politique de confidentialité : le scan du billet sert à mesurer la consommation par profil de spectateur et à créditer les points du programme de fidélité.
+## Onglet ajouté
+Un seul : **51_VENTES_LIVE** (une ligne par vente : buvette, total, consignes, billet scanné, client Tickie, points fidélité).
+Stock de départ, stock restant et suivi des tablettes sont gardés dans les propriétés du script.
+Colonnes ajoutées à 10_MATCHS : `TICKIE_EVENT_ID`, `MODE_BUVETTE`. L'affluence Tickie est écrite dans la colonne AFFLUENCE existante.

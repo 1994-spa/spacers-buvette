@@ -8,7 +8,9 @@
 //
 // Flux jour de match :
 //  1. Tableau de bord (pilotage.html) : choix du match Tickie + stock par buvette
-//     → action=prepa → 53_PREPA, ligne 10_MATCHS créée si besoin, PILOTAGE!B9.
+//     → action=prepa → stock gardé dans le script, match actif dans PILOTAGE!B9.
+//  0. Les matchs Spacer's de Tickie sont recopiés dans 10_MATCHS (menu ou auto, 1 fois/h),
+//     avec l'affluence (billets + abonnés, puis entrées scannées) dans AFFLUENCE.
 //  2. Tablette en wifi : action=tablette → match, stock, billets valides
 //     (code-barres + tarif, sans nom ni email) pour travailler hors ligne.
 //  3. Tablette hors ligne : ventes stockées, renvoyées au retour du réseau
@@ -25,9 +27,8 @@ const PIL = {
   PORTIER_BASE: 'https://portier.vivenu.com/api',
   ABONNEMENT_EVENT_ID: '69fc9d2b69a5578199f9d5e9',   // « Abonnement 2026-2027 » dans Tickie
   SH_LIVE: '51_VENTES_LIVE',
-  SH_STOCK: '52_STOCK_LIVE',
-  SH_PREPA: '53_PREPA',
-  SH_TAB: '54_TABLETTES',
+  // Un seul onglet ajouté (51_VENTES_LIVE) ; stock de départ, stock restant et suivi des
+  // tablettes sont gardés dans les propriétés du script.
   SH_VD: '50_VENTES_DIRECTES',
   FUT_LITRES: 30,
   BUVETTES: ['Buvette 1', 'Buvette 2', 'Buvette 3'],
@@ -57,6 +58,7 @@ function pilotageMenu_(ui) {
   return ui.createMenu('📡 Pilotage live')
     .addItem('⚙️ Initialiser le pilotage', 'pilotageInitialiser')
     .addItem('🔑 Afficher le jeton', 'pilotageAfficherJeton')
+    .addItem('🔄 Synchroniser les matchs Tickie', 'pilotageSyncMatchs')
     .addItem('🎫 Relier les billets scannés + fidélité', 'pilotageTraiterBillets')
     .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
     .addSeparator()
@@ -66,35 +68,56 @@ function pilotageMenu_(ui) {
 
 function pilotageInitialiser() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const mk = function (name, head) {
-    const sh = ss.getSheetByName(name) || ss.insertSheet(name);
-    if (sh.getLastRow() === 0) {
-      sh.getRange(1, 1, 1, head.length).setValues([head]).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
-      sh.setFrozenRows(1);
-    }
-    return sh;
-  };
-  mk(PIL.SH_LIVE, PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; })));
-  mk(PIL.SH_STOCK, ['Buvette', 'Réf.', 'Produit', 'Restant', 'Mis à jour']);
-  mk(PIL.SH_PREPA, ['ID_MATCH', 'ID événement Tickie', 'Buvette', 'Réf.', 'Stock de départ', 'Mis à jour']);
-  mk(PIL.SH_TAB, ['Buvette', 'ID_MATCH', 'Dernier chargement', 'Dernière remontée de ventes']);
+  let sh = ss.getSheetByName(PIL.SH_LIVE);
+  if (!sh) {
+    sh = ss.insertSheet(PIL.SH_LIVE);
+    const head = PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; }));
+    sh.getRange(1, 1, 1, head.length).setValues([head]).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  // Onglets d'une version précédente du pilotage : supprimés
+  ['52_STOCK_LIVE', '53_PREPA', '54_TABLETTES'].forEach(function (n) { const s2 = ss.getSheetByName(n); if (s2) ss.deleteSheet(s2); });
   pilEnsureVdHeader_();
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('PILOTAGE_TOKEN')) props.setProperty('PILOTAGE_TOKEN', Utilities.getUuid().replace(/-/g, '').slice(0, 20));
-  pilotageAfficherJeton();
+  let sync = '';
+  try { sync = '\n\n' + pilotageSyncMatchs(true) ; } catch (e) { sync = '\n\n⚠️ Matchs Tickie non synchronisés : ' + e.message; }
+  pilotageAfficherJeton(sync);
 }
 
-function pilotageAfficherJeton() {
+function pilotageAfficherJeton(suite) {
   const p = PropertiesService.getScriptProperties();
   const msg = 'Jeton de pilotage : ' + (p.getProperty('PILOTAGE_TOKEN') || '(lancer Initialiser)') +
-    '\nClé API Tickie (VIVENU_API_KEY) : ' + (p.getProperty('VIVENU_API_KEY') ? 'renseignée' : 'MANQUANTE (Paramètres du projet → Propriétés du script)');
+    '\nClé API Tickie (VIVENU_API_KEY) : ' + (p.getProperty('VIVENU_API_KEY') ? 'renseignée' : 'MANQUANTE (Paramètres du projet → Propriétés du script)') +
+    (typeof suite === 'string' ? suite : '');
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
 }
 
 function pilotageInstallerDeclencheur() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pilotageTraiterBillets') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('pilotageTraiterBillets').timeBased().everyMinutes(10).create();
-  try { SpreadsheetApp.getUi().alert('✅ Billets scannés reliés et fidélité créditée toutes les 10 minutes.'); } catch (e) {}
+  try { SpreadsheetApp.getUi().alert('✅ Toutes les 10 minutes : billets scannés reliés et fidélité créditée.\nToutes les heures : matchs et affluences Tickie mis à jour dans 10_MATCHS.'); } catch (e) {}
+}
+
+// ── Matchs Tickie → 10_MATCHS ────────────────────────────────────────────
+function pilotageSyncMatchs(silencieux) {
+  const evs = pilMatchsTickie_().filter(function (ev) { return /spacer/i.test(ev.nom); });
+  let abonnes = 0;
+  try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+  const lignes = evs.map(function (ev) {
+    const idm = pilIdMatch_(ev, true);
+    pilModeDirect_(idm);
+    const b = pilCompterBillets_(ev.id, 600).total;
+    const entrees = ev.dateMatch <= pilDate_(new Date()) ? pilCompterEntrees_(ev.id) : null;
+    const aff = entrees > 0 ? entrees : b + abonnes;
+    pilAffluence_(idm, aff);
+    return idm + ' : ' + aff + (entrees > 0 ? ' entrées' : ' attendus (' + b + ' billets + ' + abonnes + ' abonnés)');
+  });
+  PropertiesService.getScriptProperties().setProperty('PIL_SYNC', String(Date.now()));
+  const msg = '🔄 ' + evs.length + ' match(s) Tickie dans 10_MATCHS\n' + lignes.join('\n');
+  if (silencieux === true) return msg;
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
+  return msg;
 }
 
 // ── Utilitaires ──────────────────────────────────────────────────────────
@@ -235,7 +258,7 @@ function pilIdMatch_(ev, creer) {
   }
   if (!creer) return '';
   // Adversaire = texte après « Vs » dans le nom Tickie (« Spacer's Vs Narbonne - Samedi… »)
-  const m = String(ev.nom).match(/vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/i);
+  const m = String(ev.nom).match(/spacer'?s\s+vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/i) || String(ev.nom).match(/vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/i);
   const adv = m ? m[1].trim() : String(ev.nom);
   const idm = adv.replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase() + '-' + ev.dateMatch.slice(8, 10) + '-' + ev.dateMatch.slice(5, 7);
   if (cEv < 0) cEv = pilAjouterColonne_(sh, 'TICKIE_EVENT_ID');
@@ -245,7 +268,7 @@ function pilIdMatch_(ev, creer) {
       case 'ID_MATCH': return idm;
       case 'DATE': return ev.dateMatch;
       case 'ADVERSAIRE': return adv;
-      case 'TYPE_MATCH': return 'Championnat';
+      case 'TYPE_MATCH': return /coupe|cdf/i.test(ev.nom) ? 'Coupe de France' : 'Championnat';
       case 'STATUT': return 'OPEN';
       case 'ID_SAISON': return pilSaison_(ev.dateMatch);
       case 'TICKIE_EVENT_ID': return ev.id;
@@ -283,37 +306,31 @@ function pilSaison_(dateStr) {
   return '';
 }
 
+// ── Données gardées dans les propriétés du script ─────────────────────────
+function pilProp_(k, def) { try { const v = PropertiesService.getScriptProperties().getProperty(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function pilSetProp_(k, v) { PropertiesService.getScriptProperties().setProperty(k, JSON.stringify(v)); }
+
 // ── Préparation (stock de départ) ────────────────────────────────────────
 function pilEnregistrerPrepa_(eventId, stocks) {
   const ev = pilEvent_(eventId);
   if (!ev) throw new Error('Match introuvable dans Tickie');
   const idm = pilIdMatch_(ev, true);
   pilModeDirect_(idm);                                    // la buvette 26-27 est exploitée en direct
-  const sh = pilSheet_(PIL.SH_PREPA);
-  if (!sh) throw new Error('Pilotage non initialisé (menu 📡 Pilotage live → Initialiser)');
-  const data = sh.getDataRange().getValues(), now = new Date();
+  const now = new Date();
+  const prepa = pilStocksPrepa_(idm);
   Object.keys(stocks).forEach(function (b) {
-    if (PIL.BUVETTES.indexOf(b) < 0) return;
-    Object.keys(stocks[b]).forEach(function (ref) {
-      const q = Math.max(0, Math.round((Number(stocks[b][ref]) || 0) * 100) / 100);
-      const vals = [idm, eventId, b, ref, q, now];
-      const r = data.findIndex(function (row, i) { return i > 0 && String(row[0]) === idm && row[2] === b && row[3] === ref; });
-      if (r > 0) { sh.getRange(r + 1, 1, 1, 6).setValues([vals]); data[r] = vals; }
-      else { sh.appendRow(vals); data.push(vals); }
-    });
+    if (!prepa[b]) return;
+    Object.keys(stocks[b]).forEach(function (ref) { prepa[b][ref] = Math.max(0, Math.round((Number(stocks[b][ref]) || 0) * 100) / 100); });
   });
+  pilSetProp_('PIL_PREPA_' + idm, prepa);
   const pilot = pilSheet_('PILOTAGE');
   if (pilot) pilot.getRange('B9').setValue(idm);          // match actif du Matchday Business
   PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify({ eventId: eventId, idMatch: idm, saved: now.toISOString() }));
   return { idMatch: idm, saved: now.toISOString() };
 }
 function pilStocksPrepa_(idm) {
-  const out = {};
-  PIL.BUVETTES.forEach(function (b) { out[b] = {}; PIL.PREPA.forEach(function (p) { out[b][p[0]] = 0; }); });
-  const sh = pilSheet_(PIL.SH_PREPA);
-  if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues().forEach(function (r) {
-    if (String(r[0]) === idm && out[r[2]]) out[r[2]][r[3]] = Number(r[4]) || 0;
-  });
+  const out = {}, saved = pilProp_('PIL_PREPA_' + idm, {});
+  PIL.BUVETTES.forEach(function (b) { out[b] = {}; PIL.PREPA.forEach(function (p) { out[b][p[0]] = Number((saved[b] || {})[p[0]]) || 0; }); });
   return out;
 }
 function pilActif_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PIL_MATCH_ACTIF') || 'null'); } catch (e) { return null; } }
@@ -371,32 +388,21 @@ function pilEnregistrerVentes_(ventes) {
 }
 
 function pilMajStock_(buvette, stock) {
-  const sh = pilSheet_(PIL.SH_STOCK);
-  if (!sh) return;
-  const data = sh.getDataRange().getValues(), now = new Date();
-  Object.keys(stock).forEach(function (ref) {
-    const vals = [buvette, ref, ref === 'FUT_L' ? 'Bière (litres restants)' : pilProduit_(ref)[1], Number(stock[ref]) || 0, now];
-    const r = data.findIndex(function (row, i) { return i > 0 && row[0] === buvette && row[1] === ref; });
-    if (r > 0) sh.getRange(r + 1, 1, 1, 5).setValues([vals]); else { sh.appendRow(vals); data.push(vals); }
-  });
+  const all = pilProp_('PIL_STOCK', {}), now = new Date().toISOString();
+  all[buvette] = {};
+  Object.keys(stock).forEach(function (ref) { all[buvette][ref] = { restant: Number(stock[ref]) || 0, maj: now }; });
+  pilSetProp_('PIL_STOCK', all);
 }
 
 function pilJournal_(buvette, idm, col) {
-  const sh = pilSheet_(PIL.SH_TAB);
-  if (!sh) return;
-  const data = sh.getDataRange().getValues();
-  let r = data.findIndex(function (row, i) { return i > 0 && row[0] === buvette; });
-  if (r < 0) { sh.appendRow([buvette, '', '', '']); r = sh.getLastRow() - 1; }
-  if (idm) sh.getRange(r + 1, 2).setValue(idm);
-  sh.getRange(r + 1, col).setValue(new Date());
+  const j = pilProp_('PIL_TABLETTES', {});
+  const e = j[buvette] || { idMatch: '', chargement: null, remontee: null };
+  if (idm) e.idMatch = idm;
+  e[col === 3 ? 'chargement' : 'remontee'] = new Date().toISOString();
+  j[buvette] = e;
+  pilSetProp_('PIL_TABLETTES', j);
 }
-function pilLireJournal_() {
-  const sh = pilSheet_(PIL.SH_TAB), out = {};
-  if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues().forEach(function (r) {
-    out[r[0]] = { idMatch: r[1], chargement: r[2] || null, remontee: r[3] || null };
-  });
-  return out;
-}
+function pilLireJournal_() { return pilProp_('PIL_TABLETTES', {}); }
 
 // ── Tableau de bord ──────────────────────────────────────────────────────
 function pilFamilleTarif_(tarif, code) {
@@ -443,39 +449,26 @@ function pilDashboard_(eventId) {
     buv.parFamilleTarif[fam].ventes++; buv.parFamilleTarif[fam].ca += tot;
     if (r[PIL_I['ID billet']] || r[PIL_I['Code-barres']]) { buv.reliees.ventes++; buv.reliees.ca += tot; }
   });
-  const st = pilSheet_(PIL.SH_STOCK), stock = {};
-  if (st && st.getLastRow() > 1) st.getRange(2, 1, st.getLastRow() - 1, 5).getValues().forEach(function (r) {
-    (stock[r[0]] = stock[r[0]] || {})[r[1]] = { restant: r[3], maj: r[4] };
-  });
+  const stock = pilProp_('PIL_STOCK', {});
   return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(),
     produits: PIL.PRODUITS.map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString() };
 }
 
-// Affluence Tickie → 10_MATCHS.AFFLUENCE_TICKIE (reprise par les KPI quand l'export OandB est vide)
+// Affluence Tickie → colonne AFFLUENCE de 10_MATCHS (gardée par les KPI quand l'export OandB est vide)
 function pilAffluence_(idm, n) {
   const sh = pilSheet_('10_MATCHS');
   if (!sh || !n) return;
-  const d = sh.getDataRange().getValues(), h = d[0].map(String), cId = h.indexOf('ID_MATCH');
-  let c = h.indexOf('AFFLUENCE_TICKIE');
-  for (let r = 1; r < d.length; r++) {
-    if (String(d[r][cId]) !== idm) continue;
-    if (c < 0) c = pilAjouterColonne_(sh, 'AFFLUENCE_TICKIE');
-    else if (Number(d[r][c]) === n) return;
-    sh.getRange(r + 1, c + 1).setValue(n);
-    return;
-  }
+  const d = sh.getDataRange().getValues(), h = d[0].map(String), cId = h.indexOf('ID_MATCH'), c = h.indexOf('AFFLUENCE');
+  if (c < 0) return;
+  for (let r = 1; r < d.length; r++) if (String(d[r][cId]) === idm) { if (Number(d[r][c]) !== n) sh.getRange(r + 1, c + 1).setValue(n); return; }
 }
-function pilAffluenceTickie_(idm) {
-  const sh = pilSheet_('10_MATCHS');
-  if (!sh) return 0;
-  const d = sh.getDataRange().getValues(), h = d[0].map(String), c = h.indexOf('AFFLUENCE_TICKIE'), cId = h.indexOf('ID_MATCH');
-  if (c < 0) return 0;
-  for (let r = 1; r < d.length; r++) if (String(d[r][cId]) === idm) return Number(d[r][c]) || 0;
-  return 0;
-}
+function pilAffluenceTickie_(idm) { return 0; }   // compatibilité Code.gs V12 : l'affluence est déjà dans AFFLUENCE
 
 // ── Billets scannés → client Tickie + fidélité ───────────────────────────
 function pilotageTraiterBillets() {
+  if (Date.now() - (Number(PropertiesService.getScriptProperties().getProperty('PIL_SYNC')) || 0) > 3600000) {
+    try { pilotageSyncMatchs(true); } catch (e) {}
+  }
   const sh = pilSheet_(PIL.SH_LIVE);
   if (!sh || sh.getLastRow() < 2) return;
   const rg = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB);
