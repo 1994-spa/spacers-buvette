@@ -51,6 +51,7 @@ const PIL_LIVE_COLS = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvett
   'Consignes rendues', 'ID billet', 'Code-barres', 'Tarif billet', 'Client Tickie', 'Fidélité'];
 const PIL_I = {}; PIL_LIVE_COLS.forEach(function (c, i) { PIL_I[c] = i; });
 const PIL_NB = PIL_LIVE_COLS.length;
+const PIL_COL_PAIEMENT = PIL_NB + PIL.PRODUITS.length;   // index 0 de la colonne « Paiement » (CB / ESP), après les produits
 const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_UNIT', 'CONSIGNE_UNIT', 'CA_HT', 'CA_CONSIGNE', 'TYPE'];
 
 // ── Menu (ajouté à onOpen de Code.gs) ───────────────────────────────────
@@ -73,7 +74,7 @@ function pilotageInitialiser() {
   let sh = ss.getSheetByName(PIL.SH_LIVE);
   if (!sh) {
     sh = ss.insertSheet(PIL.SH_LIVE);
-    const head = PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; }));
+    const head = PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; })).concat(['Paiement']);
     sh.getRange(1, 1, 1, head.length).setValues([head]).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
     sh.setFrozenRows(1);
   }
@@ -365,6 +366,9 @@ function pilEnregistrerVentes_(ventes) {
   const sh = pilSheet_(PIL.SH_LIVE);
   if (!sh) throw new Error('Pilotage non initialisé (menu 📡 Pilotage live → Initialiser)');
   const vd = pilEnsureVdHeader_();
+  if (sh.getMaxColumns() < PIL_COL_PAIEMENT + 1) sh.insertColumnsAfter(sh.getMaxColumns(), PIL_COL_PAIEMENT + 1 - sh.getMaxColumns());
+  const hPay = sh.getRange(1, PIL_COL_PAIEMENT + 1);
+  if (!hPay.getValue()) hPay.setValue('Paiement').setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
   const last = sh.getLastRow(), deja = {};
   if (last > 1) sh.getRange(2, PIL_I['ID vente'] + 1, last - 1, 1).getValues().forEach(function (r) { deja[String(r[0])] = 1; });
   const rows = [], vdRows = [], recus = [], now = new Date();
@@ -375,12 +379,13 @@ function pilEnregistrerVentes_(ventes) {
     deja[String(v.id)] = 1;
     const t = v.ticket || {}, ts = new Date(v.ts || Date.now()), idm = v.matchId || '', b = v.buvette || '', day = pilDate_(ts);
     const row = [now, ts, v.id, idm, b, Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
-      t.ticket_id || '', t.barcode || '', t.tarif || '', '', ''];
+      t.ticket_id || '', t.barcode || '', t.tarif || '', '', v.annule ? 'annulation de ' + v.annule : ''];
     PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
+    row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : '');
     rows.push(row);
     Object.keys(v.lignes || {}).forEach(function (ref) {
       const q = Number(v.lignes[ref]) || 0, p = pilProduit_(ref), pu = Number((v.prix || {})[ref]) || p[2];
-      if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, 'VENTE']);
+      if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, v.annule ? 'ANNULATION' : 'VENTE']);
     });
     if (v.consigne) vdRows.push([idm, day, b, 'E01', 'Écocup (consigne)', v.consigne, 0, 1, 0, v.consigne, 'VENTE']);
     if (v.rendue) vdRows.push([idm, day, b, 'E01', 'Remboursement consigne', v.rendue, 0, -1, 0, -v.rendue, 'REMBOURSEMENT_CONSIGNE']);
@@ -428,21 +433,25 @@ function pilDashboard_(eventId) {
     if (idm) pilAffluence_(idm, billetterie.entrees > 0 ? billetterie.entrees : b.total + (abonnes || 0));
   }
   const sh = pilSheet_(PIL.SH_LIVE);
-  const data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB + PIL.PRODUITS.length).getValues() : [];
+  const data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, PIL_COL_PAIEMENT + 1).getValues() : [];
   const rows = data.filter(function (r) {
     return idm ? String(r[PIL_I['ID_MATCH']]) === idm : (ev && pilDate_(r[PIL_I['Horodatage']]) === ev.dateMatch);
   });
   const buv = { ca: 0, ventes: rows.length, consignes: 0, rendues: 0, parBuvette: {}, parProduit: {}, parQuartHeure: {},
-    reliees: { ventes: 0, ca: 0 }, parFamilleTarif: {} };
+    reliees: { ventes: 0, ca: 0 }, parFamilleTarif: {}, paiement: { CB: 0, ESP: 0, inconnu: 0 }, annulations: 0 };
   PIL.BUVETTES.forEach(function (b) { buv.parBuvette[b] = { ca: 0, ventes: 0 }; });
   PIL.PRODUITS.forEach(function (p) { buv.parProduit[p[0]] = { nom: p[1], qte: 0 }; });
   rows.forEach(function (r) {
     const tot = Number(r[PIL_I['Total €']]) || 0, b = r[PIL_I['Buvette']] || '?';
+    const annul = /^annulation/.test(String(r[PIL_I['Fidélité']]));
+    const pay = String(r[PIL_COL_PAIEMENT] || '');
+    buv.paiement[pay === 'CB' || pay === 'ESP' ? pay : 'inconnu'] += tot;
+    if (annul) { buv.annulations++; buv.ventes -= 2; }   // la ligne d'annulation et la vente annulée ne comptent plus
     buv.ca += tot;
     buv.consignes += Number(r[PIL_I['Consignes +']]) || 0;
     buv.rendues += Number(r[PIL_I['Consignes rendues']]) || 0;
     buv.parBuvette[b] = buv.parBuvette[b] || { ca: 0, ventes: 0 };
-    buv.parBuvette[b].ca += tot; buv.parBuvette[b].ventes++;
+    buv.parBuvette[b].ca += tot; buv.parBuvette[b].ventes += annul ? -1 : 1;
     PIL.PRODUITS.forEach(function (p, i) { buv.parProduit[p[0]].qte += Number(r[PIL_NB + i]) || 0; });
     const d = new Date(r[PIL_I['Horodatage']]);
     const q = Utilities.formatDate(new Date(Math.floor(d.getTime() / 900000) * 900000), pilTz_(), 'HH:mm');
@@ -477,10 +486,13 @@ function pilotageTraiterBillets() {
   const rg = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB);
   const data = rg.getValues(), memo = {}, debut = Date.now();
   let relies = 0, credites = 0;
+  const annulees = {};                                      // ventes annulées depuis la tablette : pas de points
+  data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+)$/); if (m) annulees[m[1]] = 1; });
   data.forEach(function (r) {
     if (Date.now() - debut > 270000) return;               // marge sous la limite d'exécution
     const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']];
     if ((!id && !code) || r[PIL_I['Fidélité']]) return;
+    if (annulees[String(r[PIL_I['ID vente']])]) { r[PIL_I['Fidélité']] = 'vente annulée'; return; }
     const key = id || ('bc:' + code);
     if (!(key in memo)) {
       try {
