@@ -384,8 +384,10 @@ const CV_AFFLUENCE = 0.08;   // incertitude sur le nombre de présents
 const PRODUITS_CMD = [['P02_COCA','Coca-Cola'],['P02_ORAN','Orangina'],['P02_ICET','Ice Tea'],['P02_SCHW','Schweppes Agrumes'],['P03','Eau plate 50cl'],['P04','Eau gazeuse 50cl']];
 const COLIS_DEF = { P02_COCA:24, P02_ORAN:24, P02_ICET:24, P02_SCHW:24, P03:24, P04:24 };
 let cmdData = null, cmdCalc = null;
-function colis(){ try { return Object.assign({}, COLIS_DEF, JSON.parse(localStorage.getItem('pilotage_colis')||'{}')); } catch(e){ return Object.assign({}, COLIS_DEF); } }
-function setColis(ref, n){ try { const c = colis(); c[ref] = n; localStorage.setItem('pilotage_colis', JSON.stringify(c)); } catch(e){} }
+// Colisage : onglet 📦 PRODUITS du Sheet (source unique) ; une modification ici ne vaut que pour cette session
+let colisSession = {};
+function colis(){ return Object.assign({}, COLIS_DEF, (typeof cmdData !== 'undefined' && cmdData && cmdData.colisage) || {}, colisSession); }
+function setColis(ref, n){ colisSession[ref] = n; }
 
 async function loadCommande(){
   if (!current) return;

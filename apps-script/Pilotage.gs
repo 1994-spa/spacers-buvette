@@ -1,22 +1,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PILOTAGE LIVE — module additif au Matchday Business (Code.gs V12)
+// PILOTAGE LIVE — module du Matchday Business (Code.gs V13 : onglets 📅 MATCHS, 🧾 VENTES, ⚙️ détail ventes…)
 // A coller comme NOUVEAU fichier Apps Script (Pilotage.gs), à côté de Code.gs
-// et Fidelite.gs. Réutilise NAVY / YELLOW, 10_MATCHS, 50_VENTES_DIRECTES,
-// PILOTAGE!B9 et _fidCreditOne_ (Fidelite.gs) s'il est présent.
+// et Fidelite.gs. Réutilise les couleurs et onglets de Code.gs (📅 MATCHS, ⚙️ détail ventes,
+// 🏠 ACCUEIL (match actif) et _fidCreditOne_ (Fidelite.gs) s'il est présent.
 //
 // Billetterie : Tickie (plateforme Vivenu, API https://vivenu.com/api).
 //
 // Flux jour de match :
 //  1. Tableau de bord (pilotage.html) : choix du match Tickie + stock par buvette
-//     → action=prepa → stock gardé dans le script, match actif dans PILOTAGE!B9.
-//  0. Les matchs Spacer's de Tickie sont recopiés dans 10_MATCHS (menu ou auto, 1 fois/h),
+//     → action=prepa → stock gardé dans le script, match actif dans 🏠 ACCUEIL.
+//  0. Les matchs Spacer's de Tickie sont recopiés dans 📅 MATCHS (menu ou auto, 1 fois/h),
 //     avec l'affluence (billets + abonnés, puis entrées scannées) dans AFFLUENCE.
 //  2. Tablette en wifi : action=tablette → match, stock, billets valides
 //     (code-barres + tarif, sans nom ni email) pour travailler hors ligne.
 //  3. Tablette hors ligne : ventes stockées, renvoyées au retour du réseau
-//     (action=ventes, idempotent) → 51_VENTES_LIVE + 50_VENTES_DIRECTES.
+//     (action=ventes, idempotent) → 🧾 VENTES + ⚙️ détail ventes.
 //  4. Déclencheur toutes les 10 min : billet scanné → client Tickie
-//     → 51_VENTES_LIVE (id client) + points fidélité (90_FIDELITE).
+//     → 🧾 VENTES (id client) + points fidélité (⭐ FIDÉLITÉ), puis 📅 MATCHS recalculé.
 //
 // Propriétés du script : VIVENU_API_KEY (clé API Tickie/Vivenu), PILOTAGE_TOKEN
 // (créé par « Initialiser le pilotage »). Le tableau de bord ne reçoit que des totaux.
@@ -26,10 +26,9 @@ const PIL = {
   VIVENU_BASE: 'https://vivenu.com/api',
   PORTIER_BASE: 'https://portier.vivenu.com/api',
   ABONNEMENT_EVENT_ID: '69fc9d2b69a5578199f9d5e9',   // « Abonnement 2026-2027 » dans Tickie
-  SH_LIVE: '51_VENTES_LIVE',
-  // Un seul onglet ajouté (51_VENTES_LIVE) ; stock de départ, stock restant et suivi des
-  // tablettes sont gardés dans les propriétés du script.
-  SH_VD: '50_VENTES_DIRECTES',
+  // Onglets : feuille_('VENTES') = 🧾 VENTES, feuille_('DETAIL') = ⚙️ détail ventes, feuille_('MATCHS') = 📅 MATCHS
+  // (anciens noms 51_VENTES_LIVE / 50_VENTES_DIRECTES / 10_MATCHS acceptés). Stock de départ, stock restant
+  // et suivi des tablettes sont gardés dans les propriétés du script.
   FUT_LITRES: 30,
   BUVETTES: ['Buvette 1', 'Buvette 2', 'Buvette 3'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
@@ -71,11 +70,11 @@ function pilotageMenu_(ui) {
 
 function pilotageInitialiser() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sh = ss.getSheetByName(PIL.SH_LIVE);
+  let sh = feuille_('VENTES');
   if (!sh) {
-    sh = ss.insertSheet(PIL.SH_LIVE);
+    sh = ss.insertSheet(ss.getSheetByName(ONG.MATCHS) ? ONG.VENTES : ONG_ANCIEN.VENTES);
     const head = PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; })).concat(['Paiement']);
-    sh.getRange(1, 1, 1, head.length).setValues([head]).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
+    styleEntete_(sh.getRange(1, 1, 1, head.length).setValues([head]));
     sh.setFrozenRows(1);
   }
   // Onglets d'une version précédente du pilotage : supprimés
@@ -99,10 +98,10 @@ function pilotageAfficherJeton(suite) {
 function pilotageInstallerDeclencheur() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pilotageTraiterBillets') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('pilotageTraiterBillets').timeBased().everyMinutes(10).create();
-  try { SpreadsheetApp.getUi().alert('✅ Toutes les 10 minutes : billets scannés reliés et fidélité créditée.\nToutes les heures : matchs et affluences Tickie mis à jour dans 10_MATCHS.'); } catch (e) {}
+  try { SpreadsheetApp.getUi().alert('✅ Toutes les 10 minutes : billets scannés reliés, fidélité créditée et 📅 MATCHS recalculé.\nToutes les heures : matchs et affluences Tickie mis à jour.'); } catch (e) {}
 }
 
-// ── Matchs Tickie → 10_MATCHS ────────────────────────────────────────────
+// ── Matchs Tickie → 📅 MATCHS ────────────────────────────────────────────
 function pilotageSyncMatchs(silencieux) {
   const evs = pilMatchsTickie_().filter(function (ev) { return /spacer/i.test(ev.nom); });
   let abonnes = 0;
@@ -117,7 +116,7 @@ function pilotageSyncMatchs(silencieux) {
     return idm + ' : ' + aff + (entrees > 0 ? ' entrées' : ' attendus (' + b + ' billets + ' + abonnes + ' abonnés)');
   });
   PropertiesService.getScriptProperties().setProperty('PIL_SYNC', String(Date.now()));
-  const msg = '🔄 ' + evs.length + ' match(s) Tickie dans 10_MATCHS\n' + lignes.join('\n');
+  const msg = '🔄 ' + evs.length + ' match(s) Tickie dans 📅 MATCHS\n' + lignes.join('\n');
   if (silencieux === true) return msg;
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
   return msg;
@@ -133,11 +132,11 @@ function pilProduit_(ref) { return PIL.PRODUITS.filter(function (x) { return x[0
 
 function pilEnsureVdHeader_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(PIL.SH_VD) || ss.insertSheet(PIL.SH_VD);
+  const sh = feuille_('DETAIL') || ss.insertSheet(ss.getSheetByName(ONG.MATCHS) ? ONG.DETAIL : ONG_ANCIEN.DETAIL);
   const h = sh.getLastRow() ? sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(String) : [];
   if (h.indexOf('CA_HT') < 0) {
     if (sh.getLastRow() === 0) sh.appendRow(PIL_VD_HDR); else sh.getRange(1, 1, 1, PIL_VD_HDR.length).setValues([PIL_VD_HDR]);
-    sh.getRange(1, 1, 1, PIL_VD_HDR.length).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
+    styleEntete_(sh.getRange(1, 1, 1, PIL_VD_HDR.length));
   }
   return sh;
 }
@@ -246,10 +245,10 @@ function pilCompterEntrees_(eventId) {   // null si le contrôle d'accès n'est 
   } catch (e) { return null; }
 }
 
-// ── 10_MATCHS : retrouver / créer l'ID_MATCH d'un match Tickie ───────────
+// ── 📅 MATCHS : retrouver / créer l'ID_MATCH d'un match Tickie ───────────
 function pilIdMatch_(ev, creer) {
-  const sh = pilSheet_('10_MATCHS');
-  if (!sh) throw new Error('10_MATCHS introuvable');
+  const sh = feuille_('MATCHS');
+  if (!sh) throw new Error('Onglet 📅 MATCHS introuvable');
   const d = sh.getDataRange().getValues(), h = d[0].map(String);
   const cId = h.indexOf('ID_MATCH'), cDate = h.indexOf('DATE');
   let cEv = h.indexOf('TICKIE_EVENT_ID');
@@ -268,27 +267,17 @@ function pilIdMatch_(ev, creer) {
   const idm = adv.replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase() + '-' + ev.dateMatch.slice(8, 10) + '-' + ev.dateMatch.slice(5, 7);
   if (cEv < 0) cEv = pilAjouterColonne_(sh, 'TICKIE_EVENT_ID');
   const hh = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
-  sh.appendRow(hh.map(function (c) {
-    switch (c) {
-      case 'ID_MATCH': return idm;
-      case 'DATE': return ev.dateMatch;
-      case 'ADVERSAIRE': return adv;
-      case 'TYPE_MATCH': return /coupe|cdf/i.test(ev.nom) ? 'Coupe de France' : 'Championnat';
-      case 'STATUT': return 'OPEN';
-      case 'ID_SAISON': return pilSaison_(ev.dateMatch);
-      case 'TICKIE_EVENT_ID': return ev.id;
-      case 'MODE_BUVETTE': return 'DIRECT';
-      default: return '';
-    }
-  }));
-  const k = pilSheet_('80_KPI_MATCH');
-  if (k) { const kh = k.getRange(1, 1, 1, k.getLastColumn()).getValues()[0].map(String); k.appendRow(kh.map(function (c) { return c === 'MATCH' ? idm : ''; })); }
+  sh.appendRow(ligneMatch_(hh, {
+    'ID_MATCH': idm, 'DATE': new Date(ev.dateMatch + 'T12:00:00'), 'ADVERSAIRE': adv,
+    'COMPÉTITION': /coupe|cdf/i.test(ev.nom) ? 'Coupe de France' : 'Championnat',
+    'STATUT': ev.dateMatch > pilDate_(new Date()) ? 'À VENIR' : 'JOUÉ', 'SAISON': pilSaison_(ev.dateMatch),
+    'TICKIE_EVENT_ID': ev.id, 'MODE BUVETTE': 'DIRECT' }));
   return idm;
 }
 function pilModeDirect_(idm) {
-  const sh = pilSheet_('10_MATCHS');
+  const sh = feuille_('MATCHS');
   const d = sh.getDataRange().getValues(), h = d[0].map(String), cId = h.indexOf('ID_MATCH');
-  let c = h.indexOf('MODE_BUVETTE');
+  let c = col_(h, 'MODE BUVETTE');
   for (let r = 1; r < d.length; r++) if (String(d[r][cId]) === idm) {
     if (c < 0) c = pilAjouterColonne_(sh, 'MODE_BUVETTE');
     sh.getRange(r + 1, c + 1).setValue('DIRECT');
@@ -297,15 +286,16 @@ function pilModeDirect_(idm) {
 }
 function pilAjouterColonne_(sh, nom) {
   const c = sh.getLastColumn();
-  sh.getRange(1, c + 1).setValue(nom).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
+  styleEntete_(sh.getRange(1, c + 1).setValue(nom));
   return c;
 }
 function pilSaison_(dateStr) {
-  const sh = pilSheet_('05_SAISONS');
+  const sh = feuille_('SAISONS');
   if (!sh) return '';
   const d = sh.getDataRange().getValues();
-  for (let r = 1; r < d.length; r++) {
-    const deb = d[r][2] ? pilDate_(d[r][2]) : '', fin = d[r][3] ? pilDate_(d[r][3]) : '';
+  for (let r = 0; r < d.length; r++) {
+    if (!(d[r][2] instanceof Date) || !(d[r][3] instanceof Date)) continue;   // ligne de titre ou d'en-tête
+    const deb = pilDate_(d[r][2]), fin = pilDate_(d[r][3]);
     if (deb && fin && dateStr >= deb && dateStr <= fin) return String(d[r][0]);
   }
   return '';
@@ -328,8 +318,8 @@ function pilEnregistrerPrepa_(eventId, stocks) {
     Object.keys(stocks[b]).forEach(function (ref) { prepa[b][ref] = Math.max(0, Math.round((Number(stocks[b][ref]) || 0) * 100) / 100); });
   });
   pilSetProp_('PIL_PREPA_' + idm, prepa);
-  const pilot = pilSheet_('PILOTAGE');
-  if (pilot) pilot.getRange('B9').setValue(idm);          // match actif du Matchday Business
+  const actifCell = SpreadsheetApp.getActiveSpreadsheet().getRangeByName('MATCH_ACTIF');   // 🏠 ACCUEIL
+  if (actifCell) actifCell.setValue(idm); else { const pilot = pilSheet_('PILOTAGE'); if (pilot) pilot.getRange('B9').setValue(idm); }
   PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify({ eventId: eventId, idMatch: idm, saved: now.toISOString() }));
   return { idMatch: idm, saved: now.toISOString() };
 }
@@ -358,13 +348,20 @@ function pilChargerTablette_(buvette) {
   try { billets = pilListerBillets_(ev.id).concat(pilListerBillets_(PIL.ABONNEMENT_EVENT_ID)); } catch (e) { billetsOk = false; }
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
-    buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES,
+    buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
     billets: billets, billetsOk: billetsOk, charge: new Date().toISOString() };
+}
+
+// Prix de vente et seuils de 📦 PRODUITS envoyés aux tablettes (réf → {prix, seuil})
+function pilPrixTablette_() {
+  const cat = produitsCatalogue_(), out = {};
+  PIL.PRODUITS.forEach(function (p) { const c = cat[p[0]]; if (c && c.prix > 0) out[p[0]] = { prix: c.prix, seuil: c.seuil }; });
+  return out;
 }
 
 // ── Réception des ventes ─────────────────────────────────────────────────
 function pilEnregistrerVentes_(ventes) {
-  const sh = pilSheet_(PIL.SH_LIVE);
+  const sh = feuille_('VENTES');
   if (!sh) throw new Error('Pilotage non initialisé (menu 📡 Pilotage live → Initialiser)');
   const vd = pilEnsureVdHeader_();
   if (sh.getMaxColumns() < PIL_COL_PAIEMENT + 1) sh.insertColumnsAfter(sh.getMaxColumns(), PIL_COL_PAIEMENT + 1 - sh.getMaxColumns());
@@ -446,7 +443,7 @@ function pilDashboard_(eventId) {
       abonnes: abonnes, entrees: pilCompterEntrees_(ev.id), jauge: ev.jauge };
     if (idm) pilAffluence_(idm, billetterie.entrees > 0 ? billetterie.entrees : b.total + (abonnes || 0));
   }
-  const sh = pilSheet_(PIL.SH_LIVE);
+  const sh = feuille_('VENTES');
   const data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, PIL_COL_PAIEMENT + 1).getValues() : [];
   const rows = data.filter(function (r) {
     return idm ? String(r[PIL_I['ID_MATCH']]) === idm : (ev && pilDate_(r[PIL_I['Horodatage']]) === ev.dateMatch);
@@ -490,9 +487,9 @@ function pilDashboard_(eventId) {
     produits: PIL.PRODUITS.map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString() };
 }
 
-// Affluence Tickie → colonne AFFLUENCE de 10_MATCHS (gardée par les KPI quand l'export OandB est vide)
+// Affluence Tickie → colonne AFFLUENCE de 📅 MATCHS
 function pilAffluence_(idm, n) {
-  const sh = pilSheet_('10_MATCHS');
+  const sh = feuille_('MATCHS');
   if (!sh || !n) return;
   const d = sh.getDataRange().getValues(), h = d[0].map(String), cId = h.indexOf('ID_MATCH'), c = h.indexOf('AFFLUENCE');
   if (c < 0) return;
@@ -505,8 +502,8 @@ function pilotageTraiterBillets() {
   if (Date.now() - (Number(PropertiesService.getScriptProperties().getProperty('PIL_SYNC')) || 0) > 3600000) {
     try { pilotageSyncMatchs(true); } catch (e) {}
   }
-  const sh = pilSheet_(PIL.SH_LIVE);
-  if (!sh || sh.getLastRow() < 2) return;
+  const sh = feuille_('VENTES');
+  if (!sh || sh.getLastRow() < 2) { try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {} return; }
   const rg = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB);
   const data = rg.getValues(), memo = {}, debut = Date.now();
   let relies = 0, credites = 0;
@@ -542,6 +539,7 @@ function pilotageTraiterBillets() {
     } else r[PIL_I['Fidélité']] = 'relié';
   });
   rg.setValues(data);
+  try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}   // 📅 MATCHS à jour en continu
   try { SpreadsheetApp.getActiveSpreadsheet().toast(relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'); } catch (e) {}
 }
 
@@ -556,13 +554,13 @@ function pilDonneesCommande_(eventId) {
   try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
   const idm = pilIdMatch_(ev, false);
 
-  // Matchs 26-27 déjà joués : quantités vendues et affluence (10_MATCHS.AFFLUENCE = entrées si connues)
-  const m10 = pilSheet_('10_MATCHS');
+  // Matchs 26-27 déjà joués : quantités vendues et affluence (📅 MATCHS.AFFLUENCE = entrées si connues)
+  const m10 = feuille_('MATCHS');
   const d10 = m10.getDataRange().getValues(), h10 = d10[0].map(String);
   const cId = h10.indexOf('ID_MATCH'), cAff = h10.indexOf('AFFLUENCE'), cEv = h10.indexOf('TICKIE_EVENT_ID');
   const aff = {}, evDe = {};
   d10.slice(1).forEach(function (r) { aff[String(r[cId])] = Number(r[cAff]) || 0; if (cEv >= 0 && r[cEv]) evDe[String(r[cId])] = String(r[cEv]); });
-  const live = pilSheet_(PIL.SH_LIVE);
+  const live = feuille_('VENTES');
   const parMatch = {};
   if (live && live.getLastRow() > 1) {
     live.getRange(2, 1, live.getLastRow() - 1, PIL_NB + PIL.PRODUITS.length).getValues().forEach(function (r) {
@@ -598,7 +596,8 @@ function pilDonneesCommande_(eventId) {
   return { event: ev, idMatch: idm,
     billetterie: { billets: b.total, payants: b.payants, invitations: b.invitations, abonnes: abonnes, jauge: ev.jauge },
     presence: taux.length ? taux.reduce(function (a, x) { return a + x; }, 0) / taux.length : null, presenceN: taux.length,
-    observes: observes, reste: reste, futLitres: PIL.FUT_LITRES, buvettes: PIL.BUVETTES };
+    observes: observes, reste: reste, futLitres: PIL.FUT_LITRES, buvettes: PIL.BUVETTES,
+    colisage: (function () { const c = {}, cat = produitsCatalogue_(); Object.keys(cat).forEach(function (r) { if (cat[r].colisage && r !== 'FUT') c[r] = cat[r].colisage; }); return c; })() };
 }
 
 // ── Accès sans saisie : tableau de bord et tablettes configurés par lien / QR ──
@@ -606,7 +605,7 @@ const PIL_APP_URL = 'https://spacers-buvette.spacersytb.workers.dev/';
 function pilLienConfig_(page, extra) {
   const p = PropertiesService.getScriptProperties();
   const url = pilUrlWebApp_();
-  if (!url) throw new Error("URL de l'application web introuvable : colle-la dans PILOTAGE (cellule sous le tableau) ou dans la propriété PIL_WEBAPP_URL");
+  if (!url) throw new Error("URL de l'application web introuvable : colle-la en bas de 🏠 ACCUEIL ou dans la propriété PIL_WEBAPP_URL");
   const cfg = Object.assign({ url: url, token: p.getProperty('PILOTAGE_TOKEN') }, extra || {});
   return PIL_APP_URL + page + '?cfg=' + encodeURIComponent(Utilities.base64Encode(JSON.stringify(cfg), Utilities.Charset.UTF_8));
 }
@@ -637,7 +636,7 @@ function pilUrlWebApp_() {
   if (prop && /\/exec$/.test(prop)) return prop;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const re = /https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/;
-  for (const n of ['PILOTAGE', '06_STOCKS']) {
+  for (const n of [ONG.ACCUEIL, 'PILOTAGE', '06_STOCKS']) {
     const sh = ss.getSheetByName(n); if (!sh) continue;
     const f = sh.createTextFinder('script.google.com/macros/s/').findNext();
     if (f) { const m = String(f.getValue()).match(re) || String(f.getFormula()).match(re); if (m) { p.setProperty('PIL_WEBAPP_URL', m[0]); return m[0]; } }

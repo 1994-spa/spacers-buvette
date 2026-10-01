@@ -1,15 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// HISTORIQUE BUVETTE — reportings 22-23 à 25-26 (module additif, Code.gs V12)
+// HISTORIQUE BUVETTE — reportings 22-23 à 25-26 (Code.gs V13)
 // A coller comme NOUVEAU fichier Apps Script (Historique.gs).
 // Menu 🏐 Matchday → 📡 Pilotage live → « Importer l'historique 22-26 ».
 //
-// Crée : saisons manquantes (05_SAISONS), un match par reporting dans 10_MATCHS
-// (ID du type NIC-08-10-22, STATUT HISTORIQUE, MODE_BUVETTE DIRECT), les lignes
-// produits dans 50_VENTES_DIRECTES (TYPE HISTORIQUE), la ligne 80_KPI_MATCH, puis
-// recalcule les KPI. Relançable sans doublon. « Retirer l'historique » annule tout.
+// Crée : saisons manquantes (⚙️ saisons), un match par reporting dans 📅 MATCHS
+// (ID du type NIC-08-10-22, STATUT HISTORIQUE, MODE BUVETTE DIRECT), les lignes
+// produits dans ⚙️ détail ventes (TYPE HISTORIQUE), puis recalcule 📅 MATCHS.
+// Relançable sans doublon. « Retirer l'historique » annule tout.
 // Le CA buvette historique = ventes du reporting (exploitant), food compris.
-// Les affluences ne figurent pas dans les reportings : à saisir dans 10_MATCHS (AFFLUENCE),
-// puis « Recalculer tous les KPI saison ».
+// Les affluences ne figurent pas dans les reportings : à saisir dans 📅 MATCHS (AFFLUENCE).
 // ═══════════════════════════════════════════════════════════════════════════
 
 const HISTO_TAG = 'REPORTING';
@@ -22,75 +21,48 @@ function _histoId_(adv, date) {
 
 function importerHistoriqueBuvette() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const ui = (function () { try { return SpreadsheetApp.getUi(); } catch (e) { return null; } })();
-
-  // 0. Figer le mode des matchs existants (sinon ils suivraient PILOTAGE!B8)
-  const mSh = ss.getSheetByName('10_MATCHS');
-  let mh = mSh.getRange(1, 1, 1, mSh.getLastColumn()).getValues()[0].map(String);
-  ['MODE_BUVETTE'].forEach(function (c) {
-    if (mh.indexOf(c) < 0) { mSh.getRange(1, mh.length + 1).setValue(c).setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold'); mh.push(c); }
-  });
-  const cId = mh.indexOf('ID_MATCH'), cMode = mh.indexOf('MODE_BUVETTE');
-  const pilot = ss.getSheetByName('PILOTAGE');
-  const def = pilot ? String(pilot.getRange('B8').getValue()).trim() || 'DIRECT' : 'DIRECT';
-  let md = mSh.getDataRange().getValues();
-  for (let r = 1; r < md.length; r++) if (md[r][cId] && !md[r][cMode]) mSh.getRange(r + 1, cMode + 1).setValue(def);
-  const existants = {}; md.slice(1).forEach(function (r) { existants[String(r[cId])] = 1; });
+  const mSh = feuille_('MATCHS');
+  const mh = entete_(mSh), cId = mh.indexOf('ID_MATCH');
+  const existants = {}; donnees_(mSh).forEach(function (r) { existants[String(r[cId])] = 1; });
 
   // 1. Saisons
-  const sSh = ss.getSheetByName('05_SAISONS');
-  const sd = sSh.getDataRange().getValues();
-  const saisons = {}; sd.forEach(function (r) { saisons[String(r[0])] = 1; });
+  const sSh = feuille_('SAISONS');
+  const saisons = {}; sSh.getDataRange().getValues().forEach(function (r) { saisons[String(r[0])] = 1; });
   ['2022-2023', '2023-2024', '2024-2025', '2025-2026'].forEach(function (s) {
     if (saisons[s]) return;
     const a = s.slice(0, 4), b = s.slice(5);
-    sSh.appendRow([s, 'Saison ' + a + '/' + b, a + '-09-01', b + '-06-30', "Spacer's TUC Volley", 'Pro A', 'Import reportings buvette', 'HISTORIQUE']);
+    sSh.appendRow([s, 'Saison ' + a + '/' + b, new Date(a + '-08-01'), new Date(b + '-07-31'), "Spacer's Toulouse Volley", 'Ligue A', 'Import reportings buvette', 'HISTORIQUE']);
   });
 
-  // 2. Matchs, 3. ventes, 4. KPI
-  const vd = (typeof pilEnsureVdHeader_ === 'function') ? pilEnsureVdHeader_() : ss.getSheetByName('50_VENTES_DIRECTES');
-  const kSh = ss.getSheetByName('80_KPI_MATCH');
-  const kh = kSh ? kSh.getRange(1, 1, 1, kSh.getLastColumn()).getValues()[0].map(String) : [];
-  const mRows = [], vRows = [], kRows = [], ids = [];
+  // 2. Matchs, 3. lignes produits
+  const vd = pilEnsureVdHeader_();
+  const mRows = [], vRows = [], ids = [];
   HISTO_DATA.forEach(function (h) {
     const id = _histoId_(h[2], h[1]);
     if (existants[id]) return;
     ids.push(id);
-    mRows.push(mh.map(function (c) {
-      switch (c) {
-        case 'ID_MATCH': return id;
-        case 'DATE': return h[1];
-        case 'ADVERSAIRE': return h[2];
-        case 'TYPE_MATCH': return h[3] === 'Ligue A' ? 'Championnat' : h[3];
-        case 'STATUT': return 'HISTORIQUE';
-        case 'ID_SAISON': return h[0];
-        case 'MODE_BUVETTE': return 'DIRECT';
-        default: return '';
-      }
-    }));
+    mRows.push(ligneMatch_(mh, { 'ID_MATCH': id, 'DATE': new Date(h[1] + 'T12:00:00'), 'ADVERSAIRE': h[2],
+      'COMPÉTITION': h[3] === 'Ligue A' ? 'Championnat' : h[3], 'STATUT': 'HISTORIQUE', 'SAISON': h[0], 'MODE BUVETTE': 'DIRECT' }));
     h[4].forEach(function (it) { vRows.push([id, h[1], HISTO_TAG, it[0].toUpperCase(), it[0] + ' (' + it[1] + ')', it[2], it[3], 0, it[4], 0, 'HISTORIQUE']); });
-    if (kSh) kRows.push(kh.map(function (c) { return c === 'MATCH' ? id : ''; }));
   });
   if (mRows.length) mSh.getRange(mSh.getLastRow() + 1, 1, mRows.length, mh.length).setValues(mRows);
   if (vRows.length) vd.getRange(vd.getLastRow() + 1, 1, vRows.length, 11).setValues(vRows);
-  if (kRows.length) kSh.getRange(kSh.getLastRow() + 1, 1, kRows.length, kh.length).setValues(kRows);
-  ids.forEach(function (id) { _calcKpiForMatch(ss, id); });
+  majMatchs(true);
   const msg = '✅ Historique importé : ' + ids.length + ' match(s), ' + vRows.length + ' ligne(s) de vente.' +
     (ids.length < HISTO_DATA.length ? '\n' + (HISTO_DATA.length - ids.length) + ' déjà présent(s), ignoré(s).' : '') +
-    '\n\nDASHBOARD_SAISON : tape 2022-2023, 2023-2024, 2024-2025 ou 2025-2026 en B3.\nAffluences à saisir dans 10_MATCHS (colonne AFFLUENCE), puis « Recalculer tous les KPI saison ».';
-  if (ui) ui.alert(msg); else Logger.log(msg);
+    '\n\nAffluences à saisir dans 📅 MATCHS (colonne AFFLUENCE) : les €/spectateur se calculent ensuite tout seuls.';
+  alerte_(msg);
 }
 
 function retirerHistoriqueBuvette() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ids = {}; HISTO_DATA.forEach(function (h) { ids[_histoId_(h[2], h[1])] = 1; });
-  const purge = function (name, col) {
-    const sh = ss.getSheetByName(name); if (!sh || sh.getLastRow() < 2) return 0;
+  const purge = function (sh, col) {
+    if (!sh || sh.getLastRow() < 2) return 0;
     const d = sh.getDataRange().getValues(), c = d[0].map(String).indexOf(col); if (c < 0) return 0;
     let n = 0;
     for (let r = d.length - 1; r >= 1; r--) if (ids[String(d[r][c])]) { sh.deleteRow(r + 1); n++; }
     return n;
   };
-  const n = purge('10_MATCHS', 'ID_MATCH'); purge('80_KPI_MATCH', 'MATCH'); purge('50_VENTES_DIRECTES', 'MATCH');
-  try { SpreadsheetApp.getUi().alert('Historique retiré : ' + n + ' match(s).'); } catch (e) {}
+  const n = purge(feuille_('MATCHS'), 'ID_MATCH'); purge(feuille_('DETAIL'), 'MATCH');
+  alerte_('Historique retiré : ' + n + ' match(s).');
 }

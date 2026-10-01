@@ -405,7 +405,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
           <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
         </div>
       </details>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-rapport</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-v13</p>
     </div>
   </div>
 </div>
@@ -469,6 +469,7 @@ const state = {
   historique:[],     // dernières ventes de la tablette (pour annuler / bilan)
   clotures:{},       // { 'Buvette 1': { fond, compte, attendu, ecart, ts, envoyee } } clôture de caisse du match
   fond:{},           // fond de caisse par buvette (mémorisé d'un match à l'autre)
+  prix:{},           // prix et seuils lus dans l'onglet 📦 PRODUITS du Sheet { réf: {prix, seuil} }
 };
 let panier = nouveauPanier();
 let billet = null;   // { ticket_id, barcode, tarif, prenom, nonVerifie }
@@ -482,7 +483,7 @@ function cumulTab(tab) {
   c.lignes = c.lignes || {};
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix'];
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); } catch(e) {} }
 function load() {
   try {
@@ -491,7 +492,7 @@ function load() {
     CLES.forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
     if (!state.url) state.url = s.pilotage || APPS_SCRIPT_URL;
     if (!Array.isArray(state.historique)) state.historique = [];
-    state.clotures = state.clotures || {}; state.fond = state.fond || {};
+    state.clotures = state.clotures || {}; state.fond = state.fond || {}; state.prix = state.prix || {};
   } catch(e) {}
 }
 
@@ -1092,6 +1093,7 @@ async function chargerMatch(auto) {
       st.hidden = true;
       return;
     }
+    if (d.produits && Object.keys(d.produits).length && panierVide()) { state.prix = d.produits; appliquerPrix(); renderTiles(); }
     if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {
       if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; save(); }
       return;
@@ -1103,7 +1105,12 @@ async function chargerMatch(auto) {
     dire('err', /aucun match préparé/i.test(e.message) ? '⏳ Le stock de ce match n\'a pas encore été préparé au tableau de bord.' : '❌ Chargement impossible (' + e.message + '). Vérifie le wifi.');
   }
 }
+// Prix du Sheet (📦 PRODUITS) appliqués au catalogue de la tablette
+function appliquerPrix() {
+  CATALOGUE.forEach(p => { const x = (state.prix || {})[p.ref]; if (x && x.prix > 0) { p.pv = x.prix; if (x.seuil) p.seuil = x.seuil; } });
+}
 function appliquerChargement(d, nouveau) {
+  if (d.produits && Object.keys(d.produits).length) { state.prix = d.produits; appliquerPrix(); }
   const reassort = !nouveau && state.match && state.match.prepa && state.match.prepa !== d.match.prepa;
   state.match = { eventId: d.match.eventId, idMatch: d.match.idMatch, nom: d.match.nom, date: d.match.date, charge: d.charge, prepa: d.match.prepa };
   state.futLitres = d.futLitres || 30;
@@ -1144,6 +1151,7 @@ try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock
 
 // ── Démarrage ───────────────────────────────────────────────────────
 load();
+appliquerPrix();
 lireLienConfig();
 initDefaultStocks();
 save();

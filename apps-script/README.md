@@ -1,32 +1,32 @@
-# Pilotage live — installation dans le Sheet Matchday Business
+# Matchday Business V13 — scripts du Sheet
 
-Le pilotage s'ajoute au projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*.
-Les tablettes et le tableau de bord utilisent la même URL de déploiement que les tablettes aujourd'hui.
+Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*. 5 fichiers :
+`Code.gs`, `Reorganisation.gs`, `Pilotage.gs`, `Historique.gs`, `Fidelite.gs`.
 
-## Installation (une fois)
-1. Ouvrir le Sheet → **Extensions → Apps Script** (projet « Buvette »).
-2. **Code.gs** : remplacer tout le contenu par `Code.gs` (V12). Les changements par rapport à la V11 sont limités et commentés en tête de fichier.
-3. **Fichiers ➕ → Script**, nommer `Pilotage`, coller `Pilotage.gs`. Idem avec `Historique.gs` (nommé `Historique`). Ne pas toucher à `Fidelite.gs`.
-4. **Paramètres du projet → Propriétés du script** : ajouter `VIVENU_API_KEY` = la clé API Tickie (la même que celle du relais tickie-proxy).
-5. Enregistrer, recharger le Sheet → menu **🏐 Matchday → 📡 Pilotage live → ⚙️ Initialiser le pilotage**. Autoriser le script, noter le **jeton** affiché. Les matchs Spacer's de Tickie sont recopiés dans 10_MATCHS avec leur affluence.
-6. Menu **📡 Pilotage live → ⏱️ Activer le traitement auto** (billets/fidélité toutes les 10 min, matchs et affluences Tickie toutes les heures).
-7. **Déployer → Gérer les déploiements → ✏️ → Version : Nouvelle version → Déployer**. L'URL `…/exec` ne change pas.
-8. Menu **📡 Pilotage live → 📊 Ouvrir le tableau de bord + liens tablettes** : le tableau de bord s'ouvre déjà connecté (aucune saisie), et chaque tablette se configure en scannant son QR code.
+## Passage en V13 (une fois)
+1. Sheet → **Extensions → Apps Script**.
+2. Remplacer tout le contenu de **Code.gs**, **Pilotage.gs**, **Historique.gs** et **Fidelite.gs** par les nouvelles versions.
+3. **Fichiers ➕ → Script**, nommer `Reorganisation`, coller `Reorganisation.gs`.
+4. Enregistrer, recharger le Sheet → menu **🏐 Matchday → 🧹 Réorganiser le fichier (V13)** → Oui.
+   - copie de sauvegarde complète dans le même dossier ;
+   - exports O&B 25-26 + Pennylane location déplacés dans un fichier d'archive privé (racine de Mon Drive) ;
+   - nouvelle structure, onglets obsolètes supprimés, indicateurs recalculés.
+5. **Déployer → Gérer les déploiements → ✏️ → Nouvelle version → Déployer** (l'URL `…/exec` ne change pas).
+6. Compléter les prix d'achat manquants dans **📦 PRODUITS**, puis **🔎 Vérifier le fichier**.
 
-## Jour de match
-1. **Tableau de bord** : la commande conseillée est calculée selon l'affluence Tickie et l'historique ; le stock des 3 buvettes est pré-rempli à partir d'elle. Vérifier puis « Enregistrer le stock ».
-   → le match est créé dans 10_MATCHS s'il n'existe pas (ex. `NAR-10-10`) et devient le match actif (PILOTAGE!B9).
-2. **Tablettes** : rien à faire. Dès qu'elles ont le wifi (ouverture de l'app, puis toutes les 5 min), elles chargent le match, leur stock et les billets. Le tableau de bord affiche « ✓ tablette chargée ».
-3. **En buvette** : la tablette fonctionne hors ligne. Ventes et billets scannés sont gardés sur la tablette.
-4. **Retour du wifi** : tout repart seul. Les ventes arrivent dans `51_VENTES_LIVE` (détail) et `50_VENTES_DIRECTES` (lignes produits, lues par les KPI).
-5. **Réassort pendant le match** : modifier le stock au tableau de bord ; la tablette le prend en compte seule dans les 5 minutes si elle a du réseau (compteurs conservés).
+## Onglets
+| Onglet | Rôle | Rempli par |
+|---|---|---|
+| 🏠 ACCUEIL | Mode d'emploi, match actif, liens | auto |
+| 📊 TABLEAU DE BORD | Saison au choix (B4), comparaison des saisons, matchs de la saison, graphique | formules |
+| 📅 MATCHS | Une ligne par match : affluence, CA, €/spectateur, panier, familles, marge, foodtrucks | auto (affluence, notes modifiables) |
+| 🧾 VENTES | Une ligne par vente des tablettes (paiement, billet, produits) | tablettes |
+| 📦 PRODUITS | Prix de vente (envoyés aux tablettes), prix d'achat, colisage, seuils | à la main |
+| 🛒 ACHATS | Factures fournisseurs par match | à la main |
+| 🚚 FOODTRUCKS | Formule (gratuit / forfait / % du CA / forfait + %), montant dû calculé, payé | à la main |
+| ⭐ FIDÉLITÉ | Points des spectateurs | auto |
+| ⚙️ saisons, ⚙️ détail ventes, ⚙️ journal fidélité | Techniques, masqués | auto |
 
-Le mode buvette est maintenant **par match** (colonne MODE_BUVETTE de 10_MATCHS) : les matchs préparés au tableau de bord passent en DIRECT, les matchs 25-26 gardent LOCATION. PILOTAGE!B8 ne sert plus que de valeur par défaut.
-
-## Historique 22-23 à 25-26
-Menu **📡 Pilotage live → 📚 Importer l'historique 22-26** : 51 matchs (ID du type `NIC-08-10-22`, STATUT HISTORIQUE), leurs lignes produits dans 50_VENTES_DIRECTES et les KPI. Relançable sans doublon ; « Retirer l'historique » annule. Les reportings n'ont pas d'affluence : la saisir dans 10_MATCHS (AFFLUENCE) puis « Recalculer tous les KPI saison ».
-
-## Onglet ajouté
-Un seul : **51_VENTES_LIVE** (une ligne par vente : buvette, total, consignes, billet scanné, client Tickie, points fidélité).
-Stock de départ, stock restant et suivi des tablettes sont gardés dans les propriétés du script.
-Colonnes ajoutées à 10_MATCHS : `TICKIE_EVENT_ID`, `MODE_BUVETTE`. L'affluence Tickie est écrite dans la colonne AFFLUENCE existante.
+## Automatique
+- Toutes les 10 min (menu 📡 Pilotage live → Activer le traitement auto) : billets scannés reliés aux clients Tickie, points fidélité, 📅 MATCHS recalculé ; toutes les heures : matchs et affluences Tickie.
+- Les tablettes envoient ventes et clôtures de caisse dès qu'elles ont le wifi.
