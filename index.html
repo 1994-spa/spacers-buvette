@@ -348,9 +348,10 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 <!-- BILAN -->
 <div class="overlay" id="m-bilan">
   <div class="modal" style="max-width:720px">
-    <button class="x" onclick="fermer('m-bilan')" aria-label="Fermer">✕</button>
+    <button class="x" onclick="fermerEtVerrouiller('m-bilan')" aria-label="Fermer et verrouiller">✕</button>
     <h3 id="bilan-titre">📊 Bilan</h3>
     <div id="bilan"></div>
+    <button class="btn" style="width:100%;margin-top:14px;min-height:60px" onclick="fermerEtVerrouiller('m-bilan')">🔒 Fermer et verrouiller</button>
   </div>
 </div>
 
@@ -384,7 +385,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 <!-- RÉGLAGES -->
 <div class="overlay" id="m-settings">
   <div class="modal">
-    <button class="x" onclick="fermer('m-settings')" aria-label="Fermer">✕</button>
+    <button class="x" onclick="fermerEtVerrouiller('m-settings')" aria-label="Fermer et verrouiller">✕</button>
     <h3>⚙️ Réglages (responsable)</h3>
     <div class="form">
       <label>Cette tablette est à la
@@ -407,7 +408,8 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
           <button class="btn prim" onclick="saveSettings()">💾 Enregistrer</button>
         </div>
       </details>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-v13b</p>
+      <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-v13c</p>
     </div>
   </div>
 </div>
@@ -1146,7 +1148,13 @@ function snack(msg, annulable) {
 }
 function info(msg) { snack(msg, false); }
 function ouvrir(id) { document.getElementById(id).classList.add('open'); }
-function fermer(id) { document.getElementById(id).classList.remove('open'); if (id === 'm-scan') arreterCamera(); }
+function fermer(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'm-scan') arreterCamera();
+  if (id === 'm-bilan' || id === 'm-settings') verrouiller();   // fermer le rapport ou les réglages = reverrouiller
+}
+function verrouiller() { deverrouilleJusqua = 0; }
+function fermerEtVerrouiller(id) { fermer(id); info('🔒 Verrouillé'); }
 document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => {
   if (e.target !== o) return;
   if (o.id === 'm-scan') fermerScanner(); else if (o.id === 'm-aide') fermerAide(); else fermer(o.id);
