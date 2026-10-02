@@ -205,6 +205,10 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .caisse{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:stretch}
 .caisse label{display:flex;flex-direction:column;gap:6px;font-size:.75rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .caisse .input{font-size:1.4rem;font-weight:700;text-align:right}
+.inv{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:start}
+.inv label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;font-weight:800;color:var(--muted)}
+.inv .input{font-size:1.2rem;font-weight:700;text-align:right}
+.inv small{font-size:.75rem;font-weight:700;min-height:1em}
 .k.juste{background:var(--ok-bg)}.k.juste b{color:var(--ok)}
 .k.leger{background:var(--warn-bg)}.k.leger b{color:var(--warn)}
 .k.fort{background:var(--err-bg)}.k.fort b{color:var(--err)}
@@ -409,7 +413,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-v13c</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-marge</p>
     </div>
   </div>
 </div>
@@ -931,10 +935,17 @@ function afficherRapport() {
       <div class="k"><span>Espèces attendues</span><b id="cl-attendu">—</b><small>fond + ventes espèces</small></div>
       <label>Espèces comptées<input class="input" id="cl-compte" inputmode="decimal" placeholder="compter le tiroir" value="${cl ? cl.compte : ''}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecart-box"><span>Écart</span><b id="cl-ecart">—</b><small id="cl-ecart-s"></small></div>
-    </div>`
+    </div>
+    <div class="sec">Contrôle CB</div>
+    <div class="caisse">
+      <div class="k"><span>CB enregistrée</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} sur la tablette</small></div>
+      <label>Total du ticket TPE<input class="input" id="cl-tpe" inputmode="decimal" placeholder="ticket de fin" value="${cl && cl.tpe != null ? cl.tpe : ''}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
+      <div class="k" id="cl-ecb-box"><span>Écart CB</span><b id="cl-ecb">—</b><small id="cl-ecb-s"></small></div>
+    </div>
+    ${inventaireHtml(cl)}`
     + (cl ? `<div class="msg ${cl.envoyee ? 'ok' : 'warn'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })} — ${cl.envoyee ? 'rapport arrivé dans le Sheet ✅' : 'rapport gardé dans la tablette, il partira au retour du wifi 📶'}</div>
           <button class="btn small" style="margin-top:8px" onclick="rouvrirCaisse()">Rouvrir la caisse (corriger le comptage)</button>`
-         : `<button class="btn prim" style="width:100%;margin-top:10px;min-height:60px" onclick="cloturerCaisse()">🔒 Clôturer la caisse et envoyer le rapport</button>`);
+         : `<button class="btn prim" style="width:100%;margin-top:10px;min-height:60px" onclick="cloturerCaisse()">🔒 Clôturer : caisse + inventaire, envoyer le rapport</button>`);
   h += `<div class="grid2"><div><div class="sec">Vendu</div><div class="rows">`;
   const vendus = CATALOGUE.filter(p => (c.lignes[p.ref] || 0) > 0);
   h += vendus.length ? vendus.map(p => `<div><span>${esc(p.nom)} × ${c.lignes[p.ref]}</span><b>${fmt(c.lignes[p.ref] * p.pv)}</b></div>`).join('') : '<div><span>Aucune vente</span><b>—</b></div>';
@@ -960,11 +971,60 @@ function afficherRapport() {
     : `<div class="msg ok">✅ Toutes les ventes sont arrivées dans le Sheet.</div>`;
   if (state.outbox.length) h += `<button class="btn prim" style="width:100%;margin-top:10px" onclick="envoyerVentes()">📤 Réessayer l'envoi maintenant</button>`;
   document.getElementById('bilan').innerHTML = h;
-  majEcart();
+  majEcart(); majInventaire();
   ouvrir('m-bilan');
+}
+// Inventaire de fin : on compte ce qui reste (fûts pleins + fût entamé, bouteilles)
+function produitsInventaire() { return stockSuivi() ? CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)) : []; }
+function inventaireHtml(cl) {
+  if (!stockSuivi()) return '';
+  const inv = (cl && cl.inventaire) || {}, dis = cl ? 'disabled' : '';
+  let h = `<div class="sec">Inventaire de fin (compter ce qui reste)</div><div class="inv">`;
+  if (stockInit('FUT') > 0) {
+    const theo = litresRestants(false), pleins = inv.FUT_PLEINS ?? '', frac = inv.FUT_ENTAME ?? '';
+    h += `<label class="inv-biere">🍺 Fûts pleins (non entamés)<input class="input" id="inv-fut" inputmode="numeric" placeholder="0" value="${pleins}" ${dis} oninput="majInventaire()"></label>
+      <label class="inv-biere">Fût entamé, il reste…<select class="input" id="inv-entame" ${dis} onchange="majInventaire()">
+        ${[['', 'choisir'], ['0', 'aucun / vide'], ['0.25', '¼ de fût'], ['0.5', '½ fût'], ['0.75', '¾ de fût']].map(([v, t]) => `<option value="${v}" ${String(frac) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      <div class="k inv-biere"><span>Bière : théorique</span><b>${theo.toLocaleString('fr-FR')} L</b><small id="inv-fut-s">compté : —</small></div>`;
+  }
+  produitsInventaire().forEach(p => {
+    const theo = stockApresVentes(p.ref), v = inv[p.ref] ?? '';
+    h += `<label>${esc(p.nom)}<input class="input inv-n" data-ref="${p.ref}" inputmode="numeric" placeholder="théorique ${theo}" value="${v}" ${dis} oninput="majInventaire()"><small class="inv-e" id="inv-e-${p.ref}"></small></label>`;
+  });
+  return h + `</div>`;
+}
+function lireInventaire() {
+  const out = {}, manque = [];
+  if (stockInit('FUT') > 0) {
+    const f = document.getElementById('inv-fut'), e = document.getElementById('inv-entame');
+    if (!f || f.value.trim() === '' || !e || e.value === '') manque.push('bière'); else {
+      out.FUT_PLEINS = Number(f.value) || 0; out.FUT_ENTAME = Number(e.value) || 0;
+      out.FUT_L = Math.round((out.FUT_PLEINS + out.FUT_ENTAME) * (state.futLitres || 30) * 100) / 100;
+    }
+  }
+  document.querySelectorAll('.inv-n').forEach(i => { if (i.value.trim() === '') manque.push(prod(i.dataset.ref).nom); else out[i.dataset.ref] = Number(i.value) || 0; });
+  return { inv: out, manque };
+}
+function majInventaire() {
+  const { inv } = lireInventaire();
+  const s = document.getElementById('inv-fut-s');
+  if (s) s.textContent = inv.FUT_L != null ? `compté : ${inv.FUT_L.toLocaleString('fr-FR')} L (écart ${(inv.FUT_L - litresRestants(false)).toLocaleString('fr-FR', { signDisplay:'always' })} L)` : 'compté : —';
+  produitsInventaire().forEach(p => {
+    const e = document.getElementById('inv-e-' + p.ref); if (!e) return;
+    if (inv[p.ref] == null) { e.textContent = ''; return; }
+    const d = inv[p.ref] - stockApresVentes(p.ref);
+    e.textContent = d === 0 ? '✓ juste' : (d > 0 ? '+' : '') + d + ' vs théorique';
+    e.style.color = d === 0 ? 'var(--ok)' : 'var(--warn)';
+  });
 }
 const lireEuros = id => { const v = String(document.getElementById(id).value).replace(/\s/g, '').replace(',', '.'); return v === '' ? null : Number(v); };
 function majEcart() {
+  const c0 = cumulTab(), tpe = lireEuros('cl-tpe'), eb = document.getElementById('cl-ecb'), ebx = document.getElementById('cl-ecb-box');
+  if (eb) {
+    if (tpe == null || isNaN(tpe)) { eb.textContent = '—'; ebx.className = 'k'; document.getElementById('cl-ecb-s').textContent = 'saisir le total du ticket'; }
+    else { const d = Math.round((tpe - c0.cb) * 100) / 100; eb.textContent = (d > 0 ? '+' : d < 0 ? '−' : '') + fmt(Math.abs(d)); ebx.className = 'k ' + (d === 0 ? 'juste' : Math.abs(d) <= 2 ? 'leger' : 'fort');
+      document.getElementById('cl-ecb-s').textContent = d === 0 ? 'CB juste 👍' : d > 0 ? 'TPE au-dessus de la tablette' : 'paiements CB non passés au TPE ?'; }
+  }
   const c = cumulTab(), fond = lireEuros('cl-fond') || 0, compte = lireEuros('cl-compte');
   const attendu = Math.round((fond + c.esp) * 100) / 100;
   document.getElementById('cl-attendu').textContent = fmt(attendu);
@@ -978,6 +1038,10 @@ function majEcart() {
 function cloturerCaisse() {
   const c = cumulTab(), fond = lireEuros('cl-fond') || 0, compte = lireEuros('cl-compte');
   if (compte == null || isNaN(compte)) { info('Saisis d\'abord les espèces comptées'); document.getElementById('cl-compte').focus(); return; }
+  const tpe = lireEuros('cl-tpe');
+  if (c.nbCb > 0 && (tpe == null || isNaN(tpe))) { info('Saisis le total du ticket de fin du TPE'); document.getElementById('cl-tpe').focus(); return; }
+  const { inv, manque } = lireInventaire();
+  if (manque.length) { info('Inventaire à compléter : ' + manque.slice(0, 3).join(', ') + (manque.length > 3 ? '…' : '')); return; }
   const attendu = Math.round((fond + c.esp) * 100) / 100;
   state.fond[state.tab] = fond;
   state.clotures[state.tab] = {
@@ -986,7 +1050,8 @@ function cloturerCaisse() {
     ventes: c.ventes, ca: c.ca, cb: c.cb, nbCb: c.nbCb, esp: c.esp, nbEsp: c.nbEsp,
     fond, attendu, compte, ecart: Math.round((compte - attendu) * 100) / 100,
     gobeletsSortis: c.consigne, gobeletsRendus: c.rendue, lignes: Object.assign({}, c.lignes),
-    stock: stockSuivi() ? stockSnapshot() : {}, envoyee: false };
+    tpe: tpe == null || isNaN(tpe) ? null : tpe, ecartCb: tpe == null || isNaN(tpe) ? null : Math.round((tpe - c.cb) * 100) / 100,
+    stock: stockSuivi() ? stockSnapshot() : {}, inventaire: inv, envoyee: false };
   save();
   envoyerVentes();
   afficherRapport();
