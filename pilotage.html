@@ -330,7 +330,9 @@ function render(d){
     const prods = Object.entries(x.produits||{}).filter(([,q]) => q).map(([r,q]) => `${int(q)} ${esc(noms[r]||r)}`).join(' · ');
     const rapport = `<div class="rap">
         <div><span>💳 CB</span><b>${eur(x.cb||0, 2)}</b></div><div><span>💶 Espèces</span><b>${eur(x.esp||0, 2)}</b></div>
-        <div><span>♻️ Gobelets sortis/rendus</span><b style="white-space:nowrap">${int(x.consignes||0)} / ${int(x.rendues||0)}</b></div>
+        ${x.gob ? `<div><span>🥤 Écocups 33cl sortis/rendus</span><b style="white-space:nowrap">${int(x.gob.s33)} / ${int(x.gob.r33)}</b></div>
+        <div><span>🥤 Écocups 50cl sortis/rendus</span><b style="white-space:nowrap">${int(x.gob.s50)} / ${int(x.gob.r50)}</b></div>`
+        : `<div><span>♻️ Gobelets sortis/rendus</span><b style="white-space:nowrap">${int(x.consignes||0)} / ${int(x.rendues||0)}</b></div>`}
         <div><span>🎫 Avec billet</span><b>${pct(x.reliees||0, x.ventes)}</b></div></div>
       ${prods ? `<p class="note" style="margin-top:6px">${prods}</p>` : ''}
       ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b>${cl.ecartCb != null ? ` · CB vs TPE <b>${cl.ecartCb > 0 ? '+' : ''}${eur(cl.ecartCb, 2)}</b>` : ''}</div>`
