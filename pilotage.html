@@ -95,6 +95,12 @@ th:first-child,td:first-child{text-align:left}
 .link-card{display:flex;flex-direction:column;gap:6px;min-width:0}
 .link-card code{font-size:.72rem;background:var(--surface-2);border-radius:6px;padding:6px 8px;overflow-wrap:anywhere;color:var(--muted);max-height:4.5em;overflow:hidden}
 .link-card button{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer}
+.link-card .bts{display:flex;gap:8px;flex-wrap:wrap}
+.link-card button.qr{background:#001E2D;color:#fff;border-color:#001E2D}
+#qr-ov{position:fixed;inset:0;background:#fff;z-index:99;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;color:#001E2D;text-align:center}
+#qr-ov.on{display:flex}#qr-ov h3{margin:0;font-size:1.6rem}#qr-ov p{margin:0;font-size:.95rem;max-width:640px}
+#qr-box img,#qr-box canvas{width:min(78vw,68vh)!important;height:auto!important;image-rendering:pixelated;display:block}
+#qr-ov button{background:#001E2D;color:#fff;border:0;border-radius:10px;padding:12px 26px;font-size:1rem;font-weight:700;cursor:pointer}
 @media (max-width:800px){.links{grid-template-columns:minmax(0,1fr)}}
 .prepa-tbl input{width:84px;text-align:right;padding:7px 8px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);font-variant-numeric:tabular-nums}
 .prepa-tbl td,.prepa-tbl th{white-space:nowrap}
@@ -205,7 +211,8 @@ th:first-child,td:first-child{text-align:left}
       <p class="note" style="margin-top:10px">Le lien vente → acheteur (identifiant client CRM) est complété dans le Google Sheet avec « Relier les ventes aux acheteurs ». Ce tableau n'affiche que des totaux.</p></section>
     <section class="panel"><h2>Billetterie <span>billets valides du match</span></h2><div id="billetterie"></div></section>
   </div>
-  <section class="panel"><h2>Liens de configuration des tablettes <span>à envoyer par WhatsApp aux bénévoles</span></h2><div class="links" id="links"></div></section>
+  <section class="panel"><h2>Installer les tablettes <span>QR plein écran à scanner, ou lien à envoyer par WhatsApp</span></h2><div class="links" id="links"></div></section>
+  <div id="qr-ov"><h3 id="qr-t"></h3><div id="qr-box"></div><p>Avec l'appareil photo de la tablette, vise ce QR puis touche le lien.<br>iPad : après « Sur l'écran d'accueil », ouvre l'icône, touche « 📷 Scanner le QR de configuration » et vise à nouveau.</p><button type="button" id="qr-x">Fermer</button></div>
   <section class="panel"><h2>Repères historiques <span>CA boissons par match, reportings 22-23 à 25-26</span></h2><div id="repere"></div></section>
 </main>
 
@@ -610,16 +617,30 @@ function niceStep(max){ const raw = max/4; const p = Math.pow(10, Math.floor(Mat
 
 function renderLinks(){
   const base = location.origin && location.origin.startsWith('http') ? location.origin + '/' : 'https://spacers-buvette.spacersytb.workers.dev/';
-  const b64 = o => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
-  $('links').innerHTML = [1,2,3].map(n => {
-    const url = base + '?cfg=' + encodeURIComponent(b64({ url: cfg.url, token: cfg.token, tab: 'Buvette ' + n }));
-    return `<div class="link-card"><b>Buvette ${n}</b><code id="lk${n}">${esc(url)}</code><button type="button" data-n="${n}">Copier le lien</button></div>`;
-  }).join('');
-  $('links').querySelectorAll('button').forEach(bt => bt.onclick = () => {
+  const DEPLOIEMENT_APP = 'AKfycbw_0wr_XORTuVxaZU9YSa63IZiFfRf9vzPczAlwECPC7BPRD22s9TriBtDn7jca1qBmvg';
+  const m = String(cfg.url || '').match(/\/s\/([A-Za-z0-9_-]+)\/exec/);
+  const d = m && m[1] !== DEPLOIEMENT_APP ? '&d=' + m[1] : '';
+  const lien = n => base + '?b=' + n + '&k=' + encodeURIComponent(cfg.token || '') + d;
+  $('links').innerHTML = [1,2,3].map(n => `<div class="link-card"><b>Buvette ${n}</b><code id="lk${n}">${esc(lien(n))}</code>
+    <div class="bts"><button type="button" class="qr" data-q="${n}">🔳 QR plein écran</button><button type="button" data-n="${n}">Copier le lien</button></div></div>`).join('');
+  $('links').querySelectorAll('button[data-n]').forEach(bt => bt.onclick = () => {
     const txt = $('lk' + bt.dataset.n).textContent;
     navigator.clipboard.writeText(txt).then(() => { bt.textContent = 'Copié ✓'; setTimeout(() => bt.textContent = 'Copier le lien', 1800); })
       .catch(() => { const r = document.createRange(); r.selectNodeContents($('lk' + bt.dataset.n)); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); });
   });
+  $('links').querySelectorAll('button[data-q]').forEach(bt => bt.onclick = () => afficherQr(bt.dataset.q, lien(bt.dataset.q)));
+  $('qr-x').onclick = () => $('qr-ov').classList.remove('on');
+}
+function afficherQr(n, url){
+  const go = () => {
+    $('qr-t').textContent = 'Buvette ' + n; $('qr-box').innerHTML = '';
+    new QRCode($('qr-box'), { text: url, width: 600, height: 600, correctLevel: QRCode.CorrectLevel.M });
+    $('qr-ov').classList.add('on');
+  };
+  if (window.QRCode) return go();
+  const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  sc.onload = go; sc.onerror = () => alert('Pas de connexion : impossible d\'afficher le QR. Copie le lien à la place.');
+  document.head.appendChild(sc);
 }
 
 loadCfg();
