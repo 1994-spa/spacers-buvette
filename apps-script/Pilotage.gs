@@ -402,8 +402,18 @@ function pilEnregistrerVentes_(ventes) {
       const q = Number(v.lignes[ref]) || 0, p = pilProduit_(ref), pu = Number((v.prix || {})[ref]) || p[2];
       if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, v.annule ? 'ANNULATION' : 'VENTE']);
     });
-    if (v.consigne) vdRows.push([idm, day, b, 'E01', 'Écocup (consigne)', v.consigne, 0, 1, 0, v.consigne, 'VENTE']);
-    if (v.rendue) vdRows.push([idm, day, b, 'E01', 'Remboursement consigne', v.rendue, 0, -1, 0, -v.rendue, 'REMBOURSEMENT_CONSIGNE']);
+    // Écocups par taille (E33 / E50) ; tablette ancienne version sans détail → E01
+    const g = v.gob || null, typ = v.annule ? 'ANNULATION' : 'VENTE';
+    if (g) {
+      [33, 50].forEach(function (t) {
+        const s = Number(g['s' + t]) || 0, r = Number(g['r' + t]) || 0;
+        if (s) vdRows.push([idm, day, b, 'E' + t, 'Écocup ' + t + 'cl (consigne)', s, 0, 1, 0, s, typ]);
+        if (r) vdRows.push([idm, day, b, 'E' + t, 'Écocup ' + t + 'cl rendu', r, 0, -1, 0, -r, 'REMBOURSEMENT_CONSIGNE']);
+      });
+    } else {
+      if (v.consigne) vdRows.push([idm, day, b, 'E01', 'Écocup (consigne)', v.consigne, 0, 1, 0, v.consigne, 'VENTE']);
+      if (v.rendue) vdRows.push([idm, day, b, 'E01', 'Remboursement consigne', v.rendue, 0, -1, 0, -v.rendue, 'REMBOURSEMENT_CONSIGNE']);
+    }
   });
   if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   if (vdRows.length) vd.getRange(vd.getLastRow() + 1, 1, vdRows.length, vdRows[0].length).setValues(vdRows);
@@ -417,7 +427,7 @@ function pilEnregistrerCloture_(c) {
   const all = pilProp_('PIL_CLOTURE_' + idm, {});
   all[c.buvette] = { ts: c.ts, recu: new Date().toISOString(), ventes: c.ventes, ca: c.ca, cb: c.cb, nbCb: c.nbCb,
     esp: c.esp, nbEsp: c.nbEsp, fond: c.fond, attendu: c.attendu, compte: c.compte, ecart: c.ecart,
-    gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, stock: c.stock || {},
+    gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, gob: c.gob || null, stock: c.stock || {},
     tpe: c.tpe == null ? null : c.tpe, ecartCb: c.ecartCb == null ? null : c.ecartCb };
   pilSetProp_('PIL_CLOTURE_' + idm, all);
   if (c.inventaire && Object.keys(c.inventaire).length) {
@@ -533,6 +543,17 @@ function pilDashboard_(eventId) {
     buv.parFamilleTarif[fam].ventes++; buv.parFamilleTarif[fam].ca += tot;
     if (r[PIL_I['ID billet']] || r[PIL_I['Code-barres']]) { buv.reliees.ventes++; buv.reliees.ca += tot; }
   });
+  // Écocups par taille (⚙️ détail ventes : E33 / E50, E01 = ancien → 33)
+  buv.gob = { s33: 0, r33: 0, s50: 0, r50: 0 };
+  const vd = idm ? feuille_('DETAIL') : null;
+  if (vd && vd.getLastRow() > 1) {
+    vd.getRange(2, 1, vd.getLastRow() - 1, PIL_VD_HDR.length).getValues().forEach(function (r) {
+      if (String(r[0]) !== idm || !/^E(01|33|50)$/.test(String(r[3]))) return;
+      const k = (/REMBOURSEMENT/.test(String(r[10])) ? 'r' : 's') + (String(r[3]) === 'E50' ? '50' : '33'), q = Number(r[5]) || 0;
+      buv.gob[k] += q;
+      const pb = buv.parBuvette[r[2]]; if (pb) { pb.gob = pb.gob || { s33: 0, r33: 0, s50: 0, r50: 0 }; pb.gob[k] += q; }
+    });
+  }
   const stock = pilProp_('PIL_STOCK', {});
   const clotures = idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {};
   return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(), clotures: clotures,
