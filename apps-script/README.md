@@ -1,7 +1,7 @@
 # Matchday Business V13 — scripts du Sheet
 
 Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*. 5 fichiers :
-`Code.gs`, `Reorganisation.gs`, `Pilotage.gs`, `Historique.gs`, `Fidelite.gs`.
+`Code.gs`, `Reorganisation.gs`, `Pilotage.gs`, `Achats.gs`, `Historique.gs`, `Fidelite.gs`.
 
 ## Passage en V13 (une fois)
 1. Sheet → **Extensions → Apps Script**.
@@ -30,3 +30,13 @@ Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*
 ## Automatique
 - Toutes les 10 min (menu 📡 Pilotage live → Activer le traitement auto) : billets scannés reliés aux clients Tickie, points fidélité, 📅 MATCHS recalculé ; toutes les heures : matchs et affluences Tickie.
 - Les tablettes envoient ventes et clôtures de caisse dès qu'elles ont le wifi.
+
+## Marge par match (V14)
+- **Coût matière** = stock de départ (préparation du tableau de bord) − inventaire de fin, au prix d'achat HT de 📦 PRODUITS.
+- **Inventaire de fin** : compté sur la tablette à la clôture de caisse (fûts pleins + fût entamé, bouteilles), corrigeable au tableau de bord.
+- **Casse / écarts** = consommé − vendu. **Réserve 🙋 Bénévoles** : stock hors vente (départ et reste saisis au tableau de bord), coût à part.
+- **Marge HT** = CA HT (TVA par produit) − coût matière − conso bénévoles + redevances foodtrucks.
+- **Achats** : Pennylane est la seule source. 🛒 ACHATS recopie le compte 607100000 toutes les 6 h (propriété `PENNYLANE_API_KEY`,
+  token avec « Lecture des écritures comptables » + « Lecture des comptes comptables »). Le tableau de bord rapproche
+  achats + stock de début − consommé − bénévoles − stock restant = écart non expliqué.
+- Clôture de caisse : écart espèces et écart CB (ticket TPE − CB enregistrée) par match dans 📅 MATCHS.

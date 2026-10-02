@@ -31,6 +31,8 @@ const PIL = {
   // et suivi des tablettes sont gardés dans les propriétés du script.
   FUT_LITRES: 30,
   BUVETTES: ['Buvette 1', 'Buvette 2', 'Buvette 3'],
+  // Réserves hors vente : stock de début et de fin saisis au tableau de bord, jamais sur une tablette
+  RESERVES: ['Bénévoles'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
   PRODUITS: [
     ['P01_25',   'Bière 25cl',        3],
@@ -167,6 +169,7 @@ function pilotagePost_(body) {
       if (body.buvette) pilJournal_(body.buvette, null, 4);
       return pilJson_({ status: 'ok', recus: recus });
     }
+    if (body.action === 'inventaire') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerInventaire_(body.eventId, body.inventaires || {})));
     if (body.action === 'cloture') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerCloture_(body.cloture || {})));
     if (body.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerPrepa_(body.eventId, body.stocks || {})));
     return pilJson_({ status: 'error', message: 'Action inconnue' });
@@ -325,7 +328,7 @@ function pilEnregistrerPrepa_(eventId, stocks) {
 }
 function pilStocksPrepa_(idm) {
   const out = {}, saved = pilProp_('PIL_PREPA_' + idm, {});
-  PIL.BUVETTES.forEach(function (b) { out[b] = {}; PIL.PREPA.forEach(function (p) { out[b][p[0]] = Number((saved[b] || {})[p[0]]) || 0; }); });
+  PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) { out[b] = {}; PIL.PREPA.forEach(function (p) { out[b][p[0]] = Number((saved[b] || {})[p[0]]) || 0; }); });
   return out;
 }
 function pilActif_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PIL_MATCH_ACTIF') || 'null'); } catch (e) { return null; } }
@@ -334,8 +337,9 @@ function pilLirePrepa_(eventId) {
   let idm = '';
   if (eventId) { const ev = pilEvent_(eventId); if (ev) idm = pilIdMatch_(ev, false); }
   else if (actif) { idm = actif.idMatch; eventId = actif.eventId; }
-  return { eventId: eventId || '', idMatch: idm, actif: actif, lignes: PIL.PREPA, buvettes: PIL.BUVETTES,
-    stocks: idm ? pilStocksPrepa_(idm) : null, tablettes: pilLireJournal_() };
+  return { eventId: eventId || '', idMatch: idm, actif: actif, lignes: PIL.PREPA, buvettes: PIL.BUVETTES, reserves: PIL.RESERVES,
+    stocks: idm ? pilStocksPrepa_(idm) : null, tablettes: pilLireJournal_(),
+    inventaire: idm ? pilProp_('PIL_INVENTAIRE_' + idm, {}) : {}, futLitres: PIL.FUT_LITRES };
 }
 
 // Ce que la tablette emporte en buvette pour travailler hors ligne
@@ -400,10 +404,45 @@ function pilEnregistrerCloture_(c) {
   const all = pilProp_('PIL_CLOTURE_' + idm, {});
   all[c.buvette] = { ts: c.ts, recu: new Date().toISOString(), ventes: c.ventes, ca: c.ca, cb: c.cb, nbCb: c.nbCb,
     esp: c.esp, nbEsp: c.nbEsp, fond: c.fond, attendu: c.attendu, compte: c.compte, ecart: c.ecart,
-    gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, stock: c.stock || {} };
+    gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, stock: c.stock || {},
+    tpe: c.tpe == null ? null : c.tpe, ecartCb: c.ecartCb == null ? null : c.ecartCb };
   pilSetProp_('PIL_CLOTURE_' + idm, all);
-  if (c.stock && Object.keys(c.stock).length) pilMajStock_(c.buvette, c.stock);
+  if (c.inventaire && Object.keys(c.inventaire).length) {
+    // Inventaire compté : il remplace le stock théorique (reste réel pour la commande suivante)
+    const inv = pilProp_('PIL_INVENTAIRE_' + idm, {});
+    inv[c.buvette] = pilNormInventaire_(c.inventaire); inv[c.buvette]._source = 'tablette'; inv[c.buvette]._ts = c.ts;
+    pilSetProp_('PIL_INVENTAIRE_' + idm, inv);
+    pilMajStock_(c.buvette, pilStockDepuisInventaire_(inv[c.buvette]));
+  } else if (c.stock && Object.keys(c.stock).length) pilMajStock_(c.buvette, c.stock);
+  try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
   return { recu: c.id };
+}
+
+// Inventaire normalisé : FUT_L en litres, autres réfs en unités (nombres)
+function pilNormInventaire_(o) {
+  const out = {};
+  Object.keys(o || {}).forEach(function (k) { if (k.charAt(0) !== '_' && o[k] !== '' && o[k] !== null && !isNaN(Number(o[k]))) out[k] = Number(o[k]); });
+  if (out.FUT_L == null && out.FUT != null) out.FUT_L = out.FUT * PIL.FUT_LITRES;
+  delete out.FUT; delete out.FUT_PLEINS; delete out.FUT_ENTAME;
+  return out;
+}
+function pilStockDepuisInventaire_(inv) {
+  const o = {}; Object.keys(inv).forEach(function (k) { if (k.charAt(0) !== '_') o[k] = inv[k]; });
+  return o;
+}
+// Fin de match saisie au tableau de bord (réserve bénévoles, ou correction d'une buvette)
+function pilEnregistrerInventaire_(eventId, inventaires) {
+  const ev = pilEvent_(eventId);
+  if (!ev) throw new Error('Match introuvable dans Tickie');
+  const idm = pilIdMatch_(ev, true), inv = pilProp_('PIL_INVENTAIRE_' + idm, {});
+  PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) {
+    if (!inventaires[b]) return;
+    inv[b] = pilNormInventaire_(inventaires[b]); inv[b]._source = 'tableau de bord'; inv[b]._ts = new Date().toISOString();
+    if (PIL.BUVETTES.indexOf(b) >= 0) pilMajStock_(b, pilStockDepuisInventaire_(inv[b]));
+  });
+  pilSetProp_('PIL_INVENTAIRE_' + idm, inv);
+  try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
+  return { idMatch: idm, inventaire: inv };
 }
 
 function pilMajStock_(buvette, stock) {
@@ -503,7 +542,7 @@ function pilotageTraiterBillets() {
     try { pilotageSyncMatchs(true); } catch (e) {}
   }
   const sh = feuille_('VENTES');
-  if (!sh || sh.getLastRow() < 2) { try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {} return; }
+  if (!sh || sh.getLastRow() < 2) { try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {} return; }
   const rg = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB);
   const data = rg.getValues(), memo = {}, debut = Date.now();
   let relies = 0, credites = 0;
@@ -539,6 +578,7 @@ function pilotageTraiterBillets() {
     } else r[PIL_I['Fidélité']] = 'relié';
   });
   rg.setValues(data);
+  try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); } catch (e) {}   // achats Pennylane (toutes les 6 h)
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}   // 📅 MATCHS à jour en continu
   try { SpreadsheetApp.getActiveSpreadsheet().toast(relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'); } catch (e) {}
 }

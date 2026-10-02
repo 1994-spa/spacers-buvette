@@ -14,19 +14,21 @@ const REORG_SUPPRIMER = ['PILOTAGE', 'DASHBOARD', 'DASHBOARD_SAISON', '10_MATCHS
   '52_STOCK_LIVE', '53_PREPA', '54_TABLETTES', '60_ACHATS_DIRECTS', '70_FOODTRUCKS'];
 const REORG_ARCHIVER = ['20_OANDB_COMMANDES', '30_OANDB_TICKETS', '40_PENNYLANE_LOCATION', 'ANALYSE_SEGMENTS'];
 
-// Catalogue 26-27 : réf, produit, famille, prix vente, prix achat (unité ; FUT = fût 30 L), colisage, seuil
+// Catalogue 26-27 : réf, produit, famille, prix vente TTC, prix achat HT (unité ; FUT = fût 30 L), TVA, colisage, seuil
+const PRODUITS_ENTETE = ['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'TVA', 'COLISAGE', 'SEUIL ALERTE', 'NOTES'];
 const PRODUITS_26_27 = [
-  ['FUT',      'Bière — fût 30 L',      'Bière', '',  '',   1,  ''],
-  ['P01_25',   'Bière 25cl',            'Bière', 3,   '',   '', 15],
-  ['P01_50',   'Bière 50cl',            'Bière', 6,   '',   '', 10],
-  ['P02_COCA', 'Coca-Cola',             'Soft',  3,   0.72, 24, 5],
-  ['P02_ORAN', 'Orangina',              'Soft',  3,   '',   24, 5],
-  ['P02_ICET', 'Ice Tea',               'Soft',  3,   '',   24, 5],
-  ['P02_SCHW', 'Schweppes Agrumes',     'Soft',  3,   0.61, 24, 5],
-  ['P03',      'Eau plate 50cl',        'Eau',   1,   0.21, 24, 5],
-  ['P04',      'Eau gazeuse 50cl',      'Eau',   1,   0.23, 24, 5],
-  ['E01',      'Écocup (consigne)',     'Consigne', 1, 0.40, '', ''],
+  ['FUT',      'Bière — fût 30 L',      'Bière', '',  '',   0.2, 1,  ''],
+  ['P01_25',   'Bière 25cl',            'Bière', 3,   '',   0.2, '', 15],
+  ['P01_50',   'Bière 50cl',            'Bière', 6,   '',   0.2, '', 10],
+  ['P02_COCA', 'Coca-Cola',             'Soft',  3,   0.72, 0.1, 24, 5],
+  ['P02_ORAN', 'Orangina',              'Soft',  3,   '',   0.1, 24, 5],
+  ['P02_ICET', 'Ice Tea',               'Soft',  3,   '',   0.1, 24, 5],
+  ['P02_SCHW', 'Schweppes Agrumes',     'Soft',  3,   0.61, 0.1, 24, 5],
+  ['P03',      'Eau plate 50cl',        'Eau',   1,   0.21, 0.1, 24, 5],
+  ['P04',      'Eau gazeuse 50cl',      'Eau',   1,   0.23, 0.1, 24, 5],
+  ['E01',      'Écocup (consigne)',     'Consigne', 1, 0.40, 0, '', ''],
 ];
+const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE'];
 
 function reorganiserFichier() {
   const ui = SpreadsheetApp.getUi();
@@ -98,7 +100,6 @@ function reorganiser_() {
           'COMPÉTITION': g('COMPÉTITION') || 'Championnat', 'STATUT': String(g('STATUT') || ''), 'MODE BUVETTE': g('MODE BUVETTE') || 'DIRECT',
           'AFFLUENCE': Number(g('AFFLUENCE')) || Number(k.AFFLUENCE) || '',
           'CA BUVETTE €': Number(k.CA_BUVETTE_OU_LOCATION) || Number(g('CA BUVETTE €')) || '',
-          'ACHATS FACTURÉS €': Number(k.ACHATS) || Number(g('ACHATS FACTURÉS €')) || '',
           'CA BILLETTERIE €': Number(k.CA_BILLETTERIE) || '', 'TICKIE_EVENT_ID': g('TICKIE_EVENT_ID'),
         };
         if (o.STATUT === 'OPEN') o.STATUT = '';
@@ -115,16 +116,14 @@ function reorganiser_() {
     journal.push('📅 MATCHS : ' + lignes.length + ' match(s) repris');
   }
   const m = get(ONG.MATCHS);
-  mettreEnForme_(m, { dates: [3], euros: [9, 10, 12, 13, 19, 20, 21, 22], pourcents: [18], entiers: [8, 11, 14, 15, 16, 17], largeurs: { 1: 110, 4: 150, 24: 220 } });
+  migrerColonnesMatchs_(m);
+  formaterMatchs_(m);
   const idsMatchs = {}; donnees_(m).forEach(function (r) { idsMatchs[String(r[0])] = 1; });
   const regleMatch = SpreadsheetApp.newDataValidation().requireValueInRange(m.getRange('A2:A'), true).setAllowInvalid(false).build();
-  m.getRange('B2:B').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(sa.getRange('A2:A'), true).build());
-  m.getRange('F2:F').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['À VENIR', 'JOUÉ', 'HISTORIQUE'], true).build());
-  m.getRange('G2:G').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['DIRECT', 'LOCATION'], true).build());
-  m.getRange(1, 1, 1, MCOL.length).setNote(null);
-  m.getRange('H1').setNote('Affluence : remplie par Tickie (entrées scannées, sinon billets + abonnés). Modifiable à la main.');
-  m.getRange('I1').setNote('Boissons (et food pour les reportings 22-26), hors consignes. Calculé automatiquement.');
-  m.getRange('T1').setNote('CA − coût d\'achat théorique (prix d\'achat de 📦 PRODUITS). Vide si un prix d\'achat manque.');
+  const plage = function (n) { return m.getRange(lettre_(n) + '2:' + lettre_(n)); };
+  plage('SAISON').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(sa.getRange('A2:A'), true).build());
+  plage('STATUT').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['À VENIR', 'JOUÉ', 'HISTORIQUE'], true).build());
+  plage('MODE BUVETTE').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['DIRECT', 'LOCATION'], true).build());
 
   // ── 5. Détail des ventes (technique) : purge des lignes de test ─────────
   let vd = get(ONG.DETAIL) || get('50_VENTES_DIRECTES');
@@ -146,33 +145,25 @@ function reorganiser_() {
   // ── 7. PRODUITS (remplace 06_STOCKS) ────────────────────────────────────
   if (!get(ONG.PRODUITS)) {
     const p = ss.insertSheet(ONG.PRODUITS);
-    p.getRange(1, 1, 1, 8).setValues([['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'COLISAGE', 'SEUIL ALERTE', 'NOTES']]);
-    p.getRange(2, 1, PRODUITS_26_27.length, 7).setValues(PRODUITS_26_27);
-    p.getRange(2, 8).setValue('Prix d\'achat d\'un fût de 30 L. Rendement : 120 × 25cl ou 60 × 50cl.');
-    p.getRange(4, 8).setValue('Même fût que la 25cl.');
-    p.getRange('E3:E4').setFontColor('#64778A').setFontStyle('italic');
-    mettreEnForme_(p, { euros: [4, 5], entiers: [6, 7], largeurs: { 2: 190, 8: 380 } });
-    p.getRange('A2:A').setFontColor('#64778A');
-    p.getRange('A1').setNote('Ne pas modifier les références : l\'app et le tableau de bord s\'en servent.');
-    p.getRange('D1').setNote('Prix affichés sur les tablettes (pris en compte au prochain chargement du match).');
-    p.getRange('F1').setNote('Nombre d\'unités par colis : sert à la commande conseillée du tableau de bord.');
+    p.getRange(1, 1, 1, PRODUITS_ENTETE.length).setValues([PRODUITS_ENTETE]);
+    p.getRange(2, 1, PRODUITS_26_27.length, 8).setValues(PRODUITS_26_27);
+    p.getRange(2, 9).setValue('Prix d\'achat HT d\'un fût de 30 L. Rendement : 120 × 25cl ou 60 × 50cl.');
+    p.getRange(4, 9).setValue('Même fût que la 25cl.');
     journal.push('📦 PRODUITS créé : complète les prix d\'achat manquants (fût, Orangina, Ice Tea)');
   }
 
-  // ── 8. ACHATS ───────────────────────────────────────────────────────────
+  // ── 8. ACHATS (miroir de Pennylane, compte 607100000) ───────────────────
   if (!get(ONG.ACHATS)) {
-    const a = ss.insertSheet(ONG.ACHATS), H = ['DATE', 'MATCH', 'FOURNISSEUR', 'DÉTAIL', 'MONTANT HT €', 'N° FACTURE', 'NOTES'];
-    a.getRange(1, 1, 1, H.length).setValues([H]);
+    const a = ss.insertSheet(ONG.ACHATS);
+    a.getRange(1, 1, 1, ACHATS_ENTETE.length).setValues([ACHATS_ENTETE]);
     const old = get('60_ACHATS_DIRECTS');
     if (old) {
       const oh = entete_(old), rows = donnees_(old).filter(function (r) { return Number(r[col_(oh, 'MONTANT HT €')]) && !/renseigner/i.test(String(r[oh.indexOf('FOURNISSEUR')])); })
-        .map(function (r) { return [r[oh.indexOf('DATE')], r[col_(oh, 'MATCH')], r[oh.indexOf('FOURNISSEUR')], r[oh.indexOf('PRODUIT')], r[col_(oh, 'MONTANT HT €')], '', '']; });
-      if (rows.length) a.getRange(2, 1, rows.length, H.length).setValues(rows);
+        .map(function (r) { const d = r[oh.indexOf('DATE')]; return [d, 'Saisie', r[oh.indexOf('FOURNISSEUR')] + ' — ' + r[oh.indexOf('PRODUIT')], '', r[col_(oh, 'MONTANT HT €')], saisonDe_(d), d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : '', '', '']; });
+      if (rows.length) a.getRange(2, 1, rows.length, ACHATS_ENTETE.length).setValues(rows);
     }
   }
-  const ach = get(ONG.ACHATS);
-  mettreEnForme_(ach, { dates: [1], euros: [5], largeurs: { 3: 160, 4: 240, 7: 240 } });
-  ach.getRange('B2:B').setDataValidation(regleMatch);
+  assurerStructure_(true);
 
   // ── 9. FOODTRUCKS ───────────────────────────────────────────────────────
   if (!get(ONG.FOODTRUCKS)) {
@@ -270,12 +261,68 @@ function formulesProduits_() {
 function reparerFormules() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const actif = ss.getRangeByName('MATCH_ACTIF') ? String(ss.getRangeByName('MATCH_ACTIF').getValue() || '') : '';
+  assurerStructure_(true);
+  const m = feuille_('MATCHS'); if (m) { migrerColonnesMatchs_(m); formaterMatchs_(m); }
   construireTableauDeBord_();
   construireAccueil_(actif);
   formulesProduits_();
+  try { majMatchs(true); } catch (e) {}
   const t = ss.getSheetByName(ONG.TDB); if (t) { ss.setActiveSheet(t); ss.moveActiveSheet(2); }
   const a = ss.getSheetByName(ONG.ACCUEIL); if (a) { ss.setActiveSheet(a); ss.moveActiveSheet(1); }
   alerte_('✅ Formules reconstruites (langue du fichier : ' + ss.getSpreadsheetLocale() + ').');
+}
+
+// Structure V14 : colonne TVA dans 📦 PRODUITS, 🛒 ACHATS au format Pennylane (appelé aussi par majMatchs)
+function assurerStructure_(forcer) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const p = ss.getSheetByName(ONG.PRODUITS);
+  if (p) {
+    let h = entete_(p), ajout = false;
+    if (h.indexOf('TVA') < 0) {
+      ajout = true;
+      const iA = h.indexOf('PRIX ACHAT €') + 1;
+      p.insertColumnAfter(iA);
+      p.getRange(1, iA + 1).setValue('TVA');
+      const d = donnees_(p), iF = h.indexOf('FAMILLE');
+      if (d.length) p.getRange(2, iA + 1, d.length, 1).setValues(d.map(function (r) { return [/bi[eè]re/i.test(String(r[iF])) ? 0.2 : /consigne/i.test(String(r[iF])) ? 0 : 0.1]; }));
+      h = entete_(p);
+    }
+    const ix = function (n) { return h.indexOf(n) + 1; };
+    if (ajout || forcer) {
+    mettreEnForme_(p, { euros: [ix('PRIX VENTE €'), ix('PRIX ACHAT €')], pourcents: [ix('TVA')], entiers: [ix('COLISAGE'), ix('SEUIL ALERTE')], largeurs: (function () { const o = {}; o[ix('PRODUIT')] = 190; o[ix('NOTES')] = 380; return o; })() });
+    p.getRange('A2:A').setFontColor('#64778A');
+    p.getRange(1, ix('RÉF')).setNote('Ne pas modifier les références : l\'app et le tableau de bord s\'en servent.');
+    p.getRange(1, ix('PRIX VENTE €')).setNote('Prix TTC affichés sur les tablettes (pris en compte au prochain chargement du match).');
+    p.getRange(1, ix('PRIX ACHAT €')).setNote('Prix d\'achat HT à l\'unité (FUT : le fût de 30 L). Sert au coût matière et à la marge.');
+    p.getRange(1, ix('TVA')).setNote('Taux de TVA à la vente : 20 % alcool, 10 % softs et eaux consommés sur place.');
+    p.getRange(1, ix('COLISAGE')).setNote('Nombre d\'unités par colis : sert à la commande conseillée du tableau de bord.');
+    }
+  }
+  const a = ss.getSheetByName(ONG.ACHATS);
+  if (a) {
+    const h = entete_(a);
+    if (h.join('|') !== ACHATS_ENTETE.join('|')) {
+      // ancien format (DATE, MATCH, FOURNISSEUR, DÉTAIL, MONTANT HT €, N° FACTURE, NOTES) → format Pennylane
+      const rows = donnees_(a).filter(function (r) { return r.some(function (v) { return v !== '' && v !== null; }); }).map(function (r) {
+        const g = function (n) { const i = col_(h, n); return i >= 0 ? r[i] : ''; };
+        const d = g('DATE');
+        return [d, g('SOURCE') || 'Saisie', g('LIBELLÉ') || [g('FOURNISSEUR'), g('DÉTAIL')].filter(String).join(' — '), g('COMPTE'), g('MONTANT HT €'),
+          g('SAISON') || saisonDe_(d), g('MOIS') || (d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : ''), g('PIÈCE') || g('N° FACTURE'), g('ID PENNYLANE')];
+      });
+      if (a.getFilter()) a.getFilter().remove();
+      a.getRange(1, 1, Math.max(a.getLastRow(), 1), Math.max(a.getLastColumn(), ACHATS_ENTETE.length)).clearContent().clearDataValidations();
+      a.getRange(1, 1, 1, ACHATS_ENTETE.length).setValues([ACHATS_ENTETE]);
+      if (rows.length) a.getRange(2, 1, rows.length, ACHATS_ENTETE.length).setValues(rows);
+      mettreEnForme_(a, { dates: [1], euros: [5], largeurs: { 3: 340, 8: 200 } });
+      a.getRange('A1').setNote('Alimenté automatiquement par Pennylane (compte 607100000, achats buvette). Ne pas saisir ici : Pennylane reste la seule source des factures.');
+    }
+  }
+}
+function saisonDe_(d) {
+  if (!d) return '';
+  const j = jour_(d), sa = feuille_('SAISONS'); if (!sa) return '';
+  const r = donnees_(sa).filter(function (x) { return x[2] instanceof Date && x[3] instanceof Date && j >= jour_(x[2]) && j <= jour_(x[3]); })[0];
+  return r ? String(r[0]) : '';
 }
 
 // ── Mise en forme commune : en-tête charte, figé, filtre, formats ─────────
@@ -314,10 +361,10 @@ function construireAccueil_(matchActif) {
     ['', '', ''],
     ['OÙ TROUVER QUOI', 'À QUOI ÇA SERT', 'QUI LE REMPLIT'],
     [lien('TDB', '📊 TABLEAU DE BORD'), 'Choisir une saison : chiffres clés, comparaison avec les saisons passées, liste des matchs', 'Automatique'],
-    [lien('MATCHS', '📅 MATCHS'), 'Une ligne par match (22-23 → aujourd\'hui) : affluence, CA, €/spectateur, panier, marge… Utiliser le filtre pour chercher', 'Automatique (affluence et notes modifiables)'],
+    [lien('MATCHS', '📅 MATCHS'), 'Une ligne par match (22-23 → aujourd\'hui) : affluence, CA TTC/HT, coût matière, casse, conso bénévoles, marge HT, écarts de caisse… Filtre pour chercher', 'Automatique (affluence et notes modifiables)'],
     [lien('VENTES', '🧾 VENTES'), 'Chaque vente des tablettes : heure, buvette, paiement CB/espèces, billet scanné, produits', 'Automatique (tablettes)'],
-    [lien('PRODUITS', '📦 PRODUITS'), 'Prix de vente (affichés sur les tablettes), prix d\'achat, colisage, seuils d\'alerte', 'Toi, en début de saison'],
-    [lien('ACHATS', '🛒 ACHATS'), 'Factures fournisseurs, rattachées à un match : alimentent la marge', 'Toi, à réception des factures'],
+    [lien('PRODUITS', '📦 PRODUITS'), 'Prix de vente TTC (affichés sur les tablettes), prix d\'achat HT, TVA, colisage, seuils d\'alerte', 'Toi, en début de saison et à chaque changement de tarif'],
+    [lien('ACHATS', '🛒 ACHATS'), 'Achats buvette de Pennylane (compte 607100000), rapprochés de la consommation dans le tableau de bord', 'Automatique (Pennylane, toutes les 6 h)'],
     [lien('FOODTRUCKS', '🚚 FOODTRUCKS'), 'Foodtrucks présents par match, formule (gratuit / forfait / % du CA) et montant dû', 'Toi, selon le calendrier'],
     [lien('FIDELITE', '⭐ FIDÉLITÉ'), 'Points fidélité des spectateurs qui ont scanné leur billet à la buvette', 'Automatique (toutes les 10 min)'],
     ['', '', ''],
@@ -360,99 +407,149 @@ function construireTableauDeBord_(saisonForcee) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(ONG.TDB);
   const ancienne = sh ? String(sh.getRange('B4').getValue() || '') : '';
+  const stockDebut = ss.getRangeByName('STOCK_DEBUT') ? ss.getRangeByName('STOCK_DEBUT').getValue() : '';
   if (!sh) sh = ss.insertSheet(ONG.TDB); else { sh.getCharts().forEach(function (c) { sh.removeChart(c); }); sh.clear(); sh.getRange('A:Z').clearDataValidations(); }
   sh.setHiddenGridlines(true);
   const sa = feuille_('SAISONS');
   const liste = donnees_(sa).map(function (r) { return String(r[0]); }).filter(Boolean).sort();
   const enCours = (donnees_(sa).filter(function (r) { return String(r[7]) === 'EN COURS'; })[0] || [liste[liste.length - 1]])[0];
   const saison = saisonForcee || ancienne || enCours;
-  const M = "'" + ONG.MATCHS + "'!";
-  const S = function (lettre) { return M + lettre + '2:' + lettre; };
-  const cond = S('B') + ',$B$4';
+  const M = "'" + ONG.MATCHS + "'!", AC = "'" + ONG.ACHATS + "'!";
+  const S = function (nom) { const l = lettre_(nom); return M + l + '2:' + l; };
+  const cond = S('SAISON') + ',$B$4';
+  const titre = function (r, t) { sh.getRange(r, 1).setValue(t).setFontWeight('bold').setFontColor(NIGHT).setFontSize(12); };
 
   sh.getRange('A1').setValue('TABLEAU DE BORD BUVETTE');
-  sh.getRange('A2').setValue('Choisis la saison en B4 : tout se recalcule. Données issues de 📅 MATCHS.');
+  sh.getRange('A2').setValue('Choisis la saison en B4 : tout se recalcule. Marges disponibles à partir de 26-27 (tablettes + inventaires).');
   sh.getRange('A4').setValue('SAISON');
   sh.getRange('B4').setValue(saison).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(liste, true).build());
 
-  const kpis = [
-    ['MATCHS JOUÉS', '=COUNTIFS(' + cond + ',' + S('I') + ',">0")', '0'],
-    ['AFFLUENCE MOYENNE', '=IFERROR(AVERAGEIFS(' + S('H') + ',' + cond + ',' + S('H') + ',">0"),"—")', '#,##0'],
-    ['CA BUVETTE', '=SUMIFS(' + S('I') + ',' + cond + ')', '#,##0 €'],
-    ['CA MOYEN / MATCH', '=IFERROR(C7/A7,"—")', '#,##0 €'],
-    ['€ / SPECTATEUR', '=IFERROR(SUMIFS(' + S('I') + ',' + cond + ',' + S('H') + ',">0")/SUMIFS(' + S('H') + ',' + cond + ',' + S('I') + ',">0"),"—")', '0.00 €'],
-    ['PANIER MOYEN', '=IFERROR(SUMIFS(' + S('I') + ',' + cond + ',' + S('K') + ',">0")/SUMIFS(' + S('K') + ',' + cond + '),"—")', '0.00 €'],
-    ['MARGE ESTIMÉE', '=IF(SUMIFS(' + S('T') + ',' + cond + ')=0,"—",SUMIFS(' + S('T') + ',' + cond + '))', '#,##0 €'],
-    ['FOODTRUCKS', '=SUMIFS(' + S('U') + ',' + cond + ')', '#,##0 €'],
-  ];
-  kpis.forEach(function (k, i) {
-    sh.getRange(6, i + 1).setValue(k[0]);
-    sh.getRange(7, i + 1).setFormula(f_(k[1])).setNumberFormat(k[2]);
-  });
-  styleEntete_(sh.getRange(6, 1, 1, 8)).setFontSize(9).setHorizontalAlignment('center').setWrap(true);
-  sh.getRange(7, 1, 1, 8).setFontSize(20).setFontWeight('bold').setHorizontalAlignment('center').setBackground(DAY_SOFT).setFontColor(NIGHT);
-  sh.setRowHeight(7, 52);
+  const bloc = function (ligne, kpis) {
+    kpis.forEach(function (k, i) {
+      sh.getRange(ligne, i + 1).setValue(k[0]);
+      sh.getRange(ligne + 1, i + 1).setFormula(f_(k[1])).setNumberFormat(k[2]);
+    });
+    styleEntete_(sh.getRange(ligne, 1, 1, kpis.length)).setFontSize(9).setHorizontalAlignment('center').setWrap(true);
+    sh.getRange(ligne + 1, 1, 1, kpis.length).setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground(DAY_SOFT).setFontColor(NIGHT);
+    sh.setRowHeight(ligne + 1, 46);
+  };
+  const avecMarge = S('MARGE HT €') + ',"<>"';
+  bloc(6, [
+    ['MATCHS JOUÉS', '=COUNTIFS(' + cond + ',' + S('CA BUVETTE €') + ',">0")', '0'],
+    ['AFFLUENCE MOYENNE', '=IFERROR(AVERAGEIFS(' + S('AFFLUENCE') + ',' + cond + ',' + S('AFFLUENCE') + ',">0"),"—")', '#,##0'],
+    ['CA TTC', '=SUMIFS(' + S('CA BUVETTE €') + ',' + cond + ')', '#,##0 €'],
+    ['CA HT', '=SUMIFS(' + S('CA HT €') + ',' + cond + ')', '#,##0 €'],
+    ['MARGE HT', '=IF(COUNTIFS(' + cond + ',' + avecMarge + ')=0,"—",SUMIFS(' + S('MARGE HT €') + ',' + cond + '))', '#,##0 €'],
+    ['TAUX DE MARGE', '=IFERROR(SUMIFS(' + S('MARGE HT €') + ',' + cond + ')/SUMIFS(' + S('CA HT €') + ',' + cond + ',' + avecMarge + '),"—")', '0%'],
+    ['MARGE / SPECTATEUR', '=IFERROR(SUMIFS(' + S('MARGE HT €') + ',' + cond + ',' + S('AFFLUENCE') + ',">0")/SUMIFS(' + S('AFFLUENCE') + ',' + cond + ',' + avecMarge + '),"—")', '0.00 €'],
+    ['CASSE & ÉCARTS', '=SUMIFS(' + S('CASSE / ÉCARTS €') + ',' + cond + ')', '#,##0 €'],
+  ]);
+  bloc(9, [
+    ['€ / SPECTATEUR (CA)', '=IFERROR(SUMIFS(' + S('CA BUVETTE €') + ',' + cond + ',' + S('AFFLUENCE') + ',">0")/SUMIFS(' + S('AFFLUENCE') + ',' + cond + ',' + S('CA BUVETTE €') + ',">0"),"—")', '0.00 €'],
+    ['PANIER MOYEN', '=IFERROR(SUMIFS(' + S('CA BUVETTE €') + ',' + cond + ',' + S('NB VENTES') + ',">0")/SUMIFS(' + S('NB VENTES') + ',' + cond + '),"—")', '0.00 €'],
+    ['COÛT MATIÈRE', '=SUMIFS(' + S('COÛT MATIÈRE €') + ',' + cond + ')', '#,##0 €'],
+    ['CONSO BÉNÉVOLES', '=SUMIFS(' + S('CONSO BÉNÉVOLES €') + ',' + cond + ')', '#,##0 €'],
+    ['FOODTRUCKS', '=SUMIFS(' + S('FOODTRUCKS €') + ',' + cond + ')', '#,##0 €'],
+    ['ÉCARTS CAISSE', '=SUMIFS(' + S('ÉCART CAISSE €') + ',' + cond + ')', '#,##0.00 €'],
+    ['ÉCARTS CB / TPE', '=SUMIFS(' + S('ÉCART CB €') + ',' + cond + ')', '#,##0.00 €'],
+    ['VENTES AVEC BILLET', '=IFERROR(SUMPRODUCT((' + S('SAISON') + '=$B$4)*' + S('VENTES AVEC BILLET') + '*' + S('NB VENTES') + ')/SUMIFS(' + S('NB VENTES') + ',' + cond + '),"—")', '0%'],
+  ]);
 
   // Comparaison des saisons
-  const r0 = 9;
-  sh.getRange(r0, 1).setValue('COMPARAISON DES SAISONS');
-  const ent = ['SAISON', 'MATCHS', 'AFFLUENCE MOY.', 'CA BUVETTE', 'CA / MATCH', '€ / SPECTATEUR', 'PANIER MOYEN', 'ÉVOLUTION CA / MATCH'];
+  const r0 = 12;
+  titre(r0, 'COMPARAISON DES SAISONS');
+  const ent = ['SAISON', 'MATCHS', 'AFFLUENCE MOY.', 'CA TTC', 'CA / MATCH', '€ / SPECTATEUR', 'PANIER MOYEN', 'MARGE HT', 'TAUX DE MARGE', 'ÉVOL. CA / MATCH'];
   sh.getRange(r0 + 1, 1, 1, ent.length).setValues([ent]);
-  styleEntete_(sh.getRange(r0 + 1, 1, 1, ent.length)).setFontSize(9).setHorizontalAlignment('center');
+  styleEntete_(sh.getRange(r0 + 1, 1, 1, ent.length)).setFontSize(9).setHorizontalAlignment('center').setWrap(true);
   liste.forEach(function (s, i) {
-    const r = r0 + 2 + i, c = S('B') + ',$A' + r;
+    const r = r0 + 2 + i, c = S('SAISON') + ',$A' + r;
     sh.getRange(r, 1).setValue(s);
-    sh.getRange(r, 2, 1, 7).setFormulas([[
-      '=COUNTIFS(' + c + ',' + S('I') + ',">0")',
-      '=IFERROR(AVERAGEIFS(' + S('H') + ',' + c + ',' + S('H') + ',">0"),"—")',
-      '=SUMIFS(' + S('I') + ',' + c + ')',
+    sh.getRange(r, 2, 1, 9).setFormulas([[
+      '=COUNTIFS(' + c + ',' + S('CA BUVETTE €') + ',">0")',
+      '=IFERROR(AVERAGEIFS(' + S('AFFLUENCE') + ',' + c + ',' + S('AFFLUENCE') + ',">0"),"—")',
+      '=SUMIFS(' + S('CA BUVETTE €') + ',' + c + ')',
       '=IFERROR(D' + r + '/B' + r + ',"—")',
-      '=IFERROR(SUMIFS(' + S('I') + ',' + c + ',' + S('H') + ',">0")/SUMIFS(' + S('H') + ',' + c + ',' + S('I') + ',">0"),"—")',
-      '=IFERROR(SUMIFS(' + S('I') + ',' + c + ',' + S('K') + ',">0")/SUMIFS(' + S('K') + ',' + c + '),"—")',
+      '=IFERROR(SUMIFS(' + S('CA BUVETTE €') + ',' + c + ',' + S('AFFLUENCE') + ',">0")/SUMIFS(' + S('AFFLUENCE') + ',' + c + ',' + S('CA BUVETTE €') + ',">0"),"—")',
+      '=IFERROR(SUMIFS(' + S('CA BUVETTE €') + ',' + c + ',' + S('NB VENTES') + ',">0")/SUMIFS(' + S('NB VENTES') + ',' + c + '),"—")',
+      '=IF(COUNTIFS(' + c + ',' + avecMarge + ')=0,"—",SUMIFS(' + S('MARGE HT €') + ',' + c + '))',
+      '=IFERROR(SUMIFS(' + S('MARGE HT €') + ',' + c + ')/SUMIFS(' + S('CA HT €') + ',' + c + ',' + avecMarge + '),"—")',
       i === 0 ? '="—"' : '=IFERROR(E' + r + '/E' + (r - 1) + '-1,"—")',
     ].map(f_)]);
-    sh.getRange(r, 1, 1, 8).setBackground(i % 2 ? DAY_SOFT : WHITE);
+    sh.getRange(r, 1, 1, 10).setBackground(i % 2 ? DAY_SOFT : WHITE);
   });
   const r1 = r0 + 2, n = liste.length;
   sh.getRange(r1, 3, n, 1).setNumberFormat('#,##0');
   sh.getRange(r1, 4, n, 2).setNumberFormat('#,##0 €');
   sh.getRange(r1, 6, n, 2).setNumberFormat('0.00 €');
-  sh.getRange(r1, 8, n, 1).setNumberFormat('+0%;-0%;0%');
+  sh.getRange(r1, 8, n, 1).setNumberFormat('#,##0 €');
+  sh.getRange(r1, 9, n, 1).setNumberFormat('0%');
+  sh.getRange(r1, 10, n, 1).setNumberFormat('+0%;-0%;0%');
   sh.getRange(r1, 1, n, 1).setFontWeight('bold');
-  // Saison sélectionnée surlignée
-  const regle = SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$A' + r1 + '=$B$4')
-    .setBackground(DAY).setBold(true).setRanges([sh.getRange(r1, 1, n, 8)]).build();
-  const vert = SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0).setFontColor('#157A2E').setRanges([sh.getRange(r1, 8, n, 1)]).build();
-  const rouge = SpreadsheetApp.newConditionalFormatRule().whenNumberLessThan(0).setFontColor('#C0262D').setRanges([sh.getRange(r1, 8, n, 1)]).build();
-  sh.setConditionalFormatRules([regle, vert, rouge]);
+
+  // Rapprochement avec Pennylane (saison choisie)
+  const r3 = r1 + n + 1;
+  titre(r3, 'RAPPROCHEMENT AVEC PENNYLANE — achats buvette (compte 607100000)');
+  const lignes = [
+    ['Achats boissons facturés (Pennylane)', '=SUMIFS(' + AC + 'E2:E,' + AC + 'F2:F,$B$4)', '+'],
+    ['Stock au début de la saison (valeur HT, à saisir une fois)', '', '+'],
+    ['Coût matière consommé aux matchs', '=SUMIFS(' + S('COÛT MATIÈRE €') + ',' + cond + ')', '−'],
+    ['Conso bénévoles', '=SUMIFS(' + S('CONSO BÉNÉVOLES €') + ',' + cond + ')', '−'],
+    ['Stock restant valorisé (dernier inventaire)', '', '−'],
+    ['ÉCART NON EXPLIQUÉ', '=B' + (r3 + 1) + '+B' + (r3 + 2) + '-B' + (r3 + 3) + '-B' + (r3 + 4) + '-B' + (r3 + 5), '='],
+  ];
+  lignes.forEach(function (l, i) {
+    const r = r3 + 1 + i;
+    sh.getRange(r, 1).setValue(l[0]);
+    if (l[1]) sh.getRange(r, 2).setFormula(f_(l[1]));
+    sh.getRange(r, 3).setValue(l[2]).setHorizontalAlignment('center').setFontColor('#64778A');
+    sh.getRange(r, 2).setNumberFormat('#,##0.00 €').setHorizontalAlignment('right');
+    sh.getRange(r, 1, 1, 3).setBackground(i % 2 ? DAY_SOFT : WHITE);
+  });
+  sh.getRange(r3 + 2, 2).setValue(stockDebut === '' ? 0 : stockDebut).setBackground('#FFF8D6').setNote('À saisir une fois par saison : valeur HT du stock de boissons au 1er match.');
+  ss.setNamedRange('STOCK_DEBUT', sh.getRange(r3 + 2, 2));
+  ss.setNamedRange('STOCK_VALORISE', sh.getRange(r3 + 5, 2));
+  sh.getRange(r3 + 5, 2).setNote('Calculé par le script (inventaires comptés, sinon théorique) à chaque mise à jour des matchs.');
+  sh.getRange(r3 + 6, 1, 1, 3).setFontWeight('bold').setFontSize(12);
+  sh.getRange(r3 + 7, 1).setValue('Écart > 0 : achats sans consommation constatée (facture d\'un autre usage, inventaire manquant…). Écart < 0 : consommation sans facture (facture oubliée dans Pennylane, prix d\'achat trop haut…).')
+    .setFontColor('#64778A').setFontStyle('italic').setFontSize(9);
+  const regles = [
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$A' + r1 + '=$B$4').setBackground(DAY).setBold(true).setRanges([sh.getRange(r1, 1, n, 10)]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0).setFontColor('#157A2E').setRanges([sh.getRange(r1, 10, n, 1)]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenNumberLessThan(0).setFontColor('#C0262D').setRanges([sh.getRange(r1, 10, n, 1)]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenNumberBetween(-50, 50).setBackground(OK_BG).setRanges([sh.getRange(r3 + 6, 2)]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenNumberNotBetween(-50, 50).setBackground(ERR_BG).setRanges([sh.getRange(r3 + 6, 2)]).build(),
+  ];
+  sh.setConditionalFormatRules(regles);
 
   // Matchs de la saison
-  const r2 = r1 + n + 2;
-  sh.getRange(r2, 1).setValue('MATCHS DE LA SAISON');
-  sh.getRange(r2 + 1, 1).setFormula(f_('=IFERROR(QUERY(' + M + 'A1:V,"select C, D, E, H, I, M, L, K, R, U where B = \'"&$B$4&"\' order by C",1),"Aucun match pour cette saison")'));
-  styleEntete_(sh.getRange(r2 + 1, 1, 1, 10)).setFontSize(9).setWrap(true);
+  const r2 = r3 + 9;
+  titre(r2, 'MATCHS DE LA SAISON');
+  const cols = ['DATE', 'ADVERSAIRE', 'AFFLUENCE', 'CA BUVETTE €', 'CA HT €', 'MARGE HT €', 'TAUX DE MARGE', '€ / SPECTATEUR', 'PANIER MOYEN €', 'CASSE / ÉCARTS €', 'INVENTAIRE'];
+  const derniere = lettre_(MCOL[MCOL.length - 1]);
+  sh.getRange(r2 + 1, 1).setFormula(f_('=IFERROR(QUERY(' + M + 'A1:' + derniere + ',"select ' + cols.map(lettre_).join(', ') + ' where ' + lettre_('SAISON') + ' = \'"&$B$4&"\' order by ' + lettre_('DATE') + '",1),"Aucun match pour cette saison")'));
+  styleEntete_(sh.getRange(r2 + 1, 1, 1, cols.length)).setFontSize(9).setWrap(true);
   sh.getRange(r2 + 2, 1, 60, 1).setNumberFormat('dd/mm/yyyy');
-  sh.getRange(r2 + 2, 4, 60, 1).setNumberFormat('#,##0');
-  sh.getRange(r2 + 2, 5, 60, 1).setNumberFormat('#,##0 €');
-  sh.getRange(r2 + 2, 6, 60, 2).setNumberFormat('0.00 €');
-  sh.getRange(r2 + 2, 9, 60, 1).setNumberFormat('0%');
+  sh.getRange(r2 + 2, 3, 60, 1).setNumberFormat('#,##0');
+  sh.getRange(r2 + 2, 4, 60, 3).setNumberFormat('#,##0 €');
+  sh.getRange(r2 + 2, 7, 60, 1).setNumberFormat('0%');
+  sh.getRange(r2 + 2, 8, 60, 2).setNumberFormat('0.00 €');
   sh.getRange(r2 + 2, 10, 60, 1).setNumberFormat('#,##0 €');
 
-  [1, r0, r2].forEach(function (r) { sh.getRange(r, 1).setFontWeight('bold').setFontColor(NIGHT).setFontSize(r === 1 ? 18 : 12); });
-  sh.getRange('A1:H1').setBackground(NIGHT); sh.getRange('A1').setFontColor(DAY);
+  sh.getRange('A1:J1').setBackground(NIGHT); sh.getRange('A1').setFontColor(DAY).setFontWeight('bold').setFontSize(18);
   sh.setRowHeight(1, 44);
   sh.getRange('A2').setFontColor('#64778A').setFontStyle('italic');
   sh.getRange('A4').setFontWeight('bold');
   sh.getRange('B4').setBackground(DAY).setFontWeight('bold').setFontSize(13).setHorizontalAlignment('center');
-  for (let c = 1; c <= 10; c++) sh.setColumnWidth(c, c === 2 ? 150 : 125);
+  for (let c = 1; c <= 11; c++) sh.setColumnWidth(c, c === 1 ? 300 : c === 2 ? 150 : 120);
 
-  // Graphique : CA buvette par match (saison choisie)
+  // Graphique : CA et marge par match (saison choisie)
   const ch = sh.newChart().asColumnChart()
-    .addRange(sh.getRange(r2 + 1, 2, 41, 1)).addRange(sh.getRange(r2 + 1, 5, 41, 1))
-    .setNumHeaders(1).setPosition(r0, 10, 0, 0)
-    .setOption('title', 'CA buvette par match').setOption('legend', { position: 'none' })
-    .setOption('colors', [NIGHT]).setOption('width', 620).setOption('height', 300)
+    .addRange(sh.getRange(r2 + 1, 2, 41, 1)).addRange(sh.getRange(r2 + 1, 4, 41, 1)).addRange(sh.getRange(r2 + 1, 6, 41, 1))
+    .setNumHeaders(1).setPosition(r0, 12, 0, 0)
+    .setOption('title', 'CA TTC et marge HT par match').setOption('legend', { position: 'bottom' })
+    .setOption('colors', [DAY, NIGHT]).setOption('width', 640).setOption('height', 320)
     .build();
   sh.insertChart(ch);
+  try { sh.getRange(r3 + 5, 2).setValue(Math.round(stockValorise_(catalogueCouts_()) * 100) / 100); } catch (e) {}
   return sh;
 }

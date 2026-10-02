@@ -180,7 +180,18 @@ th:first-child,td:first-child{text-align:left}
         <button class="btn" type="submit" id="prepa-save">Enregistrer le stock</button>
         <span class="note" id="prepa-status" role="status"></span>
       </div>
-      <p class="note">Ensuite, sur chaque tablette en wifi : ⚙️ → « Charger le match ». En cas de réassort, modifie le stock ici puis recharge la tablette concernée. 1 fût = 30 L, soit 120 bières 25cl ou 60 bières 50cl.</p>
+      <p class="note">Les tablettes chargent leur stock seules dès qu'elles ont le wifi (réassort compris). 1 fût = 30 L, soit 120 bières 25cl ou 60 bières 50cl. <b>🙋 Bénévoles</b> = réserve hors vente (boissons offertes aux bénévoles) : jamais sur une tablette, comptée à part dans la marge.</p>
+    </form>
+  </section>
+  <section class="panel prepa" aria-label="Inventaire de fin de match">
+    <h2>Inventaire de fin de match <span>ce qui reste réellement : sert au coût matière et à la casse</span></h2>
+    <form id="inv-form">
+      <div class="tbl"><table class="prepa-tbl" id="inv-tbl"></table></div>
+      <div class="prepa-foot">
+        <button class="btn" type="submit" id="inv-save">Enregistrer l'inventaire</button>
+        <span class="note" id="inv-status" role="status"></span>
+      </div>
+      <p class="note">Les buvettes se remplissent seules quand le responsable clôture la caisse sur la tablette (corrigeables ici). La colonne Bénévoles se saisit ici, après le match. Bière en fûts : 1,5 = un fût plein + un demi. Dans une case vide, le chiffre grisé « / 24 » rappelle le stock de départ.</p>
     </form>
   </section>
   <section class="kpis" id="kpis" aria-label="Indicateurs du match"></section>
@@ -315,7 +326,7 @@ function render(d){
         <div><span>♻️ Gobelets sortis/rendus</span><b style="white-space:nowrap">${int(x.consignes||0)} / ${int(x.rendues||0)}</b></div>
         <div><span>🎫 Avec billet</span><b>${pct(x.reliees||0, x.ventes)}</b></div></div>
       ${prods ? `<p class="note" style="margin-top:6px">${prods}</p>` : ''}
-      ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b></div>`
+      ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b>${cl.ecartCb != null ? ` · CB vs TPE <b>${cl.ecartCb > 0 ? '+' : ''}${eur(cl.ecartCb, 2)}</b>` : ''}</div>`
            : `<div class="clot">⏳ Caisse pas encore clôturée sur la tablette</div>`}`;
     return `<article class="panel"><div class="buv-h"><b>${esc(nom)}</b><span class="ca">${eur(x.ca)}</span></div>
       <div class="buv-s">${int(x.ventes)} ventes · panier ${eur(x.ventes ? x.ca/x.ventes : null, 2)} · ${pct(x.ca, v.ca)} du CA</div>
@@ -476,7 +487,7 @@ function repartir(auto){
   };
   cmdCalc.lignes.forEach(l => {
     const tot = l.ref === 'FUT' ? (l.reste + l.cmd) : (l.reste + l.unites);
-    split(tot).forEach((q, i) => { const el = $('pp-' + B[i].replace(/\D/g,'') + '-' + l.ref); if (el) el.value = q; });
+    split(tot).forEach((q, i) => { const el = $('pp-' + bk(B[i]) + '-' + l.ref); if (el) el.value = q; });
   });
   totaux();
   $('prepa-status').textContent = (auto === true ? 'Stock proposé automatiquement à partir de la commande conseillée' : 'Stock réparti à partir de la commande') + ' : vérifie puis « Enregistrer le stock ».';
@@ -495,6 +506,8 @@ $('cmd-copier').onclick = () => {
 
 // ── Préparation du match ──
 let prepa = null;
+const bk = b => (String(b).match(/\d+/) || ['BEN'])[0];          // Buvette 2 → 2, Bénévoles → BEN
+const colonnes = () => prepa.buvettes.concat(prepa.reserves || []);
 async function loadPrepa(){
   if (!current) return;
   try { prepa = await api({ action:'prepa', eventId: current }); renderPrepa(); }
@@ -505,12 +518,14 @@ async function refreshTabState(){
   try { const p = await api({ action:'prepa', eventId: current }); prepa.tablettes = p.tablettes; prepa.actif = p.actif; renderTabState(); } catch(e) {}
 }
 function renderPrepa(){
-  const B = prepa.buvettes, L = prepa.lignes, st = prepa.stocks || {};
-  let h = `<thead><tr><th>Produit</th>${B.map(b => `<th>${esc(b)}<span class="tab-state" id="ts-${b.replace(/\D/g,'')}"></span></th>`).join('')}<th>Total</th></tr></thead><tbody>`;
+  const B = colonnes(), L = prepa.lignes, st = prepa.stocks || {};
+  const titre = b => (prepa.reserves || []).includes(b) ? `🙋 ${esc(b)}<span class="tab-state">hors vente</span>` : `${esc(b)}<span class="tab-state" id="ts-${bk(b)}"></span>`;
+  let h = `<thead><tr><th>Produit</th>${B.map(b => `<th>${titre(b)}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
   L.forEach(([ref, nom]) => {
-    h += `<tr><td>${esc(nom)}</td>${B.map(b => `<td><input type="number" min="0" step="${ref==='FUT'?'0.5':'1'}" inputmode="decimal" id="pp-${b.replace(/\D/g,'')}-${ref}" data-b="${esc(b)}" data-ref="${ref}" value="${(st[b]||{})[ref] || 0}" aria-label="${esc(nom)} ${esc(b)}"></td>`).join('')}<td><b id="pt-${ref}"></b></td></tr>`;
+    h += `<tr><td>${esc(nom)}</td>${B.map(b => `<td><input type="number" min="0" step="${ref==='FUT'?'0.5':'1'}" inputmode="decimal" id="pp-${bk(b)}-${ref}" data-b="${esc(b)}" data-ref="${ref}" value="${(st[b]||{})[ref] || 0}" aria-label="${esc(nom)} ${esc(b)}"></td>`).join('')}<td><b id="pt-${ref}"></b></td></tr>`;
   });
   $('prepa-tbl').innerHTML = h + '</tbody>';
+  renderInventaire();
   $('prepa-tbl').querySelectorAll('input').forEach(i => i.addEventListener('input', totaux));
   totaux(); renderTabState(); autoRepartir();
   const ev = events.find(e => e.id === current);
@@ -518,14 +533,14 @@ function renderPrepa(){
 }
 function totaux(){
   prepa.lignes.forEach(([ref]) => {
-    let t = 0; prepa.buvettes.forEach(b => t += Number($('pp-' + b.replace(/\D/g,'') + '-' + ref).value) || 0);
+    let t = 0; colonnes().forEach(b => t += Number($('pp-' + bk(b) + '-' + ref).value) || 0);
     $('pt-' + ref).textContent = ref === 'FUT' ? t + ' fûts (' + t*30 + ' L)' : t;
   });
 }
 function renderTabState(){
   const saved = prepa.actif && prepa.actif.eventId === current ? new Date(prepa.actif.saved) : null;
   prepa.buvettes.forEach(b => {
-    const el = $('ts-' + b.replace(/\D/g,'')); if (!el) return;
+    const el = $('ts-' + bk(b)); if (!el) return;
     const j = (prepa.tablettes || {})[b] || {};
     const ch = j.chargement ? new Date(j.chargement) : null;
     if (!saved) { el.textContent = ''; return; }
@@ -534,10 +549,47 @@ function renderTabState(){
   });
 }
 $('prepa-form').addEventListener('submit', e => { e.preventDefault(); enregistrerPrepa(false); });
+
+// ── Inventaire de fin de match (buvettes : depuis la clôture tablette ; bénévoles : saisi ici) ──
+function renderInventaire(){
+  const B = colonnes(), L = prepa.lignes, inv = prepa.inventaire || {}, F = prepa.futLitres || 30;
+  const val = (b, ref) => { const o = inv[b]; if (!o) return ''; if (ref === 'FUT') return o.FUT_L != null ? Math.round(o.FUT_L / F * 100) / 100 : ''; return o[ref] != null ? o[ref] : ''; };
+  const src = b => { const o = inv[b]; return o ? (o._source === 'tablette' ? '✓ compté sur la tablette' : '✓ saisi ici') : ((prepa.reserves || []).includes(b) ? 'à saisir après le match' : 'en attente de la clôture'); };
+  let h = `<thead><tr><th>Produit</th>${B.map(b => `<th>${(prepa.reserves || []).includes(b) ? '🙋 ' : ''}${esc(b)}<span class="tab-state ${inv[b] ? 'ok' : 'wait'}">${src(b)}</span></th>`).join('')}</tr></thead><tbody>`;
+  L.forEach(([ref, nom]) => {
+    h += `<tr><td>${esc(nom)}${ref === 'FUT' ? ' (en fûts)' : ''}</td>${B.map(b => {
+      const debut = (prepa.stocks && prepa.stocks[b] || {})[ref] || 0;
+      return `<td><input type="number" min="0" step="${ref==='FUT'?'0.25':'1'}" inputmode="decimal" id="iv-${bk(b)}-${ref}" value="${val(b, ref)}" placeholder="/ ${debut}" aria-label="Reste ${esc(nom)} ${esc(b)}"></td>`;
+    }).join('')}</tr>`;
+  });
+  $('inv-tbl').innerHTML = h + '</tbody>';
+}
+$('inv-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!prepa) return;
+  const F = prepa.futLitres || 30, inventaires = {};
+  colonnes().forEach(b => {
+    const o = {}; let rempli = false;
+    prepa.lignes.forEach(([ref]) => { const v = $('iv-' + bk(b) + '-' + ref).value.trim(); if (v !== '') { rempli = true; if (ref === 'FUT') o.FUT_L = Number(v) * F; else o[ref] = Number(v); } });
+    const avant = (prepa.inventaire || {})[b];
+    const change = !avant || prepa.lignes.some(([ref]) => { const k = ref === 'FUT' ? 'FUT_L' : ref; return (o[k] ?? null) !== (avant[k] ?? null); });
+    if (rempli && change) inventaires[b] = o;
+  });
+  if (!Object.keys(inventaires).length) { $('inv-status').textContent = 'Rien de nouveau à enregistrer.'; return; }
+  $('inv-save').disabled = true; $('inv-status').textContent = 'Enregistrement…';
+  try {
+    const r = await fetch(cfg.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action:'inventaire', token: cfg.token, eventId: current, inventaires }) });
+    const j = await r.json();
+    if (j.status !== 'ok') throw new Error(j.message || 'refus');
+    prepa.inventaire = j.inventaire; renderInventaire();
+    $('inv-status').textContent = '✅ Inventaire enregistré : coût matière, casse et conso bénévoles recalculés dans le Sheet.';
+  } catch(err) { $('inv-status').textContent = '❌ ' + err.message; }
+  $('inv-save').disabled = false;
+});
 async function enregistrerPrepa(auto){
   if (!prepa) return;
   const stocks = {};
-  prepa.buvettes.forEach(b => { stocks[b] = {}; prepa.lignes.forEach(([ref]) => stocks[b][ref] = Number($('pp-' + b.replace(/\D/g,'') + '-' + ref).value) || 0); });
+  colonnes().forEach(b => { stocks[b] = {}; prepa.lignes.forEach(([ref]) => stocks[b][ref] = Number($('pp-' + bk(b) + '-' + ref).value) || 0); });
   $('prepa-save').disabled = true; $('prepa-status').textContent = 'Enregistrement…';
   try {
     const r = await fetch(cfg.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action:'prepa', token: cfg.token, eventId: current, stocks }) });
