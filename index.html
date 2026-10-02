@@ -289,7 +289,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <div class="utils">
       <button class="ubtn gob" onclick="gobeletConsigne()"><span class="ico">🥤</span><span>+ Gobelet<small>consigne +1 €</small></span></button>
       <button class="ubtn eco" onclick="ecocupRendue()"><span class="ico">♻️</span><span>Gobelet rendu<small>consigne −1 €</small></span></button>
-      <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span></button>
+      <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner billet / carte abonné<small>−5 % sur la commande + points fidélité</small></span></button>
     </div>
   </main>
 
@@ -369,7 +369,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <ol>
       <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson.</span></li>
       <li><span><b>Gobelet : 🥤 + Gobelet si le client n'en a pas.</b>Une touche par gobelet donné = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Gobelet rendu.</span></li>
-      <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Le client gagne des points et le club sait qui consomme. Pas de billet ? On continue.</span></li>
+      <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Le client a −5 % sur sa commande et gagne des points. Pas de billet ? On continue.</span></li>
       <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>CB : tape le montant affiché sur le TPE, puis touche « Paiement accepté ». Espèces : touche le billet donné, la tablette affiche la monnaie à rendre.</span></li>
     </ol>
     <p class="plus">Une erreur ? Le bouton <b>↶ Annuler</b> apparaît quelques secondes après chaque vente, ou retire une boisson avec <b>−</b>.<br>Pas de wifi ? Aucun souci : tout est gardé dans la tablette et part tout seul plus tard.</p>
@@ -415,7 +415,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-install</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-remise</p>
     </div>
   </div>
 </div>
@@ -483,14 +483,14 @@ const state = {
   prix:{},           // prix et seuils lus dans l'onglet 📦 PRODUITS du Sheet { réf: {prix, seuil} }
 };
 let panier = nouveauPanier();
-let billet = null;   // { ticket_id, barcode, tarif, prenom, nonVerifie }
+let billet = null;   // { ticket_id, barcode, tarif, nom, nonVerifie }
 function nouveauPanier() { return { lignes:{}, consigne:0, rendue:0 }; }
 
 function initDefaultStocks() { for (let t = 1; t <= NB_BUVETTES; t++) { const k = 'Buvette ' + t; if (!state.stocks[k]) state.stocks[k] = {}; } }
 function cumulTab(tab) {
   tab = tab || state.tab;
   const c = state.cumul[tab] = state.cumul[tab] || {};
-  ['consigne','rendue','ventes','ca','cb','esp','nbCb','nbEsp'].forEach(k => { if (typeof c[k] !== 'number') c[k] = 0; });
+  ['consigne','rendue','ventes','ca','cb','esp','nbCb','nbEsp','remise','nbRemise'].forEach(k => { if (typeof c[k] !== 'number') c[k] = 0; });
   c.lignes = c.lignes || {};
   return c;
 }
@@ -665,10 +665,12 @@ function renderTiles() {
   }).join('');
 }
 
+// Remise billet : −5 % sur les boissons/food (pas sur la consigne) dès qu'un billet ou une carte abonné est scanné
+const REMISE_BILLET = 0.05;
+function sousTotalProduits() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { t += q * priceOf(prod(r)); }); return t; }
+function remisePanier() { const t = sousTotalProduits(); return billet && t > 0 ? Math.round(t * REMISE_BILLET * 100) / 100 : 0; }
 function totalPanier() {
-  let t = 0;
-  Object.entries(panier.lignes).forEach(([r, q]) => { t += q * priceOf(prod(r)); });
-  return Math.round((t + (panier.consigne - panier.rendue) * CONSIGNE) * 100) / 100;
+  return Math.round((sousTotalProduits() - remisePanier() + (panier.consigne - panier.rendue) * CONSIGNE) * 100) / 100;
 }
 function panierVide() { return !Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue; }
 
@@ -682,6 +684,8 @@ function renderPanier() {
   CATALOGUE.forEach(p => { const q = panier.lignes[p.ref] || 0; if (q) rows.push(ligneHtml(esc(p.nom), fmt(p.pv) + ' pièce', q, q * p.pv, `retirer('${p.ref}')`, `ajouter('${p.ref}')`)); });
   if (panier.consigne) rows.push(ligneHtml('♻️ Gobelet consigné', '+1 € par gobelet', panier.consigne, panier.consigne * CONSIGNE, 'changeConsigne(-1)', 'changeConsigne(1)'));
   if (panier.rendue) rows.push(ligneHtml('♻️ Gobelet rendu', 'consigne remboursée', panier.rendue, panier.rendue * CONSIGNE, 'changeRendue(-1)', 'changeRendue(1)', true));
+  const rem = remisePanier();
+  if (rem) rows.push(`<div class="line neg remise"><span class="n">🎫 Remise billet −5 %<small>${esc(billet.nom || 'billet scanné')}</small></span><span class="step"></span><span class="m">−${fmt(rem)}</span></div>`);
   document.getElementById('lines').innerHTML = rows.length ? rows.join('')
     : `<div class="empty"><big>👈</big>Touche les boissons<br>demandées par le client</div>`;
 
@@ -699,7 +703,7 @@ function renderPanier() {
 
   const bz = document.getElementById('billet'), bs = document.getElementById('btn-scan');
   if (billet) {
-    bz.innerHTML = `<div class="billet"><span class="i">🎫</span><div><b>${esc(billet.prenom ? billet.prenom + ' · ' : '')}${esc(billet.tarif || (billet.nonVerifie ? 'Billet (vérifié plus tard)' : 'Billet'))}</b><small>relié à cette vente · points fidélité</small></div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>`;
+    bz.innerHTML = `<div class="billet"><span class="i">🎫</span><div><b>${esc(billet.nom || (billet.nonVerifie ? 'Billet (vérifié plus tard)' : 'Billet'))}</b><small>${esc(billet.tarif ? billet.tarif + ' · ' : '')}−5 % sur la commande · points fidélité</small></div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>`;
     bs.classList.add('lie'); bs.classList.remove('attente'); bs.innerHTML = `<span class="ico">✅</span><span>Billet relié<small>Toucher pour en scanner un autre</small></span>`;
   } else {
     bz.innerHTML = '';
@@ -796,7 +800,7 @@ function payerEspeces(donne) {
 
 function encaisser(mode) {
   if (panierVide()) return;
-  const total = totalPanier();
+  const total = totalPanier(), remise = remisePanier(), coef = remise ? 1 - REMISE_BILLET : 1;
   const lignes = {};
   Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) lignes[r] = q; });
   const vente = {
@@ -804,21 +808,21 @@ function encaisser(mode) {
     ts: new Date().toISOString(),
     matchId: state.match ? state.match.idMatch : '',
     buvette: state.tab,
-    lignes, consigne: panier.consigne, rendue: panier.rendue, total,
+    lignes, consigne: panier.consigne, rendue: panier.rendue, total, remise,
     paiement: mode,
-    prix: Object.fromEntries(Object.keys(lignes).map(r => [r, priceOf(prod(r))])),
+    prix: Object.fromEntries(Object.keys(lignes).map(r => [r, Math.round(priceOf(prod(r)) * coef * 1000) / 1000])),   // prix réellement encaissés (remise incluse)
     ticket: billet ? { ticket_id: billet.ticket_id || '', barcode: billet.barcode || '', tarif: billet.tarif || '' } : null,
   };
   appliquerCumul(vente, 1);
   state.outbox.push(vente);
-  state.historique.unshift({ id: vente.id, ts: vente.ts, total, paiement: mode, lignes, consigne: vente.consigne, rendue: vente.rendue, billet: !!vente.ticket, buvette: state.tab });
+  state.historique.unshift({ id: vente.id, ts: vente.ts, total, remise, prix: vente.prix, paiement: mode, lignes, consigne: vente.consigne, rendue: vente.rendue, billet: !!vente.ticket, buvette: state.tab });
   state.historique = state.historique.slice(0, 40);
   panier = nouveauPanier(); billet = null;
   save(); renderAll();
   vibre(25);
   const side = document.getElementById('side'); side.classList.remove('flash'); void side.offsetWidth; side.classList.add('flash');
   derniere = vente.id;
-  snack(`✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${vente.ticket ? ' · 🎫' : ''}`, true);
+  snack(`✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${vente.ticket ? ' · 🎫 −5 %' : ''}`, true);
   setTimeout(envoyerVentes, DELAI_ANNUL + 500);
 }
 function appliquerCumul(v, sens) {
@@ -826,6 +830,7 @@ function appliquerCumul(v, sens) {
   Object.entries(v.lignes).forEach(([r, q]) => { c.lignes[r] = (c.lignes[r] || 0) + sens * q; if (!c.lignes[r]) delete c.lignes[r]; });
   c.consigne += sens * v.consigne; c.rendue += sens * v.rendue; c.ventes += sens;
   c.ca = Math.round((c.ca + sens * v.total) * 100) / 100;
+  if (v.remise) { c.remise = Math.round((c.remise + sens * v.remise) * 100) / 100; c.nbRemise += sens; }
   const k = v.paiement === 'CB' ? 'cb' : 'esp';
   c[k] = Math.round((c[k] + sens * v.total) * 100) / 100;
   c[k === 'cb' ? 'nbCb' : 'nbEsp'] += sens;
@@ -843,10 +848,10 @@ function annulerVente(id) {
   else {
     const neg = o => Object.fromEntries(Object.entries(o).map(([r, q]) => [r, -q]));
     state.outbox.push({ id: id + '-ANN', ts: new Date().toISOString(), matchId: state.match ? state.match.idMatch : '', buvette: h.buvette,
-      lignes: neg(h.lignes), consigne: -h.consigne, rendue: -h.rendue, total: -h.total, paiement: h.paiement, annule: id,
-      prix: Object.fromEntries(Object.keys(h.lignes).map(r => [r, priceOf(prod(r))])), ticket: null });
+      lignes: neg(h.lignes), consigne: -h.consigne, rendue: -h.rendue, total: -h.total, remise: -(h.remise || 0), paiement: h.paiement, annule: id,
+      prix: h.prix || Object.fromEntries(Object.keys(h.lignes).map(r => [r, priceOf(prod(r))])), ticket: null });
   }
-  appliquerCumul({ buvette: h.buvette, lignes: h.lignes, consigne: h.consigne, rendue: h.rendue, total: h.total, paiement: h.paiement }, -1);
+  appliquerCumul({ buvette: h.buvette, lignes: h.lignes, consigne: h.consigne, rendue: h.rendue, total: h.total, remise: h.remise || 0, paiement: h.paiement }, -1);
   h.annulee = true;
   if (derniere === id) derniere = null;
   save(); renderAll();
@@ -939,7 +944,7 @@ function saisieManuelle(e) { e.preventDefault(); const v = document.getElementBy
 async function chercherBillet(barcode) {
   if (essayerConfigQr(barcode)) return;
   const local = state.billets[barcode];
-  if (local) { relierBillet({ ticket_id: local[0], tarif: local[1] }, barcode); return; }
+  if (local) { relierBillet({ ticket_id: local[0], tarif: local[1], name: local[2] }, barcode); return; }
   if (navigator.onLine === false) { relierBillet({ nonVerifie: true }, barcode); return; }
   setScanStatus('⏳ Vérification du billet…');
   try {
@@ -956,12 +961,12 @@ async function chercherBillet(barcode) {
 }
 // Billet bon (ou impossible à vérifier tout de suite) → relié directement, sans confirmation
 function relierBillet(t, barcode) {
-  const prenom = (t.prenom || (t.nom_complet || t.nom || '').split(' ')[0] || '').trim();
-  billet = { ticket_id: t.ticket_id || t._id || '', barcode: t.barcode || barcode, tarif: t.tarif || '', prenom, nonVerifie: !!t.nonVerifie };
+  const nom = String(t.name || t.nom_complet || [t.firstname || t.prenom, t.lastname || t.nom].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
+  billet = { ticket_id: t.ticket_id || t._id || '', barcode: t.barcode || barcode, tarif: t.tarif || t.ticketName || '', nom, nonVerifie: !!t.nonVerifie };
   fermerScanner();
   vibre(30);
   renderPanier();
-  info(t.nonVerifie ? '🎫 Billet enregistré (vérifié plus tard)' : `🎫 ${prenom ? prenom + ' · ' : ''}${billet.tarif || 'Billet'} relié`);
+  info((t.nonVerifie ? '🎫 Billet enregistré (vérifié plus tard)' : `🎫 ${nom || 'Billet'} relié`) + ' · −5 % appliqués');
 }
 function refuserBillet(msg) {
   vibre([80, 60, 80]);
@@ -995,7 +1000,7 @@ function afficherRapport() {
   const fond = cl ? cl.fond : (state.fond[state.tab] ?? 0);
   document.getElementById('bilan-titre').textContent = '📊 Rapport ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
   let h = `<div class="kpis">
-    <div class="k"><span>Total</span><b>${fmt(c.ca)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}</small></div>
+    <div class="k"><span>Total</span><b>${fmt(c.ca)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}${c.nbRemise ? ` · dont ${fmt(c.remise)} de remises billet (${c.nbRemise})` : ''}</small></div>
     <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · à comparer au ticket TPE</small></div>
     <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div></div>`;
   h += `<div class="sec">Clôture de la caisse espèces</div>
@@ -1236,7 +1241,7 @@ async function chargerMatch(auto) {
     }
     if (d.produits && Object.keys(d.produits).length && panierVide()) { state.prix = d.produits; appliquerPrix(); renderTiles(); }
     if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {
-      if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; save(); }
+      if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom]) => { m[code] = [id, tarif, nom || '']; }); state.billets = m; save(); }
       return;
     }
     appliquerChargement(d, nouveau);
@@ -1256,7 +1261,7 @@ function appliquerChargement(d, nouveau) {
   state.match = { eventId: d.match.eventId, idMatch: d.match.idMatch, nom: d.match.nom, date: d.match.date, charge: d.charge, prepa: d.match.prepa };
   state.futLitres = d.futLitres || 30;
   state.stocks[state.tab] = d.stock || {};
-  if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif]) => { m[code] = [id, tarif]; }); state.billets = m; }
+  if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom]) => { m[code] = [id, tarif, nom || '']; }); state.billets = m; }
   if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; panier = nouveauPanier(); billet = null; }
   save(); renderAll(); renderEtatMatch();
   info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
