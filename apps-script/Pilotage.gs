@@ -666,18 +666,23 @@ function pilotageOuvrir() {
     'a.big{display:block;text-align:center;background:#001E2D;color:#fff;padding:12px;border-radius:10px;font-weight:bold;text-decoration:none;font-size:15px}' +
     '.g{display:flex;gap:16px;margin-top:12px;justify-content:space-between}.c{flex:1;text-align:center;font-size:13px}.c b{display:block;margin-bottom:6px;font-size:15px}' +
     '.q{display:inline-block;padding:10px;background:#fff;border:1px solid #ccd;border-radius:10px}.q img,.q canvas{display:block}' +
+    '.q{cursor:zoom-in}#ov{position:fixed;inset:0;background:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:zoom-out}#ov.on{display:flex}#ov b{font-size:20px}#zb img,#zb canvas{width:min(92vw,82vh)!important;height:auto!important;image-rendering:pixelated}' +
     '.l{font-size:10px;color:#64778A;word-break:break-all;margin-top:4px}p,li{font-size:12px;color:#33495a;line-height:1.45}ol{margin:6px 0 0 18px;padding:0}</style>' +
     '<a class="big" href="' + esc(dash) + '" target="_blank">📊 Ouvrir le tableau de bord</a>' +
     '<div class="g">' + tabs.map(function (t, i) {
-      return '<div class="c"><b>' + esc(t.nom) + '</b><div class="q" id="q' + i + '"></div><div class="l">' + esc(t.url) + '</div></div>';
+      return '<div class="c"><b>' + esc(t.nom) + '</b><div class="q" id="q' + i + '" onclick="zoom(' + i + ')" title="Agrandir"></div><div class="l">' + esc(t.url) + '</div></div>';
     }).join('') + '</div>' +
+    '<p style="text-align:center;margin:8px 0 0">🔍 <b>Touche un QR pour l\'agrandir</b> (plus facile à scanner).</p>' +
+    '<div id="ov" onclick="this.classList.remove(\'on\')"><b id="zt"></b><div id="zb"></div><span style="font-size:12px">Touche pour fermer</span></div>' +
     '<p><b>Installer une tablette</b> (une fois) :</p><ol>' +
     '<li>Ouvre l\'appareil photo de la tablette et vise le QR de sa buvette, puis touche le lien : l\'app s\'ouvre déjà configurée.</li>' +
     '<li><b>Android</b> (Chrome) : menu ⋮ → <i>Installer l\'application</i>. <b>iPad</b> (Safari) : bouton Partager → <i>Sur l\'écran d\'accueil</i>.</li>' +
     '<li><b>iPad uniquement</b> : ouvre l\'icône installée, touche <i>📷 Scanner le QR de configuration</i> et vise à nouveau le QR (l\'icône ne partage pas la mémoire de Safari).</li></ol>' +
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
-    JSON.stringify(tabs.map(function (t) { return t.url; })) + '.forEach(function(u,i){new QRCode(document.getElementById("q"+i),{text:u,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});});</script>';
-  SpreadsheetApp.getUi().showModelessDialog(HtmlService.createHtmlOutput(html).setWidth(820).setHeight(560), 'Pilotage buvette : tableau de bord et tablettes');
+    'var U=' + JSON.stringify(tabs.map(function (t) { return t.url; })) + ',N=' + JSON.stringify(tabs.map(function (t) { return t.nom; })) + ';' +
+    'U.forEach(function(u,i){new QRCode(document.getElementById("q"+i),{text:u,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});});' +
+    'function zoom(i){var z=document.getElementById("zb");z.innerHTML="";new QRCode(z,{text:U[i],width:600,height:600,correctLevel:QRCode.CorrectLevel.M});document.getElementById("zt").textContent=N[i];document.getElementById("ov").classList.add("on");}</script>';
+  SpreadsheetApp.getUi().showModelessDialog(HtmlService.createHtmlOutput(html).setWidth(820).setHeight(640), 'Pilotage buvette : tableau de bord et tablettes');
 }
 
 // URL publique (…/exec) du déploiement : ScriptApp.getService().getUrl() peut renvoyer l'URL /dev
