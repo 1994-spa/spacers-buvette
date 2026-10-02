@@ -269,6 +269,7 @@ function reparerFormules() {
   try { majMatchs(true); } catch (e) {}
   const t = ss.getSheetByName(ONG.TDB); if (t) { ss.setActiveSheet(t); ss.moveActiveSheet(2); }
   const a = ss.getSheetByName(ONG.ACCUEIL); if (a) { ss.setActiveSheet(a); ss.moveActiveSheet(1); }
+  masquerOngletsTechniques();
   alerte_('✅ Formules reconstruites (langue du fichier : ' + ss.getSpreadsheetLocale() + ').');
 }
 
@@ -436,7 +437,7 @@ function construireTableauDeBord_(saisonForcee) {
   const avecMarge = S('MARGE HT €') + ',"<>"';
   bloc(6, [
     ['MATCHS JOUÉS', '=COUNTIFS(' + cond + ',' + S('CA BUVETTE €') + ',">0")', '0'],
-    ['AFFLUENCE MOYENNE', '=IFERROR(AVERAGEIFS(' + S('AFFLUENCE') + ',' + cond + ',' + S('AFFLUENCE') + ',">0"),"—")', '#,##0'],
+    ['AFFLUENCE MOYENNE', '=IFERROR(AVERAGEIFS(' + S('AFFLUENCE') + ',' + cond + ',' + S('AFFLUENCE') + ',">0",' + S('CA BUVETTE €') + ',">0"),"—")', '#,##0'],
     ['CA TTC', '=SUMIFS(' + S('CA BUVETTE €') + ',' + cond + ')', '#,##0 €'],
     ['CA HT', '=SUMIFS(' + S('CA HT €') + ',' + cond + ')', '#,##0 €'],
     ['MARGE HT', '=IF(COUNTIFS(' + cond + ',' + avecMarge + ')=0,"—",SUMIFS(' + S('MARGE HT €') + ',' + cond + '))', '#,##0 €'],
@@ -466,7 +467,7 @@ function construireTableauDeBord_(saisonForcee) {
     sh.getRange(r, 1).setValue(s);
     sh.getRange(r, 2, 1, 9).setFormulas([[
       '=COUNTIFS(' + c + ',' + S('CA BUVETTE €') + ',">0")',
-      '=IFERROR(AVERAGEIFS(' + S('AFFLUENCE') + ',' + c + ',' + S('AFFLUENCE') + ',">0"),"—")',
+      '=IFERROR(AVERAGEIFS(' + S('AFFLUENCE') + ',' + c + ',' + S('AFFLUENCE') + ',">0",' + S('CA BUVETTE €') + ',">0"),"—")',
       '=SUMIFS(' + S('CA BUVETTE €') + ',' + c + ')',
       '=IFERROR(D' + r + '/B' + r + ',"—")',
       '=IFERROR(SUMIFS(' + S('CA BUVETTE €') + ',' + c + ',' + S('AFFLUENCE') + ',">0")/SUMIFS(' + S('AFFLUENCE') + ',' + c + ',' + S('CA BUVETTE €') + ',">0"),"—")',
@@ -495,7 +496,7 @@ function construireTableauDeBord_(saisonForcee) {
     ['Coût matière consommé aux matchs', '=SUMIFS(' + S('COÛT MATIÈRE €') + ',' + cond + ')', '−'],
     ['Conso bénévoles', '=SUMIFS(' + S('CONSO BÉNÉVOLES €') + ',' + cond + ')', '−'],
     ['Stock restant valorisé (dernier inventaire)', '', '−'],
-    ['ÉCART NON EXPLIQUÉ', '=B' + (r3 + 1) + '+B' + (r3 + 2) + '-B' + (r3 + 3) + '-B' + (r3 + 4) + '-B' + (r3 + 5), '='],
+    ['ÉCART NON EXPLIQUÉ', '=B' + (r3 + 1) + '+B' + (r3 + 2) + '-B' + (r3 + 3) + '-B' + (r3 + 4) + '-B' + (r3 + 5), '→'],
   ];
   lignes.forEach(function (l, i) {
     const r = r3 + 1 + i;
