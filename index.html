@@ -76,6 +76,8 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .main{grid-area:main;display:flex;flex-direction:column;gap:12px;padding:12px;min-height:0}
 .banner{border-radius:var(--r);padding:10px 14px;font-size:.95rem;font-weight:600;display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:var(--warn-bg);color:var(--text);border:2px solid color-mix(in srgb,var(--warn) 45%,transparent)}
 .banner button{background:var(--primary);color:var(--on-primary);border-radius:10px;padding:8px 16px;font-weight:800;min-height:44px}
+.banner button.sec{background:transparent;color:var(--text);border:2px solid var(--border)}
+.banner span{flex:1 1 320px}
 .tiles{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px}
 .tile{--c:#001E2D;position:relative;border-radius:var(--r-lg);background:var(--surface);border:2px solid var(--border);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:stretch;overflow:hidden;text-align:left;transition:transform 90ms ease,box-shadow var(--ease),border-color var(--ease)}
 .tile:active{transform:scale(.97)}
@@ -413,7 +415,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-qr</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-install</p>
     </div>
   </div>
 </div>
@@ -602,10 +604,51 @@ function renderBanner() {
   } else if (!state.url || !state.token) {
     b.hidden = false;
     b.innerHTML = `<span>⚙️ <b>Tablette pas encore configurée</b> : scanne le QR code de ta buvette (menu du Sheet → Pilotage live).</span><button onclick="ouvrirScanner()">📷 Scanner le QR de configuration</button>`;
+  } else if (bandeauInstall()) {
+    b.hidden = false;
+    b.innerHTML = bandeauInstall();
   } else if (!state.match) {
     b.hidden = false;
     b.innerHTML = `<span>⏳ <b>Match pas encore chargé</b> — tu peux vendre quand même, le stock arrivera dès qu'il y aura du wifi.</span><button onclick="chargerMatch()">Charger</button>`;
   } else b.hidden = true;
+}
+
+// ── Installation en appli (icône du club sur l'écran d'accueil) ──
+let promptInstall = null, installPlusTard = false;
+const UA = navigator.userAgent;
+const estIos = /iPad|iPhone|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+const estAndroid = /Android/.test(UA);
+const dansAppGoogle = /GSA\/|; wv\)|FBAN|FBAV|Instagram/.test(UA);   // navigateur intégré (appli Google, Lens…) : pas d'installation possible
+const estInstallee = () => matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInstall = e; renderBanner(); });
+addEventListener('appinstalled', () => { promptInstall = null; installPlusTard = true; renderBanner(); info("✅ Appli installée : ferme cette page et ouvre l'icône Spacer's sur l'écran d'accueil."); });
+function lienConfigActuel() {
+  const n = String(state.tab || '').replace(/\D/g, '') || '1';
+  const m = String(state.url || '').match(/\/s\/([A-Za-z0-9_-]+)\/exec/);
+  const d = m && state.url !== APPS_SCRIPT_URL ? '&d=' + m[1] : '';
+  return location.origin + location.pathname + '?b=' + n + '&k=' + encodeURIComponent(state.token || '') + d;
+}
+function bandeauInstall() {
+  if (installPlusTard || estInstallee() || location.protocol !== 'https:') return '';
+  const tard = `<button class="sec" onclick="installPlusTard=true;renderBanner()">Plus tard</button>`;
+  if (promptInstall) return `<span>📲 <b>Installe l'appli</b> : icône Spacer's sur l'écran d'accueil, plein écran, marche sans wifi.</span><button onclick="installerAppli()">📲 Installer l'appli</button>${tard}`;
+  if (estAndroid && dansAppGoogle) return `<span>📲 Cette page est ouverte dans l'appli Google : impossible d'installer d'ici. <b>Ouvre-la dans Chrome</b> (la tablette restera configurée).</span><button onclick="ouvrirDansChrome()">🌐 Ouvrir dans Chrome</button>${tard}`;
+  if (estIos && !/Safari/.test(UA) || estIos && /CriOS|FxiOS|GSA\//.test(UA)) return `<span>📲 Pour installer l'appli, ouvre ce lien dans <b>Safari</b> (rescanne le QR avec l'appareil photo).</span>${tard}`;
+  if (estIos) return `<span>📲 <b>Installer l'appli</b> : touche <b>Partager</b> ⬆️ puis <b>« Sur l'écran d'accueil »</b>. Ensuite ouvre l'icône Spacer's et rescanne le QR (bouton 📷 dans l'appli).</span>${tard}`;
+  if (estAndroid) return `<span>📲 <b>Installer l'appli</b> : menu <b>⋮</b> de Chrome en haut à droite → <b>« Installer l'application »</b> (ou « Ajouter à l'écran d'accueil »).</span>${tard}`;
+  return '';
+}
+async function installerAppli() {
+  if (!promptInstall) return;
+  promptInstall.prompt();
+  const r = await promptInstall.userChoice.catch(() => ({}));
+  promptInstall = null;
+  if (r.outcome !== 'accepted') installPlusTard = true;
+  renderBanner();
+}
+function ouvrirDansChrome() {
+  const u = lienConfigActuel().replace(/^https:\/\//, '');
+  location.href = 'intent://' + u + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent('https://' + u) + ';end';
 }
 
 function renderTiles() {
