@@ -202,12 +202,13 @@ function pilMatchsTickie_() {
   });
 }
 function pilEvent_(eventId) { return pilMatchsTickie_().filter(function (x) { return x.id === eventId; })[0] || null; }
-function pilParcourirBillets_(eventId, fn) {
+function pilParcourirBillets_(eventId, fn, statut) {
+  statut = statut || 'VALID';
   let skip = 0;
   while (true) {
-    const res = pilApi_(PIL.VIVENU_BASE, '/tickets', { event: eventId, status: 'VALID', top: 1000, skip: skip });
+    const res = pilApi_(PIL.VIVENU_BASE, '/tickets', { event: eventId, status: statut, top: 1000, skip: skip });
     const rows = res.rows || [];
-    rows.forEach(function (t) { if (!t.status || t.status === 'VALID') fn(t); });
+    rows.forEach(function (t) { if (!t.status || t.status === statut) fn(t); });
     skip += rows.length;
     if (!rows.length || skip >= (res.total || 0)) break;
   }
@@ -226,11 +227,14 @@ function pilCompterBillets_(eventId, ttl) {
 }
 function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom du titulaire] — pas d'email ni d'adresse
   const out = [];
-  pilParcourirBillets_(eventId, function (t) {
+  const ajouter = function (t) {
     if (!t.barcode) return;
     const nom = String(t.name || [t.firstname, t.lastname].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
     out.push([t.barcode, t._id, t.ticketName || '', nom]);
-  });
+  };
+  pilParcourirBillets_(eventId, ajouter);
+  // Billets payés mais pas encore nominatifs (« détails à compléter ») : ils restent des billets du club
+  try { pilParcourirBillets_(eventId, ajouter, 'DETAILSREQUIRED'); } catch (e) {}
   return out;
 }
 function pilCompterEntrees_(eventId) {   // null si le contrôle d'accès n'est pas accessible
