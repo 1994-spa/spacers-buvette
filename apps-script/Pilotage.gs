@@ -35,18 +35,22 @@ const PIL = {
   RESERVES: ['Bénévoles'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
   PRODUITS: [
-    ['P01_25',   'Bière 25cl',        3],
+    ['P01_25',   'Bière 33cl',        3],   // réf. historique : verre de 33 cl depuis 26-27
     ['P01_50',   'Bière 50cl',        6],
-    ['P02_COCA', 'Coca-Cola',         3],
-    ['P02_ORAN', 'Orangina',          3],
-    ['P02_ICET', 'Ice Tea',           3],
-    ['P02_SCHW', 'Schweppes Agrumes', 3],
+    ['P02_COCA', 'Coca-Cola',         2],   // softs vendus au verre de 33 cl
+    ['P02_ORAN', 'Orangina',          2],
+    ['P02_ICET', 'Ice Tea',           2],
+    ['P02_SCHW', 'Schweppes Agrumes', 2],
     ['P03',      'Eau plate 50cl',    1],
     ['P04',      'Eau gazeuse 50cl',  1],
   ],
-  // Lignes de préparation : FUT en fûts de 30 L (25cl et 50cl tirés du même fût), le reste en unités
-  PREPA: [['FUT', 'Bière (fûts 30 L)'], ['P02_COCA', 'Coca-Cola'], ['P02_ORAN', 'Orangina'], ['P02_ICET', 'Ice Tea'],
-          ['P02_SCHW', 'Schweppes Agrumes'], ['P03', 'Eau plate 50cl'], ['P04', 'Eau gazeuse 50cl']],
+  // Volumes : bière au verre (litres tirés du fût) ; softs au verre de 33 cl tirés de bouteilles (stock en bouteilles)
+  VERRE_BIERE_L: { P01_25: 0.33, P01_50: 0.5 },
+  VERRE_SOFT_L: 0.33,
+  BOUTEILLE_L: { P02_COCA: 1.25, P02_ICET: 1.25, P02_ORAN: 1.5, P02_SCHW: 1.5 },
+  // Lignes de préparation : FUT en fûts de 30 L (33cl et 50cl tirés du même fût), softs en bouteilles, eaux en unités
+  PREPA: [['FUT', 'Bière (fûts 30 L)'], ['P02_COCA', 'Coca-Cola (bout. 1,25 L)'], ['P02_ORAN', 'Orangina (bout. 1,5 L)'], ['P02_ICET', 'Ice Tea (bout. 1,25 L)'],
+          ['P02_SCHW', 'Schweppes (bout. 1,5 L)'], ['P03', 'Eau plate 50cl'], ['P04', 'Eau gazeuse 50cl']],
 };
 const PIL_LIVE_COLS = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Total €', 'Consignes +',
   'Consignes rendues', 'ID billet', 'Code-barres', 'Tarif billet', 'Client Tickie', 'Fidélité'];
