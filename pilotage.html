@@ -186,7 +186,7 @@ th:first-child,td:first-child{text-align:left}
         <button class="btn" type="submit" id="prepa-save">Enregistrer le stock</button>
         <span class="note" id="prepa-status" role="status"></span>
       </div>
-      <p class="note">Les tablettes chargent leur stock seules dès qu'elles ont le wifi (réassort compris). 1 fût = 30 L, soit 120 bières 25cl ou 60 bières 50cl. <b>🙋 Bénévoles</b> = réserve hors vente (boissons offertes aux bénévoles) : jamais sur une tablette, comptée à part dans la marge.</p>
+      <p class="note">Les tablettes chargent leur stock seules dès qu'elles ont le wifi (réassort compris). 1 fût = 30 L, soit 90 bières 33cl ou 60 bières 50cl. Softs comptés en <b>bouteilles</b> (1,25 L ou 1,5 L, servies au verre de 33cl). <b>🙋 Bénévoles</b> = réserve hors vente (boissons offertes aux bénévoles) : jamais sur une tablette, comptée à part dans la marge.</p>
     </form>
   </section>
   <section class="panel prepa" aria-label="Inventaire de fin de match">
@@ -390,8 +390,9 @@ function render(d){
 // Consommation par personne présente, calée sur les reportings 24-25 et 25-26
 // (22 matchs, ≈ 1 480 présents d'après 10_MATCHS), puis affinée par les matchs 26-27 joués.
 const PRIOR = {
-  litres: 0.0965, cvL: 0.18,                  // bière : litres tirés par présent (25cl + 50cl)
-  partBiere: { P01_25: 0.26, P01_50: 0.74 },  // part des verres (en nombre) — sert à la répartition 25/50
+  litres: 0.0965, cvL: 0.18,                  // bière : litres tirés par présent (33cl + 50cl)
+  partBiere: { P01_25: 0.26, P01_50: 0.74 },  // part des verres (en nombre) — sert à la répartition 33/50
+  // softs : verres par présent (historique), convertis en bouteilles pour la commande
   P02_COCA: 0.039, P02_ICET: 0.0215, P02_ORAN: 0.013, P02_SCHW: 0.013,   // softs : 0,086 / présent
   P03: 0.0285, P04: 0.0095,                                               // eaux : 0,038 / présent
   cv: { P02_COCA: 0.28, P02_ICET: 0.32, P02_ORAN: 0.35, P02_SCHW: 0.35, P03: 0.33, P04: 0.40 },
@@ -399,8 +400,9 @@ const PRIOR = {
 const POIDS_PRIOR = 3;       // l'historique compte comme 3 matchs, puis les vrais matchs 26-27 prennent le dessus
 const PERTE_BIERE = 0.05;    // mousse, purge, fond de fût
 const CV_AFFLUENCE = 0.08;   // incertitude sur le nombre de présents
-const PRODUITS_CMD = [['P02_COCA','Coca-Cola'],['P02_ORAN','Orangina'],['P02_ICET','Ice Tea'],['P02_SCHW','Schweppes Agrumes'],['P03','Eau plate 50cl'],['P04','Eau gazeuse 50cl']];
-const COLIS_DEF = { P02_COCA:24, P02_ORAN:24, P02_ICET:24, P02_SCHW:24, P03:24, P04:24 };
+const PRODUITS_CMD = [['P02_COCA','Coca-Cola (bout. 1,25 L)'],['P02_ORAN','Orangina (bout. 1,5 L)'],['P02_ICET','Ice Tea (bout. 1,25 L)'],['P02_SCHW','Schweppes (bout. 1,5 L)'],['P03','Eau plate 50cl'],['P04','Eau gazeuse 50cl']];
+const COLIS_DEF = { P02_COCA:6, P02_ORAN:6, P02_ICET:6, P02_SCHW:6, P03:24, P04:24 };
+const VERRE_SOFT = 0.33, BOUTEILLE_L = { P02_COCA:1.25, P02_ICET:1.25, P02_ORAN:1.5, P02_SCHW:1.5 };   // softs : verres → bouteilles
 let cmdData = null, cmdCalc = null;
 // Colisage : onglet 📦 PRODUITS du Sheet (source unique) ; une modification ici ne vaut que pour cette session
 let colisSession = {};
@@ -418,7 +420,7 @@ function apprendre(){
   const n = obs.length, mean = a => a.reduce((x,y)=>x+y,0) / (a.length||1);
   const sd = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x-m)*(x-m)))); };
   const out = { n };
-  const rL = obs.map(o => ((o.qte.P01_25||0)*0.25 + (o.qte.P01_50||0)*0.5) / o.presents);
+  const rL = obs.map(o => ((o.qte.P01_25||0)*0.33 + (o.qte.P01_50||0)*0.5) / o.presents);
   out.litres = (PRIOR.litres*POIDS_PRIOR + rL.reduce((a,b)=>a+b,0)) / (POIDS_PRIOR + n);
   out.cvL = n >= 3 ? Math.max(0.12, (sd(rL)/mean(rL) + PRIOR.cvL)/2) : PRIOR.cvL;
   PRODUITS_CMD.forEach(([ref]) => {
@@ -450,7 +452,8 @@ function calculerCommande(){
   lignes.push({ ref:'FUT', nom:'Bière (fûts 30 L)', prevu: (L/cmdData.futLitres).toFixed(1).replace('.',',') + ' fût' + (L > 60 ? 's' : '') + ` (${Math.round(L)} L)`,
     marge: futsBesoin, reste: reste.FUT||0, cmd: futsCmd, unites: futsCmd, colis: null, dispo: futsBesoin > (reste.FUT||0) ? futsBesoin : (reste.FUT||0) });
   PRODUITS_CMD.forEach(([ref, nom]) => {
-    const prevu = P * t[ref], m = Math.ceil(prevu * marge(t['cv_'+ref]));
+    const conv = BOUTEILLE_L[ref] ? VERRE_SOFT / BOUTEILLE_L[ref] : 1;   // softs : bouteilles à commander
+    const prevu = P * t[ref] * conv, m = Math.ceil(prevu * marge(t['cv_'+ref]));
     const r = Math.round(reste[ref]||0), besoin = Math.max(0, m - r), k = c[ref] || 1, nb = Math.ceil(besoin / k);
     lignes.push({ ref, nom, prevu: Math.round(prevu), marge: m, reste: r, cmd: nb, unites: nb * k, colis: k, dispo: r + nb * k });
   });

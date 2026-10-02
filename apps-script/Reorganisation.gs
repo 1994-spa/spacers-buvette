@@ -17,15 +17,15 @@ const REORG_ARCHIVER = ['20_OANDB_COMMANDES', '30_OANDB_TICKETS', '40_PENNYLANE_
 // Catalogue 26-27 : réf, produit, famille, prix vente TTC, prix achat HT (unité ; FUT = fût 30 L), TVA, colisage, seuil
 const PRODUITS_ENTETE = ['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'TVA', 'COLISAGE', 'SEUIL ALERTE', 'NOTES'];
 const PRODUITS_26_27 = [
-  ['FUT',      'Bière — fût 30 L',      'Bière', '',  '',   0.2, 1,  ''],
-  ['P01_25',   'Bière 25cl',            'Bière', 3,   '',   0.2, '', 15],
-  ['P01_50',   'Bière 50cl',            'Bière', 6,   '',   0.2, '', 10],
-  ['P02_COCA', 'Coca-Cola',             'Soft',  3,   0.72, 0.1, 24, 5],
-  ['P02_ORAN', 'Orangina',              'Soft',  3,   '',   0.1, 24, 5],
-  ['P02_ICET', 'Ice Tea',               'Soft',  3,   '',   0.1, 24, 5],
-  ['P02_SCHW', 'Schweppes Agrumes',     'Soft',  3,   0.61, 0.1, 24, 5],
-  ['P03',      'Eau plate 50cl',        'Eau',   1,   0.21, 0.1, 24, 5],
-  ['P04',      'Eau gazeuse 50cl',      'Eau',   1,   0.23, 0.1, 24, 5],
+  ['FUT',      'Bière — fût 30 L',      'Bière', '',  95,    0.2, 1,  ''],
+  ['P01_25',   'Bière 33cl',            'Bière', 3,   '',    0.2, '', 15],
+  ['P01_50',   'Bière 50cl',            'Bière', 6,   '',    0.2, '', 10],
+  ['P02_COCA', 'Coca-Cola',             'Soft',  2,   1.88,  0.1, 6,  8],
+  ['P02_ORAN', 'Orangina',              'Soft',  2,   2.13,  0.1, 6,  8],
+  ['P02_ICET', 'Ice Tea',               'Soft',  2,   1.62,  0.1, 6,  8],
+  ['P02_SCHW', 'Schweppes Agrumes',     'Soft',  2,   2.13,  0.1, 6,  8],
+  ['P03',      'Eau plate 50cl',        'Eau',   1,   0.22,  0.1, 24, 5],
+  ['P04',      'Eau gazeuse 50cl',      'Eau',   1,   0.253, 0.1, 24, 5],
   ['E01',      'Écocup (consigne)',     'Consigne', 1, 0.40, 0, '', ''],
 ];
 const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE'];
@@ -147,8 +147,8 @@ function reorganiser_() {
     const p = ss.insertSheet(ONG.PRODUITS);
     p.getRange(1, 1, 1, PRODUITS_ENTETE.length).setValues([PRODUITS_ENTETE]);
     p.getRange(2, 1, PRODUITS_26_27.length, 8).setValues(PRODUITS_26_27);
-    p.getRange(2, 9).setValue('Prix d\'achat HT d\'un fût de 30 L. Rendement : 120 × 25cl ou 60 × 50cl.');
-    p.getRange(4, 9).setValue('Même fût que la 25cl.');
+    p.getRange(2, 9).setValue('Prix d\'achat HT d\'un fût de 30 L. Rendement : 90 × 33cl ou 60 × 50cl.');
+    p.getRange(4, 9).setValue('Même fût que la 33cl.');
     journal.push('📦 PRODUITS créé : complète les prix d\'achat manquants (fût, Orangina, Ice Tea)');
   }
 
@@ -248,7 +248,7 @@ function formulesProduits_() {
   if (p) {
     const refs = p.getRange('A1:A20').getValues().map(function (r) { return String(r[0]); });
     const lf = refs.indexOf('FUT') + 1;
-    [['P01_25', 0.25], ['P01_50', 0.5]].forEach(function (x) {
+    [['P01_25', 0.33], ['P01_50', 0.5]].forEach(function (x) {
       const l = refs.indexOf(x[0]) + 1;
       if (lf && l) p.getRange(l, 5).setFormula(f_('=IF($E$' + lf + '="","",ROUND($E$' + lf + '/30/0.95*' + x[1] + ',2))'));
     });
@@ -553,4 +553,41 @@ function construireTableauDeBord_(saisonForcee) {
   sh.insertChart(ch);
   try { sh.getRange(r3 + 5, 2).setValue(Math.round(stockValorise_(catalogueCouts_()) * 100) / 100); } catch (e) {}
   return sh;
+}
+
+// Menu 💶 : applique les tarifs et prix d'achat 26-27 (mise à jour du 02/10/2026) dans 📦 PRODUITS.
+// Ne touche ni au colisage ni aux seuils. Les tablettes prennent les nouveaux prix au prochain chargement.
+const TARIFS_26_27 = {
+  //           libellé                prix vente  prix achat HT  note
+  FUT:      ['Bière — fût 30 L',      '',   95,    'Prix d\'achat HT d\'un fût de 30 L. Rendement : 90 × 33cl ou 60 × 50cl.'],
+  P01_25:   ['Bière 33cl',            3,    null,  'Même fût. Formule : 2 verres de 33cl = 5 € (appliquée par la tablette).'],
+  P01_50:   ['Bière 50cl',            6,    null,  'Même fût. Formule : 2 verres de 50cl = 10 € (appliquée par la tablette).'],
+  P02_COCA: ['Coca-Cola',             2,    1.88,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,25 L (≈ 3,8 verres). Stock en bouteilles.'],
+  P02_ORAN: ['Orangina',              2,    2.13,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,5 L (≈ 4,5 verres). Stock en bouteilles.'],
+  P02_ICET: ['Ice Tea',               2,    1.62,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,25 L (≈ 3,8 verres). Stock en bouteilles.'],
+  P02_SCHW: ['Schweppes Agrumes',     2,    2.13,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,5 L (≈ 4,5 verres). Stock en bouteilles.'],
+  P03:      ['Eau plate 50cl',        1,    0.22,  'Bouteille de 50cl.'],
+  P04:      ['Eau gazeuse 50cl',      1,    0.253, 'Bouteille de 50cl.'],
+  E01:      ['Écocup (consigne)',     1,    null,  'Parc : 2 000 écocups 33cl + 2 000 écocups 50cl.'],
+};
+function appliquerTarifs2627() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), p = ss.getSheetByName(ONG.PRODUITS);
+  if (!p) { alerte_('Onglet 📦 PRODUITS introuvable.'); return; }
+  const h = entete_(p), iR = h.indexOf('RÉF'), iN = h.indexOf('PRODUIT'), iV = h.indexOf('PRIX VENTE €'), iA = h.indexOf('PRIX ACHAT €'), iNo = h.indexOf('NOTES');
+  const last = p.getLastRow(), vus = {};
+  const refs = last > 1 ? p.getRange(2, iR + 1, last - 1, 1).getValues().map(function (r) { return String(r[0]).trim(); }) : [];
+  refs.forEach(function (ref, k) {
+    const t = TARIFS_26_27[ref]; if (!t) return;
+    const row = k + 2; vus[ref] = 1;
+    if (iN >= 0) p.getRange(row, iN + 1).setValue(t[0]);
+    if (iV >= 0 && t[1] !== '') p.getRange(row, iV + 1).setValue(t[1]);
+    if (iA >= 0 && t[2] !== null) p.getRange(row, iA + 1).setValue(t[2]);
+    if (iNo >= 0) p.getRange(row, iNo + 1).setValue(t[3]);
+  });
+  formulesProduits_();   // coût du verre de bière recalculé (33cl et 50cl) depuis le prix du fût
+  const manquent = Object.keys(TARIFS_26_27).filter(function (r) { return !vus[r]; });
+  try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
+  alerte_('✅ Tarifs 26-27 appliqués dans 📦 PRODUITS.\n\nBière 33cl 3 € · 50cl 6 € · formules 2 × 33cl = 5 € et 2 × 50cl = 10 €\nSofts au verre de 33cl : 2 € · Eaux : 1 €\nFût 95 € HT · softs au prix de la bouteille.' +
+    (manquent.length ? '\n\n⚠️ Références absentes de l\'onglet : ' + manquent.join(', ') : '') +
+    '\n\nVérifie le COLISAGE des softs (bouteilles par pack), puis touche « Charger » sur chaque tablette.');
 }
