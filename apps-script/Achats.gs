@@ -28,13 +28,13 @@ function plApi_(path, query) {
 }
 function plItems_(res) { return res.items || res.data || res.ledger_entry_lines || res.ledger_accounts || []; }
 
-// Identifiant Pennylane d'un compte (ex. 607100000), mémorisé
+// Identifiant Pennylane d'un compte (ex. 607100000), mémorisé. null si le compte n'existe pas (encore).
 function plCompteId_(numero) {
   const p = PropertiesService.getScriptProperties(), k = 'PL_COMPTE_' + numero, memo = p.getProperty(k);
   if (memo) return memo;
   const res = plApi_('/ledger_accounts', { filter: JSON.stringify([{ field: 'number', operator: 'eq', value: numero }]), limit: 20 });
-  const a = plItems_(res).filter(function (x) { return String(x.number) === numero; })[0] || plItems_(res)[0];
-  if (!a) throw new Error('Compte ' + numero + ' introuvable dans Pennylane');
+  const a = plItems_(res).filter(function (x) { return String(x.number) === numero; })[0];
+  if (!a) return null;
   p.setProperty(k, String(a.id));
   return String(a.id);
 }
@@ -70,9 +70,11 @@ function pennylaneImporterAchats(silencieux) {
 
   const h = entete_(sh), d = donnees_(sh), iId = h.indexOf('ID PENNYLANE');
   const parId = {}; d.forEach(function (r, k) { if (r[iId]) parId[String(r[iId])] = k; });
-  let ajout = 0, maj = 0; const vus = {};
+  let ajout = 0, maj = 0; const vus = {}, absents = [];
   PENNYLANE.COMPTES.forEach(function (num) {
-    plLignes_(plCompteId_(num), depuis).forEach(function (l) {
+    const idCompte = plCompteId_(num);
+    if (!idCompte) { absents.push(num); return; }
+    plLignes_(idCompte, depuis).forEach(function (l) {
       const id = String(l.id), date = String(l.date || (l.ledger_entry && l.ledger_entry.date) || '').slice(0, 10);
       const montant = Math.round(((Number(l.debit) || 0) - (Number(l.credit) || 0)) * 100) / 100;
       const piece = l.ledger_entry ? (l.ledger_entry.url || ('écriture ' + l.ledger_entry.id)) : '';
@@ -82,6 +84,11 @@ function pennylaneImporterAchats(silencieux) {
       if (parId[id] != null) { d[parId[id]] = ligne; maj++; } else { d.push(ligne); ajout++; }
     });
   });
+  if (absents.length === PENNYLANE.COMPTES.length) {
+    const m = '⏳ Pennylane connecté, mais le compte ' + absents.join(', ') + ' n\'existe pas encore. Rien à importer : l\'import démarrera tout seul dès qu\'il sera créé et utilisé.';
+    if (silencieux !== true) alerte_(m);
+    return m;
+  }
   // Lignes supprimées dans Pennylane depuis la date d'import : retirées ici aussi
   const avant = d.length;
   const garde = d.filter(function (r) { return r[1] !== 'Pennylane' || vus[String(r[iId])] || jour_(r[0]) < depuis; });
@@ -106,6 +113,7 @@ function pennylaneImportAuto_() {
 function pennylaneTester() {
   try {
     const id = plCompteId_(PENNYLANE.COMPTES[0]);
+    if (!id) { alerte_('✅ Pennylane connecté (la clé est acceptée).\n\n⏳ Le compte ' + PENNYLANE.COMPTES[0] + ' (Achat buvette) n\'existe pas encore dans Pennylane. Dès qu\'il sera créé et que des factures y seront imputées, l\'import se fera tout seul (toutes les 6 h).'); return; }
     const l = plLignes_(id, '2025-01-01').slice(-3);
     alerte_('✅ Pennylane connecté. Compte ' + PENNYLANE.COMPTES[0] + ' (id ' + id + ').\n\nDernières lignes :\n' +
       (l.length ? l.map(function (x) { return String(x.date).slice(0, 10) + ' · ' + (x.label || '') + ' · ' + ((Number(x.debit) || 0) - (Number(x.credit) || 0)) + ' €'; }).join('\n') : '(aucune)'));
