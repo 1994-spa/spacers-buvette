@@ -413,7 +413,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-marge</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.02-qr</p>
     </div>
   </div>
 </div>
@@ -427,7 +427,8 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 const NB_BUVETTES = 3;
 const TICKIE_PROXY_URL = 'https://tickie-proxy.spacersytb.workers.dev';
 const STORE_KEY = 'buvette_etat_v2';
-const APPS_SCRIPT_URL = '';      // fourni par le lien de configuration (menu du Sheet)
+// Application web du Sheet Matchday (déploiement unique : « Nouvelle version » garde cette adresse)
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_0wr_XORTuVxaZU9YSa63IZiFfRf9vzPczAlwECPC7BPRD22s9TriBtDn7jca1qBmvg/exec';
 const DELAI_ANNUL = 10000;       // une vente reste annulable 10 s avant de partir au Sheet
 const CONSIGNE = 1.00;
 
@@ -505,17 +506,41 @@ function load() {
 }
 
 // Lien de configuration : ?cfg=<base64 JSON> {url, token, tab}
+// Lien court (QR des tablettes) : ?b=<n° buvette>&k=<jeton>[&d=<id de déploiement>]
+// Lien long (ancien) : ?cfg=<base64 JSON {url, token, tab}>
+function configDepuisParams(q) {
+  if (q.get('k')) {
+    return { token: q.get('k'), tab: q.get('b') || '', url: q.get('d') ? 'https://script.google.com/macros/s/' + q.get('d') + '/exec' : APPS_SCRIPT_URL };
+  }
+  const raw = q.get('cfg');
+  return raw ? JSON.parse(decodeURIComponent(escape(atob(raw)))) : null;
+}
+function appliquerConfig(cfg, source) {
+  if (cfg.url || cfg.pilotage) state.url = cfg.url || cfg.pilotage;
+  if (cfg.token) state.token = cfg.token;
+  if (cfg.tab) { const n = normTab(cfg.tab); if (n) state.tab = n; }
+  if (/^\d{4}$/.test(String(cfg.pin || ''))) state.pin = String(cfg.pin);
+  save(); renderAll();
+  info('✅ Tablette configurée pour la ' + state.tab);
+  if (navigator.onLine !== false) chargerMatch(true);
+}
+// QR de configuration lu par le scanner de l'app (utile sur iPad : l'icône d'écran d'accueil n'a pas la mémoire de Safari)
+function essayerConfigQr(code) {
+  if (!/^https?:\/\//i.test(code) || !/[?&](k|cfg)=/.test(code)) return false;
+  try { const cfg = configDepuisParams(new URL(code).searchParams); if (!cfg || !cfg.token) return false; fermerScanner(); appliquerConfig(cfg); return true; }
+  catch (e) { return false; }
+}
 function lireLienConfig() {
   try {
-    const raw = new URLSearchParams(location.search).get('cfg');
-    if (!raw) return;
-    const cfg = JSON.parse(decodeURIComponent(escape(atob(raw))));
+    const cfg = configDepuisParams(new URLSearchParams(location.search));
+    if (!cfg) return;
     if (cfg.url || cfg.pilotage) state.url = cfg.url || cfg.pilotage;
     if (cfg.token) state.token = cfg.token;
     if (cfg.tab) { const n = normTab(cfg.tab); if (n) state.tab = n; }
     if (/^\d{4}$/.test(String(cfg.pin || ''))) state.pin = String(cfg.pin);
     history.replaceState(null, '', location.pathname);
     setTimeout(() => { info('✅ Tablette configurée pour la ' + state.tab); if (navigator.onLine !== false) chargerMatch(true); }, 300);
+    return;
   } catch(e) { setTimeout(() => info('⚠️ Lien de configuration illisible'), 300); }
 }
 function normTab(raw) { const m = String(raw).match(/(\d+)/); const n = m ? parseInt(m[1], 10) : 0; return (n >= 1 && n <= NB_BUVETTES) ? 'Buvette ' + n : null; }
@@ -576,7 +601,7 @@ function renderBanner() {
     b.innerHTML = `<span>📣 <b>Nouveau match prêt : ${esc(chargementEnAttente.match.nom)}.</b> Les compteurs repartiront à zéro.</span><button onclick="confirmerNouveauMatch()">Passer à ce match</button>`;
   } else if (!state.url || !state.token) {
     b.hidden = false;
-    b.innerHTML = `<span>⚙️ <b>Tablette pas encore configurée</b> : ouvre le lien ou scanne le QR code du responsable.</span>`;
+    b.innerHTML = `<span>⚙️ <b>Tablette pas encore configurée</b> : scanne le QR code de ta buvette (menu du Sheet → Pilotage live).</span><button onclick="ouvrirScanner()">📷 Scanner le QR de configuration</button>`;
   } else if (!state.match) {
     b.hidden = false;
     b.innerHTML = `<span>⏳ <b>Match pas encore chargé</b> — tu peux vendre quand même, le stock arrivera dès qu'il y aura du wifi.</span><button onclick="chargerMatch()">Charger</button>`;
@@ -869,6 +894,7 @@ function setScanStatus(t) { document.getElementById('scan-status').textContent =
 function saisieManuelle(e) { e.preventDefault(); const v = document.getElementById('scan-manual').value.trim(); if (v) { arreterCamera(); chercherBillet(v); } }
 
 async function chercherBillet(barcode) {
+  if (essayerConfigQr(barcode)) return;
   const local = state.billets[barcode];
   if (local) { relierBillet({ ticket_id: local[0], tarif: local[1] }, barcode); return; }
   if (navigator.onLine === false) { relierBillet({ nonVerifie: true }, barcode); return; }

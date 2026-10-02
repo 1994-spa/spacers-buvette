@@ -649,23 +649,35 @@ function pilLienConfig_(page, extra) {
   const cfg = Object.assign({ url: url, token: p.getProperty('PILOTAGE_TOKEN') }, extra || {});
   return PIL_APP_URL + page + '?cfg=' + encodeURIComponent(Utilities.base64Encode(JSON.stringify(cfg), Utilities.Charset.UTF_8));
 }
+// Lien court d'une tablette (QR facile à lire) : ?b=<n°>&k=<jeton>, + &d=<déploiement> si ce n'est pas celui intégré à l'app
+const PIL_DEPLOIEMENT_APP = 'AKfycbw_0wr_XORTuVxaZU9YSa63IZiFfRf9vzPczAlwECPC7BPRD22s9TriBtDn7jca1qBmvg';
+function pilLienTablette_(buvette) {
+  const tok = PropertiesService.getScriptProperties().getProperty('PILOTAGE_TOKEN');
+  const m = String(pilUrlWebApp_() || '').match(/\/s\/([A-Za-z0-9_-]+)\/exec/);
+  const d = m && m[1] !== PIL_DEPLOIEMENT_APP ? '&d=' + m[1] : '';
+  return PIL_APP_URL + '?b=' + String(buvette).replace(/\D/g, '') + '&k=' + tok + d;
+}
 function pilotageOuvrir() {
   if (!PropertiesService.getScriptProperties().getProperty('PILOTAGE_TOKEN')) pilotageInitialiser();
   const dash = pilLienConfig_('pilotage.html');
-  const tabs = PIL.BUVETTES.map(function (b) { return { nom: b, url: pilLienConfig_('', { tab: b }) }; });
+  const tabs = PIL.BUVETTES.map(function (b) { return { nom: b, url: pilLienTablette_(b) }; });
   const esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
-  const html = '<style>body{font-family:Arial,sans-serif;margin:0;padding:4px 6px;color:#0d1726}' +
-    'a.big{display:block;text-align:center;background:#1a2e4a;color:#fff;padding:14px;border-radius:10px;font-weight:bold;text-decoration:none;font-size:16px}' +
-    '.g{display:flex;gap:14px;margin-top:16px;justify-content:space-between}.c{flex:1;text-align:center;font-size:13px}.c b{display:block;margin-bottom:6px}' +
-    '.q{display:inline-block;padding:6px;background:#fff;border:1px solid #ddd;border-radius:8px}p{font-size:12px;color:#4b5970}</style>' +
+  const html = '<style>body{font-family:Arial,sans-serif;margin:0;padding:4px 8px;color:#001E2D}' +
+    'a.big{display:block;text-align:center;background:#001E2D;color:#fff;padding:12px;border-radius:10px;font-weight:bold;text-decoration:none;font-size:15px}' +
+    '.g{display:flex;gap:16px;margin-top:12px;justify-content:space-between}.c{flex:1;text-align:center;font-size:13px}.c b{display:block;margin-bottom:6px;font-size:15px}' +
+    '.q{display:inline-block;padding:10px;background:#fff;border:1px solid #ccd;border-radius:10px}.q img,.q canvas{display:block}' +
+    '.l{font-size:10px;color:#64778A;word-break:break-all;margin-top:4px}p,li{font-size:12px;color:#33495a;line-height:1.45}ol{margin:6px 0 0 18px;padding:0}</style>' +
     '<a class="big" href="' + esc(dash) + '" target="_blank">📊 Ouvrir le tableau de bord</a>' +
-    '<p>Tablettes : scanner le QR code avec la tablette (ou lui envoyer le lien). Elle se configure seule, puis charge le match et le stock dès qu\'elle a le wifi.</p>' +
     '<div class="g">' + tabs.map(function (t, i) {
-      return '<div class="c"><b>' + esc(t.nom) + '</b><div class="q" id="q' + i + '"></div><br><a href="' + esc(t.url) + '" target="_blank">lien</a></div>';
+      return '<div class="c"><b>' + esc(t.nom) + '</b><div class="q" id="q' + i + '"></div><div class="l">' + esc(t.url) + '</div></div>';
     }).join('') + '</div>' +
+    '<p><b>Installer une tablette</b> (une fois) :</p><ol>' +
+    '<li>Ouvre l\'appareil photo de la tablette et vise le QR de sa buvette, puis touche le lien : l\'app s\'ouvre déjà configurée.</li>' +
+    '<li><b>Android</b> (Chrome) : menu ⋮ → <i>Installer l\'application</i>. <b>iPad</b> (Safari) : bouton Partager → <i>Sur l\'écran d\'accueil</i>.</li>' +
+    '<li><b>iPad uniquement</b> : ouvre l\'icône installée, touche <i>📷 Scanner le QR de configuration</i> et vise à nouveau le QR (l\'icône ne partage pas la mémoire de Safari).</li></ol>' +
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
-    JSON.stringify(tabs.map(function (t) { return t.url; })) + '.forEach(function(u,i){new QRCode(document.getElementById("q"+i),{text:u,width:150,height:150,correctLevel:QRCode.CorrectLevel.L});});</script>';
-  SpreadsheetApp.getUi().showModelessDialog(HtmlService.createHtmlOutput(html).setWidth(560).setHeight(380), 'Pilotage buvette');
+    JSON.stringify(tabs.map(function (t) { return t.url; })) + '.forEach(function(u,i){new QRCode(document.getElementById("q"+i),{text:u,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});});</script>';
+  SpreadsheetApp.getUi().showModelessDialog(HtmlService.createHtmlOutput(html).setWidth(820).setHeight(560), 'Pilotage buvette : tableau de bord et tablettes');
 }
 
 // URL publique (…/exec) du déploiement : ScriptApp.getService().getUrl() peut renvoyer l'URL /dev
