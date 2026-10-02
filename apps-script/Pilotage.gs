@@ -224,9 +224,13 @@ function pilCompterBillets_(eventId, ttl) {
     return o;
   });
 }
-function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif] — ni nom ni email
+function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom du titulaire] — pas d'email ni d'adresse
   const out = [];
-  pilParcourirBillets_(eventId, function (t) { if (t.barcode) out.push([t.barcode, t._id, t.ticketName || '']); });
+  pilParcourirBillets_(eventId, function (t) {
+    if (!t.barcode) return;
+    const nom = String(t.name || [t.firstname, t.lastname].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
+    out.push([t.barcode, t._id, t.ticketName || '', nom]);
+  });
   return out;
 }
 function pilCompterEntrees_(eventId) {   // null si le contrôle d'accès n'est pas accessible
@@ -381,7 +385,8 @@ function pilEnregistrerVentes_(ventes) {
     deja[String(v.id)] = 1;
     const t = v.ticket || {}, ts = new Date(v.ts || Date.now()), idm = v.matchId || '', b = v.buvette || '', day = pilDate_(ts);
     const row = [now, ts, v.id, idm, b, Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
-      t.ticket_id || '', t.barcode || '', t.tarif || '', '', v.annule ? 'annulation de ' + v.annule : ''];
+      t.ticket_id || '', t.barcode || '', t.tarif || '', '',
+      (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise billet 5 % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')];
     PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : '');
     rows.push(row);
