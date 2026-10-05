@@ -26,6 +26,11 @@ const PIL = {
   VIVENU_BASE: 'https://vivenu.com/api',
   PORTIER_BASE: 'https://portier.vivenu.com/api',
   ABONNEMENT_EVENT_ID: '69fc9d2b69a5578199f9d5e9',   // « Abonnement 2026-2027 » dans Tickie
+  // Remise buvette : −10 % pour les abonnés (tout billet de l'événement abonnement) et les clients Tickie listés
+  // ci-dessous (lots partenaires) ; −5 % pour tout autre billet scanné. Taux appliqués par la tablette.
+  CLIENTS_REMISE: {
+    '6a300038606cb61d33ae0f79': 'CROUS',              // lot partenaire CROUS (billets attribués via « Gestion des partenaires »)
+  },
   // Onglets : feuille_('VENTES') = 🧾 VENTES, feuille_('DETAIL') = ⚙️ détail ventes, feuille_('MATCHS') = 📅 MATCHS
   // (anciens noms 51_VENTES_LIVE / 50_VENTES_DIRECTES / 10_MATCHS acceptés). Stock de départ, stock restant
   // et suivi des tablettes sont gardés dans les propriétés du script.
@@ -229,12 +234,17 @@ function pilCompterBillets_(eventId, ttl) {
     return o;
   });
 }
-function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom du titulaire] — pas d'email ni d'adresse
+// Profil de remise d'un billet : 'ABO' (abonnement), nom du partenaire (lot CLIENTS_REMISE) ou '' (billet simple)
+function pilProfilRemise_(t, eventId) {
+  if ((eventId || t.eventId) === PIL.ABONNEMENT_EVENT_ID) return 'ABO';
+  return PIL.CLIENTS_REMISE[t.customerId] || '';
+}
+function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom du titulaire, profil remise] — pas d'email ni d'adresse
   const out = [];
   const ajouter = function (t) {
     if (!t.barcode) return;
     const nom = String(t.name || [t.firstname, t.lastname].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
-    out.push([t.barcode, t._id, t.ticketName || '', nom]);
+    out.push([t.barcode, t._id, t.ticketName || '', nom, pilProfilRemise_(t, eventId)]);
   };
   pilParcourirBillets_(eventId, ajouter);
   // Billets payés mais pas encore nominatifs (« détails à compléter ») : ils restent des billets du club
@@ -394,7 +404,7 @@ function pilEnregistrerVentes_(ventes) {
     const t = v.ticket || {}, ts = new Date(v.ts || Date.now()), idm = v.matchId || '', b = v.buvette || '', day = pilDate_(ts);
     const row = [now, ts, v.id, idm, b, Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
       t.ticket_id || '', t.barcode || '', t.tarif || '', '',
-      (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise billet 5 % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')];
+      (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')];
     PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : '');
     rows.push(row);
