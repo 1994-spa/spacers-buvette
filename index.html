@@ -381,7 +381,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <ol>
       <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson.</span></li>
       <li><span><b>Gobelet : 🥤 + Gobelet 33 ou 50 si le client n'en a pas.</b>Une touche par gobelet donné, de la bonne taille = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Rendu 33 ou 50.</span></li>
-      <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Abonné ou partenaire CROUS : −10 % sur sa commande. Autre billet : −5 %. La tablette applique la bonne remise toute seule, et le client gagne des points. Pas de billet ? On continue.</span></li>
+      <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Abonné ou partenaire CROUS : −10 % sur sa commande. Autre billet : −5 %. Pas de cumul avec les formules « 2 bières » : la tablette applique toute seule l'avantage le plus intéressant, et le client gagne des points. Pas de billet ? On continue.</span></li>
       <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>CB : tape le montant affiché sur le TPE, puis touche « Paiement accepté ». Espèces : touche le billet donné, la tablette affiche la monnaie à rendre.</span></li>
     </ol>
     <p class="plus">Une erreur ? Le bouton <b>↶ Annuler</b> apparaît quelques secondes après chaque vente, ou retire une boisson avec <b>−</b>.<br>Pas de wifi ? Aucun souci : tout est gardé dans la tablette et part tout seul plus tard.</p>
@@ -427,7 +427,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.05-remise-abonnes</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.05-remise-hors-formules</p>
     </div>
   </div>
 </div>
@@ -718,17 +718,25 @@ function remiseFormule(ref, q) {   // € retirés par les formules « 2 verres 
   const f = FORMULES[ref]; if (!f || q < f.n) return 0;
   return Math.max(0, Math.floor(q / f.n) * (f.n * priceOf(prod(ref)) - f.prix));
 }
-function remiseFormules() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { t += remiseFormule(r, q); }); return Math.round(t * 100) / 100; }
+// Pas de cumul formule + remise billet : sur chaque ligne, le client a l'avantage le plus intéressant des deux
+function remiseLigne(ref, q) {
+  const f = remiseFormule(ref, q), b = billet ? q * priceOf(prod(ref)) * tauxRemise() : 0;
+  return f > 0 && f >= b ? { type:'formule', m:f } : { type:'billet', m:b };
+}
+function remiseFormules() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { const l = remiseLigne(r, q); if (l.type === 'formule') t += l.m; }); return Math.round(t * 100) / 100; }
 function sousTotalProduits() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { t += q * priceOf(prod(r)); }); return t - remiseFormules(); }
-// La remise billet s'applique sur le montant après formules
-function remisePanier() { const t = sousTotalProduits(); return billet && t > 0 ? Math.round(t * tauxRemise() * 100) / 100 : 0; }
+function remisePanier() {
+  if (!billet) return 0;
+  let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) { const l = remiseLigne(r, q); if (l.type === 'billet') t += l.m; } });
+  return Math.round(t * 100) / 100;
+}
 function totalPanier() {
   return Math.round((sousTotalProduits() - remisePanier() + (panier.consigne - panier.rendue) * CONSIGNE) * 100) / 100;
 }
 // Prix réellement encaissé par verre (formules et remise billet réparties), envoyé au Sheet pour un CA exact
-function prixEncaisses(lignes, coef) {
+function prixEncaisses(lignes) {
   return Object.fromEntries(Object.keys(lignes).map(r => { const q = lignes[r], pu = priceOf(prod(r));
-    return [r, Math.round((pu - remiseFormule(r, q) / q) * coef * 1000) / 1000]; }));
+    return [r, Math.round((pu - remiseLigne(r, q).m / q) * 1000) / 1000]; }));
 }
 function panierVide() { return !Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue; }
 
@@ -743,10 +751,10 @@ function renderPanier() {
   const g = panier.gob || nouveauxGob();
   [33, 50].forEach(t => { if (g['s' + t]) rows.push(ligneHtml(`🥤 Gobelet ${t}cl consigné`, '+1 € par gobelet', g['s' + t], g['s' + t] * CONSIGNE, `changeConsigne(-1,${t})`, `changeConsigne(1,${t})`)); });
   [33, 50].forEach(t => { if (g['r' + t]) rows.push(ligneHtml(`♻️ Gobelet ${t}cl rendu`, 'consigne remboursée', g['r' + t], g['r' + t] * CONSIGNE, `changeRendue(-1,${t})`, `changeRendue(1,${t})`, true)); });
-  Object.entries(panier.lignes).forEach(([r, q]) => { const f = remiseFormule(r, q); if (f) { const n = Math.floor(q / FORMULES[r].n);
+  Object.entries(panier.lignes).forEach(([r, q]) => { const f = remiseLigne(r, q).type === 'formule' ? remiseLigne(r, q).m : 0; if (f) { const n = Math.floor(q / FORMULES[r].n);
     rows.push(`<div class="line neg remise"><span class="n">🍻 Formule ${FORMULES[r].nom} = ${fmt(FORMULES[r].prix)}<small>× ${n} appliquée${n > 1 ? 's' : ''} automatiquement</small></span><span class="step"></span><span class="m">−${fmt(f)}</span></div>`); } });
   const rem = remisePanier();
-  if (rem) rows.push(`<div class="line neg remise"><span class="n">🎫 ${libelleRemise()}<small>${esc(billet.nom || 'billet scanné')}</small></span><span class="step"></span><span class="m">−${fmt(rem)}</span></div>`);
+  if (rem) rows.push(`<div class="line neg remise"><span class="n">🎫 ${libelleRemise()}<small>${esc(billet.nom || 'billet scanné')}${remiseFormules() ? ' · hors formules' : ''}</small></span><span class="step"></span><span class="m">−${fmt(rem)}</span></div>`);
   document.getElementById('lines').innerHTML = rows.length ? rows.join('')
     : `<div class="empty"><big>👈</big>Touche les boissons<br>demandées par le client</div>`;
 
@@ -862,7 +870,7 @@ function payerEspeces(donne) {
 
 function encaisser(mode) {
   if (panierVide()) return;
-  const total = totalPanier(), remise = remisePanier(), taux = remise ? tauxRemise() : 0, coef = 1 - taux;
+  const total = totalPanier(), remise = remisePanier(), taux = remise ? tauxRemise() : 0;
   const lignes = {};
   Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) lignes[r] = q; });
   const vente = {
@@ -873,7 +881,7 @@ function encaisser(mode) {
     lignes, consigne: panier.consigne, rendue: panier.rendue, gob: Object.assign({}, panier.gob), total, remise,
     tauxRemise: taux, profilRemise: remise && billet ? billet.profil || '' : '',
     paiement: mode,
-    prix: prixEncaisses(lignes, coef),   // prix réellement encaissés (formules et remise billet incluses)
+    prix: prixEncaisses(lignes),   // prix réellement encaissés (formules et remise billet incluses)
     ticket: billet ? { ticket_id: billet.ticket_id || '', barcode: billet.barcode || '', tarif: billet.tarif || '' } : null,
   };
   appliquerCumul(vente, 1);

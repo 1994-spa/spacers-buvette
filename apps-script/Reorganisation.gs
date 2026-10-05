@@ -559,7 +559,7 @@ function construireTableauDeBord_(saisonForcee) {
 // Ne touche ni au colisage ni aux seuils. Les tablettes prennent les nouveaux prix au prochain chargement.
 const TARIFS_26_27 = {
   //           libellé                prix vente  prix achat HT  note
-  FUT:      ['Bière — fût 30 L',      '',   95,    'Prix d\'achat HT d\'un fût de 30 L. Rendement : 90 × 33cl ou 60 × 50cl.'],
+  FUT:      ['Bière — fût 30 L',      '',   115.11, 'Prix d\'achat HT d\'un fût AMOS 30 L, accise et frais compris, hors consigne fût (facture Crouzil 05/10/2026). Rendement : 90 × 33cl ou 60 × 50cl.'],
   P01_25:   ['Bière 33cl',            3,    null,  'Même fût. Formule : 2 verres de 33cl = 5 € (appliquée par la tablette).'],
   P01_50:   ['Bière 50cl',            6,    null,  'Même fût. Formule : 2 verres de 50cl = 10 € (appliquée par la tablette).'],
   P02_COCA: ['Coca-Cola',             2,    1.88,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,25 L (≈ 3,8 verres). Stock en bouteilles.'],
@@ -587,7 +587,7 @@ function appliquerTarifs2627() {
   formulesProduits_();   // coût du verre de bière recalculé (33cl et 50cl) depuis le prix du fût
   const manquent = Object.keys(TARIFS_26_27).filter(function (r) { return !vus[r]; });
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
-  alerte_('✅ Tarifs 26-27 appliqués dans 📦 PRODUITS.\n\nBière 33cl 3 € · 50cl 6 € · formules 2 × 33cl = 5 € et 2 × 50cl = 10 €\nSofts au verre de 33cl : 2 € · Eaux : 1 €\nFût 95 € HT · softs au prix de la bouteille.' +
+  alerte_('✅ Tarifs 26-27 appliqués dans 📦 PRODUITS.\n\nBière 33cl 3 € · 50cl 6 € · formules 2 × 33cl = 5 € et 2 × 50cl = 10 €\nSofts au verre de 33cl : 2 € · Eaux : 1 €\nFût 115,11 € HT · softs au prix de la bouteille.' +
     (manquent.length ? '\n\n⚠️ Références absentes de l\'onglet : ' + manquent.join(', ') : '') +
     '\n\nVérifie le COLISAGE des softs (bouteilles par pack), puis touche « Charger » sur chaque tablette.');
 }
