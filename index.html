@@ -296,10 +296,10 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <div class="tiles" id="tiles"></div>
     <div class="utils">
       <div class="gobs gob"><span class="lab">🥤 + Gobelet<small>+1 €</small></span>
-        <button onclick="gobeletConsigne(33)" aria-label="Gobelet 33 cl consigné">33<small>cl</small></button>
+        <button onclick="gobeletConsigne(33)" aria-label="Gobelet 30 cl consigné">30<small>cl</small></button>
         <button onclick="gobeletConsigne(50)" aria-label="Gobelet 50 cl consigné">50<small>cl</small></button></div>
       <div class="gobs eco"><span class="lab">♻️ Rendu<small>−1 €</small></span>
-        <button onclick="ecocupRendue(33)" aria-label="Gobelet 33 cl rendu">33<small>cl</small></button>
+        <button onclick="ecocupRendue(33)" aria-label="Gobelet 30 cl rendu">30<small>cl</small></button>
         <button onclick="ecocupRendue(50)" aria-label="Gobelet 50 cl rendu">50<small>cl</small></button></div>
       <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Abonné −10 % · billet −5 % · points fidélité</small></span></button>
     </div>
@@ -427,7 +427,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.05-remise-hors-formules</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.08-verres-30cl-consignes-a-part</p>
     </div>
   </div>
 </div>
@@ -450,7 +450,7 @@ const CONSIGNE = 1.00;
 // La consigne écocup n'est jamais automatique : le bénévole l'ajoute (bouton « + Gobelet »)
 // seulement si le client n'a pas déjà son verre.
 const CATALOGUE = [
-  { ref:'P01_25',   nom:'Bière 33cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺', big:'33 cl' },   // réf. historique P01_25 = verre de 33 cl depuis 26-27
+  { ref:'P01_25',   nom:'Bière 30cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺', big:'30 cl' },   // réf. historique P01_25 = verre de 30 cl depuis le 10/10/2026
   { ref:'P01_50',   nom:'Bière 50cl',        pv:6.00, seuil:10, color:'#a86400', icon:'🍺', big:'50 cl' },
   { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧', big:'PLATE' },
   { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧', big:'GAZEUSE' },
@@ -572,12 +572,12 @@ function toggleTheme() { theme = theme === 'dark' ? 'light' : 'dark'; try { loca
 // ═══════════════════════════════════════════════════════════════════
 // STOCK — la bière 25/50 cl est tirée des mêmes fûts (stock en litres)
 // ═══════════════════════════════════════════════════════════════════
-const LITRES = { P01_25:0.33, P01_50:0.5 };
-// Softs servis au verre de 33 cl, tirés de grandes bouteilles : le stock (préparation, inventaire) reste en bouteilles
-const VERRE_SOFT = 0.33;
+const LITRES = { P01_25:0.3, P01_50:0.5 };
+// Softs servis au verre de 30 cl, tirés de grandes bouteilles : le stock (préparation, inventaire) reste en bouteilles
+const VERRE_SOFT = 0.3;
 const BOUTEILLE_L = { P02_COCA:1.25, P02_ICET:1.25, P02_ORAN:1.5, P02_SCHW:1.5 };
-// Formules : 2 verres de 33 cl = 5 €, 2 verres de 50 cl = 10 € (appliquées toutes seules par paire)
-const FORMULES = { P01_25: { n:2, prix:5, nom:'2 bières 33cl' }, P01_50: { n:2, prix:10, nom:'2 bières 50cl' } };
+// Formules : 2 verres de 30 cl = 5 €, 2 verres de 50 cl = 10 € (appliquées toutes seules par paire)
+const FORMULES = { P01_25: { n:2, prix:5, nom:'2 bières 30cl' }, P01_50: { n:2, prix:10, nom:'2 bières 50cl' } };
 function stockInit(ref) { return Number((state.stocks[state.tab] || {})[ref]) || 0; }
 function litresRestants(avecPanier) {
   const c = cumulTab();
@@ -789,7 +789,7 @@ function renderAlerts() {
     if (biere) {
       const l = litresRestants(true);
       if (l <= 0) out.push(['err', '🚨 Fût vide : préviens le responsable']);
-      else if (l <= 4) out.push(['warn', `⚠️ Bière : ~${Math.floor(l / .33)} verres de 33cl restants`]);
+      else if (l <= 4) out.push(['warn', `⚠️ Bière : ~${Math.floor(l / .3)} verres de 30cl restants`]);
     }
     CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => {
       const d = stockDispo(p.ref);
@@ -900,7 +900,7 @@ function appliquerCumul(v, sens) {
   const c = cumulTab(v.buvette);
   Object.entries(v.lignes).forEach(([r, q]) => { c.lignes[r] = (c.lignes[r] || 0) + sens * q; if (!c.lignes[r]) delete c.lignes[r]; });
   c.consigne += sens * v.consigne; c.rendue += sens * v.rendue; c.ventes += sens;
-  // Ancienne vente sans détail de taille : comptée en 33 cl
+  // Ancienne vente sans détail de taille : comptée en petit format (clé s33 = écocup 30 cl)
   const g = v.gob || { s33: v.consigne || 0, s50: 0, r33: v.rendue || 0, r50: 0 };
   Object.keys(c.gob).forEach(k => { c.gob[k] += sens * (Number(g[k]) || 0); });
   c.ca = Math.round((c.ca + sens * v.total) * 100) / 100;
@@ -1076,7 +1076,9 @@ function afficherRapport() {
   const fond = cl ? cl.fond : (state.fond[state.tab] ?? 0);
   document.getElementById('bilan-titre').textContent = '📊 Rapport ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
   let h = `<div class="kpis">
-    <div class="k"><span>Total</span><b>${fmt(c.ca)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}${c.nbRemise ? ` · dont ${fmt(c.remise)} de remises billet (${c.nbRemise})` : ''}</small></div>
+    <div class="k"><span>🍺 Boissons</span><b>${fmt(Math.round((c.ca - (c.consigne - c.rendue) * CONSIGNE) * 100) / 100)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}${c.nbRemise ? ` · dont ${fmt(c.remise)} de remises billet (${c.nbRemise})` : ''} · hors consignes</small></div>
+    <div class="k"><span>🥤 Consignes écocups</span><b>${fmt((c.consigne - c.rendue) * CONSIGNE)}</b><small>${c.consigne} encaissée${c.consigne > 1 ? 's' : ''} · ${c.rendue} rendue${c.rendue > 1 ? 's' : ''} · à part du CA</small></div>
+    <div class="k"><span>Total encaissé</span><b>${fmt(c.ca)}</b><small>boissons + consignes = CB + espèces</small></div>
     <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · à comparer au ticket TPE</small></div>
     <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div></div>`;
   h += `<div class="sec">Clôture de la caisse espèces</div>
@@ -1101,7 +1103,7 @@ function afficherRapport() {
   h += vendus.length ? vendus.map(p => `<div><span>${esc(p.nom)} × ${c.lignes[p.ref]}</span><b>${fmt(c.lignes[p.ref] * p.pv)}</b></div>`).join('') : '<div><span>Aucune vente</span><b>—</b></div>';
   const brut = vendus.reduce((t, p) => t + c.lignes[p.ref] * p.pv, 0) + (c.consigne - c.rendue) * CONSIGNE, red = Math.round((brut - c.ca) * 100) / 100;
   if (red > 0) h += `<div><span>🍻 Formules + 🎫 remises billet</span><b>−${fmt(red)}</b></div>`;
-  h += `<div><span>🥤 Écocups 33cl sortis / rendus</span><b>${c.gob.s33} / ${c.gob.r33}</b></div><div><span>🥤 Écocups 50cl sortis / rendus</span><b>${c.gob.s50} / ${c.gob.r50}</b></div></div></div>`;
+  h += `<div><span>🥤 Écocups 30cl sortis / rendus</span><b>${c.gob.s33} / ${c.gob.r33}</b></div><div><span>🥤 Écocups 50cl sortis / rendus</span><b>${c.gob.s50} / ${c.gob.r50}</b></div></div></div>`;
   h += `<div><div class="sec">Stock restant</div><div class="rows">`;
   if (!stockSuivi()) h += '<div><span>Match pas chargé</span><b>—</b></div>';
   else {
@@ -1331,7 +1333,9 @@ async function chargerMatch(auto) {
 }
 // Prix du Sheet (📦 PRODUITS) appliqués au catalogue de la tablette
 function appliquerPrix() {
-  CATALOGUE.forEach(p => { const x = (state.prix || {})[p.ref]; if (x && x.prix > 0) { p.pv = x.prix; if (x.seuil) p.seuil = x.seuil; } });
+  CATALOGUE.forEach(p => { const x = (state.prix || {})[p.ref]; if (x && x.prix > 0) { p.pv = x.prix; if (x.seuil) p.seuil = x.seuil;
+    // Offre « 2 verres » réglée dans 📦 PRODUITS (colonne OFFRE 2 VERRES €) : 0 = offre coupée
+    if (FORMULES[p.ref] && x.offre != null) FORMULES[p.ref].prix = x.offre > 0 ? x.offre : FORMULES[p.ref].n * p.pv; } });
 }
 function appliquerChargement(d, nouveau) {
   if (d.produits && Object.keys(d.produits).length) { state.prix = d.produits; appliquerPrix(); }
