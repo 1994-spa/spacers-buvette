@@ -63,6 +63,17 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .who{min-width:0;flex:1;display:flex;flex-direction:column;line-height:1.15;padding-left:16px;border-left:2px solid rgba(145,190,230,.35)}
 .who b{font-family:var(--font-display);font-size:1.4rem;font-weight:700;color:var(--day);letter-spacing:.12em;text-transform:uppercase}
 .who span{font-size:.85rem;color:rgba(255,255,255,.8);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-lieu{flex-shrink:0;width:52px;height:52px;border-radius:12px;overflow:hidden;border:2px solid var(--day);padding:0;background:var(--navy,#0b3350)}
+.h-lieu img{width:100%;height:100%;object-fit:cover;display:block}
+.lieu-card{display:flex;gap:14px;align-items:center;background:var(--surface-2);border-radius:14px;padding:10px;margin-bottom:14px;text-align:left;width:100%}
+.lieu-card img{width:120px;height:90px;object-fit:cover;border-radius:10px;flex-shrink:0}
+.lieu-card b{display:block;font-size:1.15rem}
+.lieu-card span{font-size:.95rem;color:var(--muted);font-weight:600}
+.lieu-photo{display:block;width:100%;max-height:62dvh;object-fit:contain;border-radius:14px;background:#000}
+.lieu-txt{margin-top:12px;font-size:1.1rem;font-weight:700;text-align:center}
+.seg button.seg-lieu{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px}
+.seg-lieu img{width:100%;height:64px;object-fit:cover;border-radius:8px}
+.seg-lieu small{font-size:.8rem;font-weight:700;opacity:.8}
 .net{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;font-size:.85rem;font-weight:800;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);white-space:nowrap}
 .net::before{content:'';width:10px;height:10px;border-radius:50%;background:#9aa3b2}
 .net.ok::before{background:#4ade80}
@@ -278,6 +289,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 
   <header class="header">
     <img class="logo" src="charte/logo-panoramic-fonce.svg" alt="Spacer's Toulouse Volley" width="213" height="44">
+    <button class="h-lieu" onclick="openLieu()" aria-label="Voir où se trouve ma buvette"><img id="h-lieu-img" src="lieux/buvette-1-mini.jpg" alt=""></button>
     <div class="who"><b id="h-buvette">Buvette 1</b><span id="h-match">Aucun match chargé</span></div>
     <div class="net" id="net" role="status"><span id="net-txt">…</span></div>
     <button class="hbtn" onclick="openBilan()" aria-label="Rapport de fin de match (code responsable)">
@@ -378,6 +390,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
   <div class="modal aide">
     <img src="charte/logo-panoramic-clair.svg" alt="Spacer's Toulouse Volley" class="aide-logo">
     <h3>👋 Bienvenue à la buvette !</h3>
+    <button class="lieu-card" id="aide-lieu" onclick="openLieu()"></button>
     <ol>
       <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson.</span></li>
       <li><span><b>Gobelet : 🥤 + Gobelet 33 ou 50 si le client n'en a pas.</b>Une touche par gobelet donné, de la bonne taille = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Rendu 33 ou 50.</span></li>
@@ -386,6 +399,17 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     </ol>
     <p class="plus">Une erreur ? Le bouton <b>↶ Annuler</b> apparaît quelques secondes après chaque vente, ou retire une boisson avec <b>−</b>.<br>Pas de wifi ? Aucun souci : tout est gardé dans la tablette et part tout seul plus tard.</p>
     <button class="big-ok" style="margin-top:16px" onclick="fermerAide()">C'est parti !</button>
+  </div>
+</div>
+
+<!-- OÙ EST MA BUVETTE -->
+<div class="overlay" id="m-lieu">
+  <div class="modal">
+    <button class="x" onclick="fermer('m-lieu')" aria-label="Fermer">✕</button>
+    <h3 id="lieu-titre">📍 Ma buvette</h3>
+    <img class="lieu-photo" id="lieu-photo" src="" alt="">
+    <p class="lieu-txt" id="lieu-txt"></p>
+    <button class="big-ok" style="margin-top:14px" onclick="fermer('m-lieu')">OK</button>
   </div>
 </div>
 
@@ -427,7 +451,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.08-verres-30cl-consignes-a-part</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.09-photos-buvettes</p>
     </div>
   </div>
 </div>
@@ -616,6 +640,25 @@ function stockSnapshot() {
   return o;
 }
 
+// Emplacement des buvettes au Palais des Sports (photos dans lieux/)
+const LIEUX = {
+  'Buvette 1': { lieu: 'Porte 4', detail: 'Coursive, à côté de la porte du Bloc 4' },
+  'Buvette 2': { lieu: 'Porte 6', detail: 'Coursive, à côté de la porte du Bloc 6' },
+  'Buvette 3': { lieu: 'Buvette intérieure', detail: 'Dans la salle, sous la tribune (mur Toulouse Métropole)' },
+};
+function lieuDe(t) { const n = String(t || '').replace(/\D/g, '') || '1'; return Object.assign({ n, photo: 'lieux/buvette-' + n + '.jpg', mini: 'lieux/buvette-' + n + '-mini.jpg' }, LIEUX['Buvette ' + n] || { lieu: '', detail: '' }); }
+function renderLieu() {
+  const L = lieuDe(state.tab);
+  document.getElementById('h-lieu-img').src = L.mini;
+  document.getElementById('aide-lieu').innerHTML = `<img src="${L.photo}" alt=""><div><b>📍 Tu es à la ${esc(state.tab)} — ${esc(L.lieu)}</b><span>${esc(L.detail)}</span></div>`;
+}
+function openLieu() {
+  const L = lieuDe(state.tab);
+  document.getElementById('lieu-titre').textContent = '📍 ' + state.tab + ' — ' + L.lieu;
+  document.getElementById('lieu-photo').src = L.photo;
+  document.getElementById('lieu-txt').textContent = L.detail;
+  ouvrir('m-lieu');
+}
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 const vibre = ms => { try { navigator.vibrate && navigator.vibrate(ms || 12); } catch(e) {} };
@@ -627,7 +670,8 @@ function renderAll() { renderHeader(); renderBanner(); renderTiles(); renderPani
 
 function renderHeader() {
   document.getElementById('h-buvette').textContent = state.tab;
-  document.getElementById('h-match').textContent = state.match ? state.match.nom : 'Aucun match chargé';
+  document.getElementById('h-match').textContent = '📍 ' + lieuDe(state.tab).lieu + ' · ' + (state.match ? state.match.nom : 'Aucun match chargé');
+  renderLieu();
 }
 function renderBanner() {
   const b = document.getElementById('banner');
@@ -1265,7 +1309,7 @@ function ouvrirReglages() {
   ouvrir('m-settings');
 }
 function renderSeg() {
-  document.getElementById('seg-tab').innerHTML = [1, 2, 3].map(n => { const t = 'Buvette ' + n; return `<button class="${t === state.tab ? 'on' : ''}" onclick="choisirBuvette('${t}')">${t}</button>`; }).join('');
+  document.getElementById('seg-tab').innerHTML = [1, 2, 3].map(n => { const t = 'Buvette ' + n, L = lieuDe(t); return `<button class="seg-lieu ${t === state.tab ? 'on' : ''}" onclick="choisirBuvette('${t}')"><img src="${L.mini}" alt="">${t}<small>${esc(L.lieu)}</small></button>`; }).join('');
 }
 function choisirBuvette(t) {
   if (t === state.tab) return;

@@ -93,6 +93,8 @@ th:first-child,td:first-child{text-align:left}
 .empty{color:var(--faint);font-size:.9rem;padding:8px 0}
 .links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .link-card{display:flex;flex-direction:column;gap:6px;min-width:0}
+.link-card img{width:100%;height:120px;object-fit:cover;border-radius:8px}
+.link-card .lieu{font-size:.85rem;color:var(--muted);font-weight:600}
 .link-card code{font-size:.72rem;background:var(--surface-2);border-radius:6px;padding:6px 8px;overflow-wrap:anywhere;color:var(--muted);max-height:4.5em;overflow:hidden}
 .link-card button{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer}
 .link-card .bts{display:flex;gap:8px;flex-wrap:wrap}
@@ -626,7 +628,7 @@ function renderLinks(){
   const m = String(cfg.url || '').match(/\/s\/([A-Za-z0-9_-]+)\/exec/);
   const d = m && m[1] !== DEPLOIEMENT_APP ? '&d=' + m[1] : '';
   const lien = n => base + '?b=' + n + '&k=' + encodeURIComponent(cfg.token || '') + d;
-  $('links').innerHTML = [1,2,3].map(n => `<div class="link-card"><b>Buvette ${n}</b><code id="lk${n}">${esc(lien(n))}</code>
+  $('links').innerHTML = [1,2,3].map(n => `<div class="link-card"><img src="lieux/buvette-${n}.jpg" alt=""><b>Buvette ${n}</b><span class="lieu">📍 ${['','Porte 4','Porte 6','Buvette intérieure'][n]}</span><code id="lk${n}">${esc(lien(n))}</code>
     <div class="bts"><button type="button" class="qr" data-q="${n}">🔳 QR plein écran</button><button type="button" data-n="${n}">Copier le lien</button></div></div>`).join('');
   $('links').querySelectorAll('button[data-n]').forEach(bt => bt.onclick = () => {
     const txt = $('lk' + bt.dataset.n).textContent;
