@@ -1,7 +1,7 @@
 // Service worker — Spacer's Buvette : l'app s'ouvre même sans réseau.
 // Pages : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
 // Fichiers statiques (icônes, polices, lecteur QR) : cache d'abord.
-const CACHE = 'buvette-v25';
+const CACHE = 'buvette-v26';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './charte/logo-panoramic-fonce.svg', './lieux/buvette-1.jpg', './lieux/buvette-2.jpg', './lieux/buvette-3.jpg',
   './lieux/buvette-1-mini.jpg', './lieux/buvette-2-mini.jpg', './lieux/buvette-3-mini.jpg', './charte/logo-panoramic-clair.svg',
@@ -27,9 +27,16 @@ self.addEventListener('fetch', e => {
   if (url.pathname.endsWith('/pilotage.html')) return;
 
   if (req.mode === 'navigate') {
+    // Réseau d'abord, mais pas plus de 4 s (wifi « connecté sans internet ») ; on ne garde que les vraies pages
+    const reseau = fetch(req).then(r => {
+      if (r.ok && !r.redirected && r.type === 'basic') { const copy = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); }
+      return r;
+    });
+    const enCache = () => caches.match('./index.html').then(r => r || caches.match('./'));
     e.respondWith(
-      fetch(req).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return r; })
-        .catch(() => caches.match('./index.html').then(r => r || caches.match('./')))
+      Promise.race([reseau, new Promise(res => setTimeout(() => res(null), 4000))])
+        .then(r => r || enCache().then(c => c || reseau))
+        .catch(() => enCache())
     );
     return;
   }

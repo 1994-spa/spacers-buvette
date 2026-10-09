@@ -451,7 +451,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.09-biere-30cl-4e</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.09-audit-match</p>
     </div>
   </div>
 </div>
@@ -517,6 +517,7 @@ const state = {
   clotures:{},       // { 'Buvette 1': { fond, compte, attendu, ecart, ts, envoyee } } clôture de caisse du match
   fond:{},           // fond de caisse par buvette (mémorisé d'un match à l'autre)
   prix:{},           // prix et seuils lus dans l'onglet 📦 PRODUITS du Sheet { réf: {prix, seuil} }
+  forcer:{},         // produits que la tablette croit épuisés mais que le bénévole a confirmé avoir encore
 };
 let panier = nouveauPanier();
 let billet = null;   // { ticket_id, barcode, tarif, nom, nonVerifie, profil }
@@ -534,8 +535,19 @@ function cumulTab(tab) {
   c.lignes = c.lignes || {};
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix'];
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); } catch(e) {} }
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer'];
+let alerteMemoire = false;
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); return; } catch(e) {}
+  // Mémoire pleine : on garde l'essentiel (ventes, caisse) sans la liste des billets, qui se recharge
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.filter(k => k !== 'billets').map(k => [k, state[k]])))); }
+  catch(e) { if (!alerteMemoire) { alerteMemoire = true; setTimeout(() => info('⚠️ Mémoire de la tablette pleine : appelle le responsable'), 0); } }
+}
+// Requête réseau avec délai maximal (wifi de la salle « connecté mais sans internet »)
+function fetchT(url, opts, ms) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms || 30000);
+  return fetch(url, Object.assign({}, opts || {}, { signal: ctl.signal })).finally(() => clearTimeout(t));
+}
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -543,7 +555,7 @@ function load() {
     CLES.forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
     if (!state.url) state.url = s.pilotage || APPS_SCRIPT_URL;
     if (!Array.isArray(state.historique)) state.historique = [];
-    state.clotures = state.clotures || {}; state.fond = state.fond || {}; state.prix = state.prix || {};
+    state.clotures = state.clotures || {}; state.fond = state.fond || {}; state.prix = state.prix || {}; state.forcer = state.forcer || {};
   } catch(e) {}
 }
 
@@ -632,7 +644,7 @@ function stockCompte(ref) { return BOUTEILLE_L[ref] ? bouteillesApresVentes(ref)
 function aStock(ref) { return LITRES[ref] ? stockInit('FUT') > 0 : stockInit(ref) > 0; }
 // Sans match chargé, on laisse vendre (le stock n'est simplement pas suivi)
 function stockSuivi() { return !!state.match; }
-function peutAjouter(ref) { return !stockSuivi() || stockDispo(ref) > 0; }
+function peutAjouter(ref) { return !stockSuivi() || !!(state.forcer || {})[ref] || stockDispo(ref) > 0; }
 function stockSnapshot() {
   const o = {};
   if (stockInit('FUT') > 0) o.FUT_L = litresRestants(false);
@@ -677,7 +689,7 @@ function renderBanner() {
   const b = document.getElementById('banner');
   if (chargementEnAttente) {
     b.hidden = false;
-    b.innerHTML = `<span>📣 <b>Nouveau match prêt : ${esc(chargementEnAttente.match.nom)}.</b> Les compteurs repartiront à zéro.</span><button onclick="confirmerNouveauMatch()">Passer à ce match</button>`;
+    b.innerHTML = `<span>📣 <b>Nouveau match prêt : ${esc(chargementEnAttente.match.nom)}.</b> Les compteurs repartiront à zéro.</span><button onclick="avecCode(confirmerNouveauMatch)">Passer à ce match</button>`;
   } else if (!state.url || !state.token) {
     b.hidden = false;
     b.innerHTML = `<span>⚙️ <b>Tablette pas encore configurée</b> : scanne le QR code de ta buvette (menu du Sheet → Pilotage live).</span><button onclick="ouvrirScanner()">📷 Scanner le QR de configuration</button>`;
@@ -732,7 +744,7 @@ function renderTiles() {
   document.getElementById('tiles').innerHTML = CATALOGUE.map(p => {
     const q = panier.lignes[p.ref] || 0;
     const suivi = stockSuivi(), absent = suivi && !aStock(p.ref), d = stockDispo(p.ref);
-    const vide = suivi && d <= 0 && q === 0;
+    const vide = suivi && d <= 0 && q === 0 && !(state.forcer || {})[p.ref];
     const bas = suivi && !absent && d > 0 && d <= p.seuil;
     return `<button class="tile${q ? ' on' : ''}${vide ? ' vide' : ''}${absent ? ' absent' : ''}" style="--c:${p.color}" onclick="ajouter('${p.ref}')" aria-label="Ajouter ${esc(p.nom)}">
       <div class="top" aria-hidden="true">${p.img ? `<span class="plate"><img src="${p.img}" alt=""></span>` : p.big ? `<span class="big"><i>${p.icon}</i><b>${p.big}</b></span>` : p.icon}</div>
@@ -858,7 +870,13 @@ function renderNet() {
 // ═══════════════════════════════════════════════════════════════════
 function ajouter(ref) {
   const p = prod(ref);
-  if (!peutAjouter(ref)) { vibre(60); info(aStock(ref) || !stockSuivi() ? `🚫 ${p.nom} : plus de stock` : `🚫 Pas de ${p.nom} dans cette buvette`); return; }
+  if (!peutAjouter(ref)) {
+    vibre(60);
+    // Le stock de la tablette est théorique (verres par bouteille, fût apporté en cours de match…) : le bénévole peut passer outre
+    const msg = aStock(ref) ? `La tablette pense qu'il n'y a plus de ${p.nom} ici.` : `${p.nom} n'était pas prévu dans cette buvette.`;
+    if (!confirm(msg + `\n\nS'il en reste vraiment, touche OK pour le vendre quand même.`)) return;
+    state.forcer = state.forcer || {}; state.forcer[ref] = true; save();
+  }
   panier.lignes[ref] = (panier.lignes[ref] || 0) + 1;
   vibre();
   renderTiles(); renderPanier(); renderAlerts();
@@ -962,7 +980,7 @@ function annulerVente(id) {
   const h = state.historique.find(x => x.id === id);
   if (!h || h.annulee) return;
   const i = state.outbox.findIndex(v => v.id === id);
-  if (i >= 0) state.outbox.splice(i, 1);
+  if (i >= 0 && !enVol.has(id)) state.outbox.splice(i, 1);
   else {
     const neg = o => Object.fromEntries(Object.entries(o).map(([r, q]) => [r, -q]));
     state.outbox.push({ id: id + '-ANN', ts: new Date().toISOString(), matchId: state.match ? state.match.idMatch : '', buvette: h.buvette,
@@ -983,13 +1001,15 @@ function annulerVente(id) {
 // ENVOI AU SHEET (file d'attente hors ligne)
 // ═══════════════════════════════════════════════════════════════════
 let envoiEnCours = false;
+let enVol = new Set();   // ventes en cours d'envoi (une annulation à ce moment-là devient une vente inverse)
 async function envoyerVentes() {
   const pretes = state.outbox.filter(v => Date.now() - Date.parse(v.ts) >= DELAI_ANNUL);
   if (envoiEnCours || !state.url || !state.token || !pretes.length) { renderNet(); if (!envoiEnCours) envoyerCloture(); return; }
   envoiEnCours = true;
   try {
     const lot = pretes.slice(0, 50);
-    const r = await fetch(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    lot.forEach(v => enVol.add(v.id));
+    const r = await fetchT(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
       body: JSON.stringify({ action:'ventes', token: state.token, buvette: state.tab, ventes: lot, stock: stockSnapshot() }) });
     const res = await r.json();
     if (res.status !== 'ok') throw new Error(res.message || 'refus');
@@ -999,6 +1019,7 @@ async function envoyerVentes() {
     save();
   } catch(e) { /* réseau coupé : on réessaiera */ }
   finally {
+    enVol = new Set();
     envoiEnCours = false;
     renderNet();
     envoyerCloture();
@@ -1063,7 +1084,8 @@ async function chercherBillet(barcode) {
   if (essayerConfigQr(barcode)) return;
   const local = state.billets[barcode];
   if (local) { relierBillet({ ticket_id: local[0], tarif: local[1], name: local[2], profil: local[3] != null ? local[3] : profilBillet({}, local[1]) }, barcode); return; }
-  if (navigator.onLine === false) { relierBillet({ nonVerifie: true }, barcode); return; }
+  const codeTickie = /^[a-z0-9]{8,14}$/i.test(barcode);
+  if (navigator.onLine === false) { if (codeTickie) relierBillet({ nonVerifie: true }, barcode); else refuserBillet('Code non reconnu'); return; }
   setScanStatus('⏳ Vérification du billet…');
   try {
     const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4000);
@@ -1075,7 +1097,7 @@ async function chercherBillet(barcode) {
     if (t.error) return refuserBillet(t.error);
     if (t.valide === false) return refuserBillet('Billet non valide' + (t.tarif ? ' (' + t.tarif + ')' : ''));
     relierBillet(t, barcode);
-  } catch(e) { relierBillet({ nonVerifie: true }, barcode); }   // réseau lent : vérifié plus tard par le Sheet
+  } catch(e) { if (codeTickie) relierBillet({ nonVerifie: true }, barcode); else refuserBillet('Code non reconnu'); }   // réseau lent : vérifié plus tard par le Sheet
 }
 // Billet bon (ou impossible à vérifier tout de suite) → relié directement, sans confirmation
 function relierBillet(t, barcode) {
@@ -1260,7 +1282,7 @@ async function envoyerCloture() {
   const cl = Object.values(state.clotures || {}).find(x => !x.envoyee);
   if (!cl || !state.url || !state.token || state.outbox.length) return;   // les ventes partent d'abord
   try {
-    const r = await fetch(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    const r = await fetchT(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
       body: JSON.stringify({ action:'cloture', token: state.token, cloture: cl }) });
     const res = await r.json();
     if (res.status !== 'ok') throw new Error(res.message || 'refus');
@@ -1350,7 +1372,7 @@ async function chargerMatch(auto) {
   try {
     const u = new URL(state.url);
     u.searchParams.set('action', 'tablette'); u.searchParams.set('buvette', state.tab); u.searchParams.set('token', state.token);
-    const d = await (await fetch(u.toString())).json();
+    const d = await (await fetchT(u.toString(), null, 60000)).json();
     if (d.status !== 'ok') throw new Error(d.message || 'réponse invalide');
     const nouveau = !state.match || state.match.eventId !== d.match.eventId;
     const ventesEnCours = Object.values(state.cumul).reduce((a, c) => a + (c.ventes || 0), 0);
@@ -1388,11 +1410,13 @@ function appliquerChargement(d, nouveau) {
   state.futLitres = d.futLitres || 30;
   state.stocks[state.tab] = d.stock || {};
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
-  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; panier = nouveauPanier(); billet = null; }
+  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.forcer = {}; panier = nouveauPanier(); billet = null; }
+  else if (reassort) state.forcer = {};   // nouveau stock reçu : on refait confiance au comptage
   save(); renderAll(); renderEtatMatch();
   info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
 }
 function confirmerNouveauMatch() {
+  if (Object.values(state.clotures || {}).some(x => !x.envoyee)) { info('⏳ Le rapport de fin de match n\'est pas encore arrivé au Sheet : attends le wifi avant de changer de match'); return; }
   document.getElementById('reset-confirm').hidden = true;
   if (chargementEnAttente) { const d = chargementEnAttente; chargementEnAttente = null; appliquerChargement(d, true); }
 }
