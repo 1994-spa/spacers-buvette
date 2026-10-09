@@ -18,7 +18,7 @@ const REORG_ARCHIVER = ['20_OANDB_COMMANDES', '30_OANDB_TICKETS', '40_PENNYLANE_
 const PRODUITS_ENTETE = ['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'TVA', 'COLISAGE', 'SEUIL ALERTE', 'NOTES'];
 const PRODUITS_26_27 = [
   ['FUT',      'Bière — fût 30 L',      'Bière', '',  95,    0.2, 1,  ''],
-  ['P01_25',   'Bière 33cl',            'Bière', 3,   '',    0.2, '', 15],
+  ['P01_25',   'Bière 33cl',            'Bière', 4,   '',    0.2, '', 15],
   ['P01_50',   'Bière 50cl',            'Bière', 6,   '',    0.2, '', 10],
   ['P02_COCA', 'Coca-Cola',             'Soft',  2,   1.88,  0.1, 6,  8],
   ['P02_ORAN', 'Orangina',              'Soft',  2,   2.13,  0.1, 6,  8],
@@ -560,7 +560,7 @@ function construireTableauDeBord_(saisonForcee) {
 const TARIFS_26_27 = {
   //           libellé                prix vente  prix achat HT  note
   FUT:      ['Bière — fût 30 L',      '',   115.11, 'Prix d\'achat HT d\'un fût AMOS 30 L, accise et frais compris, hors consigne fût (facture Crouzil 05/10/2026). Rendement : 90 × 33cl ou 60 × 50cl.'],
-  P01_25:   ['Bière 33cl',            3,    null,  'Même fût. Formule : 2 verres de 33cl = 5 € (appliquée par la tablette).'],
+  P01_25:   ['Bière 33cl',            4,    null,  'Même fût, verre de 30cl (4 €). Formule : 2 verres de 30cl = 7 € (appliquée par la tablette).'],
   P01_50:   ['Bière 50cl',            6,    null,  'Même fût. Formule : 2 verres de 50cl = 10 € (appliquée par la tablette).'],
   P02_COCA: ['Coca-Cola',             2,    1.88,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,25 L (≈ 3,8 verres). Stock en bouteilles.'],
   P02_ORAN: ['Orangina',              2,    2.13,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,5 L (≈ 4,5 verres). Stock en bouteilles.'],
