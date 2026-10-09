@@ -188,7 +188,7 @@ th:first-child,td:first-child{text-align:left}
         <button class="btn" type="submit" id="prepa-save">Enregistrer le stock</button>
         <span class="note" id="prepa-status" role="status"></span>
       </div>
-      <p class="note">Les tablettes chargent leur stock seules dès qu'elles ont le wifi (réassort compris). 1 fût = 30 L, soit 90 bières 33cl ou 60 bières 50cl. Softs comptés en <b>bouteilles</b> (1,25 L ou 1,5 L, servies au verre de 33cl). <b>🙋 Bénévoles</b> = réserve hors vente (boissons offertes aux bénévoles) : jamais sur une tablette, comptée à part dans la marge.</p>
+      <p class="note">Les tablettes chargent leur stock seules dès qu'elles ont le wifi (réassort compris). 1 fût = 30 L, soit 100 bières 30cl ou 60 bières 50cl. Softs comptés en <b>bouteilles</b> (1,25 L ou 1,5 L, servies au verre de 30cl). <b>🙋 Bénévoles</b> = réserve hors vente (boissons offertes aux bénévoles) : jamais sur une tablette, comptée à part dans la marge.</p>
     </form>
   </section>
   <section class="panel prepa" aria-label="Inventaire de fin de match">
@@ -332,7 +332,7 @@ function render(d){
     const prods = Object.entries(x.produits||{}).filter(([,q]) => q).map(([r,q]) => `${int(q)} ${esc(noms[r]||r)}`).join(' · ');
     const rapport = `<div class="rap">
         <div><span>💳 CB</span><b>${eur(x.cb||0, 2)}</b></div><div><span>💶 Espèces</span><b>${eur(x.esp||0, 2)}</b></div>
-        ${x.gob ? `<div><span>🥤 Écocups 33cl sortis/rendus</span><b style="white-space:nowrap">${int(x.gob.s33)} / ${int(x.gob.r33)}</b></div>
+        ${x.gob ? `<div><span>🥤 Écocups 30cl sortis/rendus</span><b style="white-space:nowrap">${int(x.gob.s33)} / ${int(x.gob.r33)}</b></div>
         <div><span>🥤 Écocups 50cl sortis/rendus</span><b style="white-space:nowrap">${int(x.gob.s50)} / ${int(x.gob.r50)}</b></div>`
         : `<div><span>♻️ Gobelets sortis/rendus</span><b style="white-space:nowrap">${int(x.consignes||0)} / ${int(x.rendues||0)}</b></div>`}
         <div><span>🎫 Avec billet</span><b>${pct(x.reliees||0, x.ventes)}</b></div></div>
@@ -394,7 +394,7 @@ function render(d){
 // Consommation par personne présente, calée sur les reportings 24-25 et 25-26
 // (22 matchs, ≈ 1 480 présents d'après 10_MATCHS), puis affinée par les matchs 26-27 joués.
 const PRIOR = {
-  litres: 0.0965, cvL: 0.18,                  // bière : litres tirés par présent (33cl + 50cl)
+  litres: 0.0965, cvL: 0.18,                  // bière : litres tirés par présent (30cl + 50cl)
   partBiere: { P01_25: 0.26, P01_50: 0.74 },  // part des verres (en nombre) — sert à la répartition 33/50
   // softs : verres par présent (historique), convertis en bouteilles pour la commande
   P02_COCA: 0.039, P02_ICET: 0.0215, P02_ORAN: 0.013, P02_SCHW: 0.013,   // softs : 0,086 / présent
