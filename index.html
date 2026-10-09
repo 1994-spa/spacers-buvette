@@ -451,7 +451,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.09-photos-buvettes</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.09-biere-30cl-4e</p>
     </div>
   </div>
 </div>
@@ -474,7 +474,7 @@ const CONSIGNE = 1.00;
 // La consigne écocup n'est jamais automatique : le bénévole l'ajoute (bouton « + Gobelet »)
 // seulement si le client n'a pas déjà son verre.
 const CATALOGUE = [
-  { ref:'P01_25',   nom:'Bière 30cl',        pv:3.00, seuil:15, color:'#d99a00', icon:'🍺', big:'30 cl' },   // réf. historique P01_25 = verre de 30 cl depuis le 10/10/2026
+  { ref:'P01_25',   nom:'Bière 30cl',        pv:4.00, seuil:15, color:'#d99a00', icon:'🍺', big:'30 cl' },   // réf. historique P01_25 = verre de 30 cl depuis le 10/10/2026
   { ref:'P01_50',   nom:'Bière 50cl',        pv:6.00, seuil:10, color:'#a86400', icon:'🍺', big:'50 cl' },
   { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧', big:'PLATE' },
   { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧', big:'GAZEUSE' },
@@ -600,8 +600,8 @@ const LITRES = { P01_25:0.3, P01_50:0.5 };
 // Softs servis au verre de 30 cl, tirés de grandes bouteilles : le stock (préparation, inventaire) reste en bouteilles
 const VERRE_SOFT = 0.3;
 const BOUTEILLE_L = { P02_COCA:1.25, P02_ICET:1.25, P02_ORAN:1.5, P02_SCHW:1.5 };
-// Formules : 2 verres de 30 cl = 5 €, 2 verres de 50 cl = 10 € (appliquées toutes seules par paire)
-const FORMULES = { P01_25: { n:2, prix:5, nom:'2 bières 30cl' }, P01_50: { n:2, prix:10, nom:'2 bières 50cl' } };
+// Formules : 2 verres de 30 cl = 7 €, 2 verres de 50 cl = 10 € (appliquées toutes seules par paire)
+const FORMULES = { P01_25: { n:2, prix:7, nom:'2 bières 30cl' }, P01_50: { n:2, prix:10, nom:'2 bières 50cl' } };
 function stockInit(ref) { return Number((state.stocks[state.tab] || {})[ref]) || 0; }
 function litresRestants(avecPanier) {
   const c = cumulTab();

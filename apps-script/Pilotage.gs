@@ -40,7 +40,7 @@ const PIL = {
   RESERVES: ['Bénévoles'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
   PRODUITS: [
-    ['P01_25',   'Bière 33cl',        3],   // réf. historique : verre de 33 cl depuis 26-27
+    ['P01_25',   'Bière 33cl',        4],   // réf. historique : verre de 33 cl depuis 26-27
     ['P01_50',   'Bière 50cl',        6],
     ['P02_COCA', 'Coca-Cola',         2],   // softs vendus au verre de 33 cl
     ['P02_ORAN', 'Orangina',          2],
