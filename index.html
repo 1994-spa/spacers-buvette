@@ -172,6 +172,7 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .pbtn.cb{background:var(--card);color:var(--on-card)}
 .pbtn.esp{background:var(--cash);color:var(--on-cash)}
 .pbtn.full{grid-column:1/-1}
+.pbtn.benev{min-height:52px;font-size:1.05rem;background:transparent;color:var(--text);border:2px dashed var(--muted);box-shadow:none;opacity:.85}
 .pbtn:active{transform:scale(.97)}
 .pbtn:disabled{opacity:.3;box-shadow:none}
 
@@ -261,6 +262,9 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .pad button{min-height:70px;border-radius:16px;background:var(--surface-2);border:2px solid var(--border);font-size:1.8rem;font-weight:700}
 .pad button:active{background:var(--surface-3)}
 .hint{font-size:.85rem;color:var(--muted);font-weight:600;line-height:1.45}
+.inv-nc{display:flex;gap:10px;align-items:flex-start;font-weight:800;margin:4px 0 10px;line-height:1.3}
+.inv-nc input{width:26px;height:26px;flex:none;margin-top:2px}
+.inv-nc small{display:block;font-weight:600;color:var(--muted)}
 details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 
 /* Bandeau "vente enregistrée" + annuler */
@@ -451,7 +455,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.09-audit-match</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.12-cloture-fiable</p>
     </div>
   </div>
 </div>
@@ -469,6 +473,12 @@ const STORE_KEY = 'buvette_etat_v2';
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_0wr_XORTuVxaZU9YSa63IZiFfRf9vzPczAlwECPC7BPRD22s9TriBtDn7jca1qBmvg/exec';
 const DELAI_ANNUL = 10000;       // une vente reste annulable 10 s avant de partir au Sheet
 const CONSIGNE = 1.00;
+// TPE du club : répartition fixe (libellé bancaire « CARTE <contrat> <terminal> … »)
+const TPES = [
+  { id:'6053438-001', nom:'A920 n°1 (6053438-001)' }, { id:'6053438-002', nom:'A920 n°2 (6053438-002)' },
+  { id:'6053438-003', nom:'A920 n°3 (6053438-003)' }, { id:'2668543-001', nom:'D177 (2668543-001)' },
+  { id:'2668544-001', nom:'D177 (2668544-001)' },     { id:'6053437-003', nom:'D200 (6053437-003)' },
+];
 
 // Ordre des tuiles = ordre de la grille 4×2 (les plus vendues en haut à gauche)
 // La consigne écocup n'est jamais automatique : le bénévole l'ajoute (bouton « + Gobelet »)
@@ -518,6 +528,7 @@ const state = {
   fond:{},           // fond de caisse par buvette (mémorisé d'un match à l'autre)
   prix:{},           // prix et seuils lus dans l'onglet 📦 PRODUITS du Sheet { réf: {prix, seuil} }
   forcer:{},         // produits que la tablette croit épuisés mais que le bénévole a confirmé avoir encore
+  reassorts:[],      // stock reçu en cours de match, saisi sur la tablette, pas encore arrivé au Sheet
 };
 let panier = nouveauPanier();
 let billet = null;   // { ticket_id, barcode, tarif, nom, nonVerifie, profil }
@@ -533,9 +544,11 @@ function cumulTab(tab) {
   ['consigne','rendue','ventes','ca','cb','esp','nbCb','nbEsp','remise','nbRemise'].forEach(k => { if (typeof c[k] !== 'number') c[k] = 0; });
   c.gob = Object.assign(nouveauxGob(), c.gob || {});
   c.lignes = c.lignes || {};
+  c.benev = c.benev || {};   // boissons offertes aux bénévoles (hors CA)
+  if (typeof c.nbBenev !== 'number') c.nbBenev = 0;
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts'];
 let alerteMemoire = false;
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); return; } catch(e) {}
@@ -556,6 +569,7 @@ function load() {
     if (!state.url) state.url = s.pilotage || APPS_SCRIPT_URL;
     if (!Array.isArray(state.historique)) state.historique = [];
     state.clotures = state.clotures || {}; state.fond = state.fond || {}; state.prix = state.prix || {}; state.forcer = state.forcer || {};
+    if (!Array.isArray(state.reassorts)) state.reassorts = [];
   } catch(e) {}
 }
 
@@ -615,24 +629,26 @@ const BOUTEILLE_L = { P02_COCA:1.25, P02_ICET:1.25, P02_ORAN:1.5, P02_SCHW:1.5 }
 // Formules : 2 verres de 30 cl = 7 €, 2 verres de 50 cl = 10 € (appliquées toutes seules par paire)
 const FORMULES = { P01_25: { n:2, prix:7, nom:'2 bières 30cl' }, P01_50: { n:2, prix:10, nom:'2 bières 50cl' } };
 function stockInit(ref) { return Number((state.stocks[state.tab] || {})[ref]) || 0; }
+// Sorti du stock = vendu + offert aux bénévoles (mode 🙋 Bénévole, 0 €)
+function consomme(ref) { const c = cumulTab(); return (c.lignes[ref] || 0) + (c.benev[ref] || 0); }
 function litresRestants(avecPanier) {
   const c = cumulTab();
   let l = stockInit('FUT') * (state.futLitres || 30);
-  Object.keys(LITRES).forEach(r => { l -= ((c.lignes[r] || 0) + (avecPanier ? (panier.lignes[r] || 0) : 0)) * LITRES[r]; });
+  Object.keys(LITRES).forEach(r => { l -= (consomme(r) + (avecPanier ? (panier.lignes[r] || 0) : 0)) * LITRES[r]; });
   return Math.max(0, Math.round(l * 100) / 100);
 }
 function bouteillesApresVentes(ref) {   // softs : bouteilles restantes (décimales = bouteille entamée)
-  const b = stockInit(ref) - (cumulTab().lignes[ref] || 0) * VERRE_SOFT / BOUTEILLE_L[ref];
+  const b = stockInit(ref) - consomme(ref) * VERRE_SOFT / BOUTEILLE_L[ref];
   return Math.max(0, Math.round(b * 10) / 10);
 }
 function verresSoft(ref, avecPanier) {
-  const vendus = (cumulTab().lignes[ref] || 0) + (avecPanier ? (panier.lignes[ref] || 0) : 0);
+  const vendus = consomme(ref) + (avecPanier ? (panier.lignes[ref] || 0) : 0);
   return Math.max(0, Math.floor((stockInit(ref) * BOUTEILLE_L[ref] + 1e-9) / VERRE_SOFT) - vendus);
 }
 function stockApresVentes(ref) {
   if (LITRES[ref]) return Math.floor(litresRestants(false) / LITRES[ref] + 1e-9);
   if (BOUTEILLE_L[ref]) return verresSoft(ref, false);
-  return Math.max(0, stockInit(ref) - (cumulTab().lignes[ref] || 0));
+  return Math.max(0, stockInit(ref) - consomme(ref));
 }
 function stockDispo(ref) {
   if (LITRES[ref]) return Math.floor(litresRestants(true) / LITRES[ref] + 1e-9);
@@ -794,6 +810,10 @@ function prixEncaisses(lignes) {
   return Object.fromEntries(Object.keys(lignes).map(r => { const q = lignes[r], pu = priceOf(prod(r));
     return [r, Math.round((pu - remiseLigne(r, q).m / q) * 1000) / 1000]; }));
 }
+// Conso bénévole : seulement des boissons (pas d'écocup ni de billet), jamais un remboursement
+function benevolePossible() {
+  return !panierVide() && Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue && !billet;
+}
 function panierVide() { return !Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue; }
 
 function ligneHtml(label, sub, qte, montant, moins, plus, neg) {
@@ -824,7 +844,8 @@ function renderPanier() {
   if (!vide && tot < 0) pb.innerHTML = `<button class="pbtn esp full" onclick="encaisser('ESP')">💶 Rendre ${fmt(-tot)}<small>remboursement des gobelets</small></button>`;
   else if (!vide && tot === 0) pb.innerHTML = `<button class="pbtn cb full" onclick="encaisser('ESP')">✓ Valider<small>rien à payer</small></button>`;
   else pb.innerHTML = `<button class="pbtn cb" onclick="ouvrirCB()" ${vide ? 'disabled' : ''}>💳 CB<small>carte / sans contact</small></button>
-    <button class="pbtn esp" onclick="ouvrirEspeces()" ${vide ? 'disabled' : ''}>💶 Espèces<small>calcul de la monnaie</small></button>`;
+    <button class="pbtn esp" onclick="ouvrirEspeces()" ${vide ? 'disabled' : ''}>💶 Espèces<small>calcul de la monnaie</small></button>`
+    + (benevolePossible() ? `<button class="pbtn benev full" onclick="encaisser('BENEVOLE')">🙋 Boisson bénévole<small>offerte, 0 € · sort du stock</small></button>` : '');
 
   const bz = document.getElementById('billet'), bs = document.getElementById('btn-scan');
   if (billet) {
@@ -932,7 +953,9 @@ function payerEspeces(donne) {
 
 function encaisser(mode) {
   if (panierVide()) return;
-  const total = totalPanier(), remise = remisePanier(), taux = remise ? tauxRemise() : 0;
+  const benev = mode === 'BENEVOLE';
+  if (benev && !benevolePossible()) return;
+  const total = benev ? 0 : totalPanier(), remise = benev ? 0 : remisePanier(), taux = remise ? tauxRemise() : 0;
   const lignes = {};
   Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) lignes[r] = q; });
   const vente = {
@@ -943,7 +966,7 @@ function encaisser(mode) {
     lignes, consigne: panier.consigne, rendue: panier.rendue, gob: Object.assign({}, panier.gob), total, remise,
     tauxRemise: taux, profilRemise: remise && billet ? billet.profil || '' : '',
     paiement: mode,
-    prix: prixEncaisses(lignes),   // prix réellement encaissés (formules et remise billet incluses)
+    prix: benev ? Object.fromEntries(Object.keys(lignes).map(r => [r, 0])) : prixEncaisses(lignes),   // prix réellement encaissés (formules et remise billet incluses)
     ticket: billet ? { ticket_id: billet.ticket_id || '', barcode: billet.barcode || '', tarif: billet.tarif || '' } : null,
   };
   appliquerCumul(vente, 1);
@@ -955,11 +978,16 @@ function encaisser(mode) {
   vibre(25);
   const side = document.getElementById('side'); side.classList.remove('flash'); void side.offsetWidth; side.classList.add('flash');
   derniere = vente.id;
-  snack(`✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${vente.remise ? ' · 🎫 −' + Math.round(taux * 100) + ' %' : ''}`, true);
+  snack(benev ? `🙋 Boisson bénévole enregistrée (0 €)` : `✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${vente.remise ? ' · 🎫 −' + Math.round(taux * 100) + ' %' : ''}`, true);
   setTimeout(envoyerVentes, DELAI_ANNUL + 500);
 }
 function appliquerCumul(v, sens) {
   const c = cumulTab(v.buvette);
+  if (v.paiement === 'BENEVOLE') {   // hors CA, hors caisse : seulement le stock
+    Object.entries(v.lignes).forEach(([r, q]) => { c.benev[r] = (c.benev[r] || 0) + sens * q; if (!c.benev[r]) delete c.benev[r]; });
+    c.nbBenev += sens;
+    return;
+  }
   Object.entries(v.lignes).forEach(([r, q]) => { c.lignes[r] = (c.lignes[r] || 0) + sens * q; if (!c.lignes[r]) delete c.lignes[r]; });
   c.consigne += sens * v.consigne; c.rendue += sens * v.rendue; c.ventes += sens;
   // Ancienne vente sans détail de taille : comptée en petit format (clé s33 = écocup 30 cl)
@@ -992,7 +1020,7 @@ function annulerVente(id) {
   if (derniere === id) derniere = null;
   save(); renderAll();
   fermer('m-cash');
-  snack('↶ Vente annulée (' + fmt(Math.abs(h.total)) + (h.paiement === 'CB' ? ' CB' : ' espèces') + ')', false);
+  snack(h.paiement === 'BENEVOLE' ? '↶ Boisson bénévole annulée' : '↶ Vente annulée (' + fmt(Math.abs(h.total)) + (h.paiement === 'CB' ? ' CB' : ' espèces') + ')', false);
   if (document.getElementById('m-bilan').classList.contains('open')) afficherRapport();
   envoyerVentes();
 }
@@ -1146,7 +1174,8 @@ function afficherRapport() {
     <div class="k"><span>🥤 Consignes écocups</span><b>${fmt((c.consigne - c.rendue) * CONSIGNE)}</b><small>${c.consigne} encaissée${c.consigne > 1 ? 's' : ''} · ${c.rendue} rendue${c.rendue > 1 ? 's' : ''} · à part du CA</small></div>
     <div class="k"><span>Total encaissé</span><b>${fmt(c.ca)}</b><small>boissons + consignes = CB + espèces</small></div>
     <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · à comparer au ticket TPE</small></div>
-    <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div></div>`;
+    <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div>
+    ${c.nbBenev ? `<div class="k"><span>🙋 Bénévoles</span><b>${Object.values(c.benev).reduce((a, q) => a + q, 0)}</b><small>boisson${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} offerte${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} · hors CA</small></div>` : ''}</div>`;
   h += `<div class="sec">Clôture de la caisse espèces</div>
     <div class="caisse">
       <label>Fond de caisse<input class="input" id="cl-fond" inputmode="decimal" value="${fond}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
@@ -1157,9 +1186,12 @@ function afficherRapport() {
     <div class="sec">Contrôle CB</div>
     <div class="caisse">
       <div class="k"><span>CB enregistrée</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} sur la tablette</small></div>
+      <label>TPE utilisé à cette buvette<select class="input" id="cl-tpe-id" ${cl ? 'disabled' : ''}>
+        <option value="">choisir le TPE</option>${TPES.map(t => `<option value="${t.id}" ${cl && cl.tpeId === t.id ? 'selected' : ''}>${esc(t.nom)}</option>`).join('')}</select></label>
       <label>Total du ticket TPE<input class="input" id="cl-tpe" inputmode="decimal" placeholder="ticket de fin" value="${cl && cl.tpe != null ? cl.tpe : ''}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecb-box"><span>Écart CB</span><b id="cl-ecb">—</b><small id="cl-ecb-s"></small></div>
     </div>
+    ${cl ? '' : reassortHtml()}
     ${inventaireHtml(cl)}`
     + (cl ? `<div class="msg ${cl.envoyee ? 'ok' : 'warn'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })} — ${cl.envoyee ? 'rapport arrivé dans le Sheet ✅' : 'rapport gardé dans la tablette, il partira au retour du wifi 📶'}</div>
           <button class="btn small" style="margin-top:8px" onclick="rouvrirCaisse()">Rouvrir la caisse (corriger le comptage)</button>`
@@ -1183,7 +1215,7 @@ function afficherRapport() {
     h += hist.map(x => {
       const det = Object.entries(x.lignes).map(([r, q]) => q + ' ' + (prod(r).nom || r)).join(', ') || 'gobelets';
       const heure = new Date(x.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-      return `<div><span class="${x.annulee ? 'barre' : ''}">${heure} · ${esc(det)} · ${x.paiement === 'CB' ? '💳' : '💶'} ${fmt(x.total)}${x.billet ? ' · 🎫' : ''}</span>${x.annulee ? '<b>annulée</b>' : `<button class="btn small" onclick="annulerVente('${x.id}')">↶ Annuler</button>`}</div>`;
+      return `<div><span class="${x.annulee ? 'barre' : ''}">${heure} · ${esc(det)} · ${x.paiement === 'CB' ? '💳' : x.paiement === 'BENEVOLE' ? '🙋 bénévole' : '💶'} ${fmt(x.total)}${x.billet ? ' · 🎫' : ''}</span>${x.annulee ? '<b>annulée</b>' : `<button class="btn small" onclick="annulerVente('${x.id}')">↶ Annuler</button>`}</div>`;
     }).join('') + '</div>';
   }
   h += state.outbox.length
@@ -1198,8 +1230,11 @@ function afficherRapport() {
 function produitsInventaire() { return stockSuivi() ? CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)) : []; }
 function inventaireHtml(cl) {
   if (!stockSuivi()) return '';
-  const inv = (cl && cl.inventaire) || {}, dis = cl ? 'disabled' : '';
-  let h = `<div class="sec">Inventaire de fin (compter ce qui reste)</div><div class="inv">`;
+  const inv = (cl && cl.inventaire) || {}, nc = cl ? !!cl.nonCompte : invNonCompte, dis = cl || nc ? 'disabled' : '';
+  let h = `<div class="sec">Inventaire de fin (compter ce qui reste, <u>avant</u> de ranger le stock)</div>
+    <label class="inv-nc"><input type="checkbox" id="inv-nc" ${nc ? 'checked' : ''} ${cl ? 'disabled' : ''} onchange="basculerNonCompte(this.checked)">
+      Le stock est déjà rangé / mélangé : je ne peux pas compter <small>(on gardera le stock théorique, à corriger au tableau de bord)</small></label>
+    <div class="inv">`;
   if (stockInit('FUT') > 0) {
     const theo = litresRestants(false), pleins = inv.FUT_PLEINS ?? '', frac = inv.FUT_ENTAME ?? '';
     h += `<label class="inv-biere">🍺 Fûts pleins (non entamés)<input class="input" id="inv-fut" inputmode="numeric" placeholder="0" value="${pleins}" ${dis} oninput="majInventaire()"></label>
@@ -1213,8 +1248,27 @@ function inventaireHtml(cl) {
   });
   return h + `</div>`;
 }
+let invNonCompte = false;
+function basculerNonCompte(v) { invNonCompte = !!v; afficherRapport(); }
+// Stock théorique au format inventaire (bière en litres, softs en bouteilles, eaux en unités)
+function inventaireTheorique() {
+  const o = {};
+  if (stockInit('FUT') > 0) o.FUT_L = litresRestants(false);
+  produitsInventaire().forEach(p => { o[p.ref] = stockCompte(p.ref); });
+  return o;
+}
+// Gros écarts avec le théorique : on fait recompter avant d'envoyer
+function ecartsSuspects(inv) {
+  const out = [];
+  if (inv.FUT_L != null) { const t = litresRestants(false), d = inv.FUT_L - t; if (Math.abs(d) > Math.max(6, t * 0.25)) out.push(`bière ${d > 0 ? '+' : ''}${Math.round(d)} L`); }
+  produitsInventaire().forEach(p => { if (inv[p.ref] == null) return; const t = stockCompte(p.ref), d = inv[p.ref] - t;
+    if (Math.abs(d) > Math.max(BOUTEILLE_L[p.ref] ? 2 : 3, t * 0.25)) out.push(`${p.nom} ${d > 0 ? '+' : ''}${Math.round(d * 10) / 10}`); });
+  return out;
+}
+let ecartConfirme = '';
 function lireInventaire() {
   const out = {}, manque = [];
+  if (invNonCompte) return { inv: inventaireTheorique(), manque, nonCompte: true };
   if (stockInit('FUT') > 0) {
     const f = document.getElementById('inv-fut'), e = document.getElementById('inv-entame');
     if (!f || f.value.trim() === '' || !e || e.value === '') manque.push('bière'); else {
@@ -1260,8 +1314,18 @@ function cloturerCaisse() {
   if (compte == null || isNaN(compte)) { info('Saisis d\'abord les espèces comptées'); document.getElementById('cl-compte').focus(); return; }
   const tpe = lireEuros('cl-tpe');
   if (c.nbCb > 0 && (tpe == null || isNaN(tpe))) { info('Saisis le total du ticket de fin du TPE'); document.getElementById('cl-tpe').focus(); return; }
-  const { inv, manque } = lireInventaire();
-  if (manque.length) { info('Inventaire à compléter : ' + manque.slice(0, 3).join(', ') + (manque.length > 3 ? '…' : '')); return; }
+  const tpeId = (document.getElementById('cl-tpe-id') || {}).value || '';
+  if (c.nbCb > 0 && !tpeId) { info('Choisis le TPE utilisé à cette buvette'); document.getElementById('cl-tpe-id').focus(); return; }
+  const { inv, manque, nonCompte } = lireInventaire();
+  if (manque.length) { info('Inventaire à compléter : ' + manque.slice(0, 3).join(', ') + (manque.length > 3 ? '…' : '') + ' (ou coche « je ne peux pas compter »)'); return; }
+  if (!nonCompte) {
+    const sus = ecartsSuspects(inv), sig = JSON.stringify(inv);
+    if (sus.length && ecartConfirme !== sig) {
+      ecartConfirme = sig;
+      info('⚠️ Gros écart avec le théorique : ' + sus.slice(0, 3).join(', ') + '. Recompte puis touche à nouveau Clôturer.');
+      return;
+    }
+  }
   const attendu = Math.round((fond + c.esp) * 100) / 100;
   state.fond[state.tab] = fond;
   state.clotures[state.tab] = {
@@ -1271,14 +1335,57 @@ function cloturerCaisse() {
     fond, attendu, compte, ecart: Math.round((compte - attendu) * 100) / 100,
     gobeletsSortis: c.consigne, gobeletsRendus: c.rendue, gob: Object.assign({}, c.gob), lignes: Object.assign({}, c.lignes),
     tpe: tpe == null || isNaN(tpe) ? null : tpe, ecartCb: tpe == null || isNaN(tpe) ? null : Math.round((tpe - c.cb) * 100) / 100,
-    stock: stockSuivi() ? stockSnapshot() : {}, inventaire: inv, envoyee: false };
+    stock: stockSuivi() ? stockSnapshot() : {}, inventaire: inv, nonCompte: !!nonCompte, tpeId,
+    benev: Object.assign({}, c.benev), nbBenev: c.nbBenev, envoyee: false };
+  invNonCompte = false; ecartConfirme = '';
   save();
   envoyerVentes();
   afficherRapport();
   info('🔒 Caisse clôturée');
 }
 function rouvrirCaisse() { delete state.clotures[state.tab]; save(); afficherRapport(); }
+// ── Stock reçu pendant le match (packs rajoutés, fût apporté…) ──
+function refsReassort() { return [['FUT', '🍺 Fûts de 30 L']].concat(CATALOGUE.filter(p => !LITRES[p.ref]).map(p => [p.ref, p.nom + (BOUTEILLE_L[p.ref] ? ' (bouteilles)' : '')])); }
+function reassortHtml() {
+  if (!stockSuivi()) return '';
+  const deja = state.reassorts.filter(r => r.buvette === state.tab && r.matchId === (state.match || {}).idMatch);
+  return `<div class="sec">📦 Stock reçu pendant le match</div>
+    <p class="hint">Un pack ou un fût apporté en cours de match ? Note-le ici <b>au moment où tu le reçois</b> : sinon il manquera au stock de départ et l'inventaire sera faux.</p>
+    <div class="inv">${refsReassort().map(([ref, nom]) => `<label>${esc(nom)}<input class="input rea-n" data-ref="${ref}" inputmode="decimal" placeholder="0"></label>`).join('')}</div>
+    <button class="btn" style="margin-top:8px" onclick="ajouterReassort()">➕ Ajouter au stock de la buvette</button>
+    ${deja.length ? `<div class="rows" style="margin-top:6px">${deja.map(r => `<div><span>${new Date(r.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })} · ${Object.entries(r.ajout).map(([k, q]) => q + ' × ' + (k === 'FUT' ? 'fût' : esc(prod(k).nom))).join(', ')}</span><b>${r.envoye ? '✅ au Sheet' : '📶 en attente'}</b></div>`).join('')}</div>` : ''}`;
+}
+function ajouterReassort() {
+  const ajout = {};
+  document.querySelectorAll('.rea-n').forEach(i => { const q = Number(String(i.value).replace(',', '.')); if (q > 0) ajout[i.dataset.ref] = q; });
+  if (!Object.keys(ajout).length) { info('Indique la quantité reçue'); return; }
+  const st = state.stocks[state.tab] = state.stocks[state.tab] || {};
+  Object.entries(ajout).forEach(([r, q]) => { st[r] = Math.round(((Number(st[r]) || 0) + q) * 100) / 100; delete (state.forcer || {})[r]; });
+  state.reassorts.push({ id: state.tab.replace(/\D/g, '') + '-RE-' + Date.now().toString(36), ts: new Date().toISOString(),
+    eventId: state.match.eventId, matchId: state.match.idMatch, buvette: state.tab, ajout, envoye: false });
+  save(); renderAll(); afficherRapport();
+  info('📦 Stock ajouté à ' + state.tab);
+  envoyerReassorts();
+}
+let reassortEnCours = false;
+async function envoyerReassorts() {
+  const r = state.reassorts.find(x => !x.envoye);
+  if (!r || reassortEnCours || !state.url || !state.token) return;
+  reassortEnCours = true;
+  try {
+    const res = await (await fetchT(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'reassort', token: state.token, reassort: r }) })).json();
+    if (res.status !== 'ok') throw new Error(res.message || 'refus');
+    r.envoye = true; if (res.prepa && state.match) state.match.prepa = res.prepa;   // déjà compté ici : pas de rechargement en double
+    state.reassorts = state.reassorts.filter(x => !x.envoye || Date.now() - Date.parse(x.ts) < 2 * 86400000);
+    save();
+    reassortEnCours = false;
+    if (document.getElementById('m-bilan').classList.contains('open')) afficherRapport();
+    envoyerReassorts();
+  } catch(e) { reassortEnCours = false; }
+}
 async function envoyerCloture() {
+  envoyerReassorts();
   const cl = Object.values(state.clotures || {}).find(x => !x.envoyee);
   if (!cl || !state.url || !state.token || state.outbox.length) return;   // les ventes partent d'abord
   try {
@@ -1408,7 +1515,10 @@ function appliquerChargement(d, nouveau) {
   const reassort = !nouveau && state.match && state.match.prepa && state.match.prepa !== d.match.prepa;
   state.match = { eventId: d.match.eventId, idMatch: d.match.idMatch, nom: d.match.nom, date: d.match.date, charge: d.charge, prepa: d.match.prepa };
   state.futLitres = d.futLitres || 30;
-  state.stocks[state.tab] = d.stock || {};
+  state.stocks[state.tab] = Object.assign({}, d.stock || {});
+  // Stock reçu en cours de match pas encore arrivé au Sheet : on le garde
+  (state.reassorts || []).filter(r => !r.envoye && r.buvette === state.tab && r.matchId === d.match.idMatch)
+    .forEach(r => Object.entries(r.ajout).forEach(([k, q]) => { state.stocks[state.tab][k] = (Number(state.stocks[state.tab][k]) || 0) + q; }));
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
   if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.forcer = {}; panier = nouveauPanier(); billet = null; }
   else if (reassort) state.forcer = {};   // nouveau stock reçu : on refait confiance au comptage
