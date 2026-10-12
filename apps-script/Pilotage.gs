@@ -40,20 +40,20 @@ const PIL = {
   RESERVES: ['Bénévoles'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
   PRODUITS: [
-    ['P01_25',   'Bière 33cl',        4],   // réf. historique : verre de 33 cl depuis 26-27
+    ['P01_25',   'Bière 30cl',        4],   // réf. historique : verre de 30 cl (26-27)
     ['P01_50',   'Bière 50cl',        6],
-    ['P02_COCA', 'Coca-Cola',         2],   // softs vendus au verre de 33 cl
+    ['P02_COCA', 'Coca-Cola',         2],   // softs vendus au verre de 30 cl
     ['P02_ORAN', 'Orangina',          2],
     ['P02_ICET', 'Ice Tea',           2],
     ['P02_SCHW', 'Schweppes Agrumes', 2],
     ['P03',      'Eau plate 50cl',    1],
     ['P04',      'Eau gazeuse 50cl',  1],
   ],
-  // Volumes : bière au verre (litres tirés du fût) ; softs au verre de 33 cl tirés de bouteilles (stock en bouteilles)
-  VERRE_BIERE_L: { P01_25: 0.33, P01_50: 0.5 },
-  VERRE_SOFT_L: 0.33,
+  // Volumes : bière au verre (litres tirés du fût) ; softs au verre de 30 cl tirés de bouteilles (stock en bouteilles)
+  VERRE_BIERE_L: { P01_25: 0.3, P01_50: 0.5 },
+  VERRE_SOFT_L: 0.3,
   BOUTEILLE_L: { P02_COCA: 1.25, P02_ICET: 1.25, P02_ORAN: 1.5, P02_SCHW: 1.5 },
-  // Lignes de préparation : FUT en fûts de 30 L (33cl et 50cl tirés du même fût), softs en bouteilles, eaux en unités
+  // Lignes de préparation : FUT en fûts de 30 L (30cl et 50cl tirés du même fût), softs en bouteilles, eaux en unités
   PREPA: [['FUT', 'Bière (fûts 30 L)'], ['P02_COCA', 'Coca-Cola (bout. 1,25 L)'], ['P02_ORAN', 'Orangina (bout. 1,5 L)'], ['P02_ICET', 'Ice Tea (bout. 1,25 L)'],
           ['P02_SCHW', 'Schweppes (bout. 1,5 L)'], ['P03', 'Eau plate 50cl'], ['P04', 'Eau gazeuse 50cl']],
 };
@@ -180,6 +180,7 @@ function pilotagePost_(body) {
     }
     if (body.action === 'inventaire') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerInventaire_(body.eventId, body.inventaires || {})));
     if (body.action === 'cloture') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerCloture_(body.cloture || {})));
+    if (body.action === 'reassort') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerReassort_(body.reassort || {})));
     if (body.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerPrepa_(body.eventId, body.stocks || {})));
     return pilJson_({ status: 'error', message: 'Action inconnue' });
   } catch (err) { return pilJson_({ status: 'error', message: String(err && err.message || err) });
@@ -348,6 +349,29 @@ function pilEnregistrerPrepa_(eventId, stocks) {
   PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify({ eventId: eventId, idMatch: idm, saved: now.toISOString() }));
   return { idMatch: idm, saved: now.toISOString() };
 }
+// Stock reçu pendant le match, saisi sur la tablette : ajouté au stock de départ de la buvette (coût matière juste)
+function pilEnregistrerReassort_(r) {
+  if (!r.id || !r.matchId || PIL.BUVETTES.indexOf(r.buvette) < 0) throw new Error('Réassort incomplet');
+  const deja = pilProp_('PIL_REASSORTS_' + r.matchId, []);
+  const actif = pilActif_();
+  if (deja.some(function (x) { return x.id === r.id; })) return { recu: r.id, prepa: actif && actif.idMatch === r.matchId ? actif.saved : null };
+  const prepa = pilStocksPrepa_(r.matchId), ajout = {};
+  Object.keys(r.ajout || {}).forEach(function (ref) {
+    const q = Math.round((Number(r.ajout[ref]) || 0) * 100) / 100;
+    if (q <= 0 || prepa[r.buvette][ref] == null) return;
+    prepa[r.buvette][ref] = Math.round((prepa[r.buvette][ref] + q) * 100) / 100; ajout[ref] = q;
+  });
+  pilSetProp_('PIL_PREPA_' + r.matchId, prepa);
+  deja.push({ id: r.id, ts: r.ts, buvette: r.buvette, ajout: ajout, recu: new Date().toISOString() });
+  pilSetProp_('PIL_REASSORTS_' + r.matchId, deja);
+  let saved = null;
+  if (actif && actif.idMatch === r.matchId) {   // nouveau repère : le tableau de bord et les autres tablettes voient le changement
+    saved = new Date().toISOString(); actif.saved = saved;
+    PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify(actif));
+  }
+  try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
+  return { recu: r.id, prepa: saved };
+}
 function pilStocksPrepa_(idm) {
   const out = {}, saved = pilProp_('PIL_PREPA_' + idm, {});
   PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) { out[b] = {}; PIL.PREPA.forEach(function (p) { out[b][p[0]] = Number((saved[b] || {})[p[0]]) || 0; }); });
@@ -361,7 +385,8 @@ function pilLirePrepa_(eventId) {
   else if (actif) { idm = actif.idMatch; eventId = actif.eventId; }
   return { eventId: eventId || '', idMatch: idm, actif: actif, lignes: PIL.PREPA, buvettes: PIL.BUVETTES, reserves: PIL.RESERVES,
     stocks: idm ? pilStocksPrepa_(idm) : null, tablettes: pilLireJournal_(),
-    inventaire: idm ? pilProp_('PIL_INVENTAIRE_' + idm, {}) : {}, futLitres: PIL.FUT_LITRES };
+    inventaire: idm ? pilProp_('PIL_INVENTAIRE_' + idm, {}) : {}, reassorts: idm ? pilProp_('PIL_REASSORTS_' + idm, []) : [],
+    clotures: idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {}, futLitres: PIL.FUT_LITRES };
 }
 
 // Ce que la tablette emporte en buvette pour travailler hors ligne
@@ -406,11 +431,11 @@ function pilEnregistrerVentes_(ventes) {
       t.ticket_id || '', t.barcode || '', t.tarif || '', '',
       (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')];
     PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
-    row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : '');
+    row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : v.paiement === 'BENEVOLE' ? 'BENEVOLE' : '');
     rows.push(row);
     Object.keys(v.lignes || {}).forEach(function (ref) {
       const q = Number(v.lignes[ref]) || 0, p = pilProduit_(ref), pu = Number((v.prix || {})[ref]) || p[2];
-      if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, v.annule ? 'ANNULATION' : 'VENTE']);
+      if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, v.paiement === 'BENEVOLE' ? (v.annule ? 'ANNULATION_BENEVOLE' : 'BENEVOLE') : v.annule ? 'ANNULATION' : 'VENTE']);
     });
     // Écocups par taille (E33 / E50) ; tablette ancienne version sans détail → E01
     const g = v.gob || null, typ = v.annule ? 'ANNULATION' : 'VENTE';
@@ -438,12 +463,14 @@ function pilEnregistrerCloture_(c) {
   all[c.buvette] = { ts: c.ts, recu: new Date().toISOString(), ventes: c.ventes, ca: c.ca, cb: c.cb, nbCb: c.nbCb,
     esp: c.esp, nbEsp: c.nbEsp, fond: c.fond, attendu: c.attendu, compte: c.compte, ecart: c.ecart,
     gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, gob: c.gob || null, stock: c.stock || {},
-    tpe: c.tpe == null ? null : c.tpe, ecartCb: c.ecartCb == null ? null : c.ecartCb };
+    tpe: c.tpe == null ? null : c.tpe, ecartCb: c.ecartCb == null ? null : c.ecartCb, tpeId: c.tpeId || '',
+    nonCompte: !!c.nonCompte, benev: c.benev || {}, nbBenev: Number(c.nbBenev) || 0 };
   pilSetProp_('PIL_CLOTURE_' + idm, all);
   if (c.inventaire && Object.keys(c.inventaire).length) {
-    // Inventaire compté : il remplace le stock théorique (reste réel pour la commande suivante)
+    // Inventaire compté : il remplace le stock théorique (reste réel pour la commande suivante).
+    // « Non compté » : la tablette envoie son stock théorique → pas de casse inventée pour cette buvette.
     const inv = pilProp_('PIL_INVENTAIRE_' + idm, {});
-    inv[c.buvette] = pilNormInventaire_(c.inventaire); inv[c.buvette]._source = 'tablette'; inv[c.buvette]._ts = c.ts;
+    inv[c.buvette] = pilNormInventaire_(c.inventaire); inv[c.buvette]._source = c.nonCompte ? 'théorique (non compté)' : 'tablette'; inv[c.buvette]._ts = c.ts;
     pilSetProp_('PIL_INVENTAIRE_' + idm, inv);
     pilMajStock_(c.buvette, pilStockDepuisInventaire_(inv[c.buvette]));
   } else if (c.stock && Object.keys(c.stock).length) pilMajStock_(c.buvette, c.stock);
@@ -468,8 +495,21 @@ function pilEnregistrerInventaire_(eventId, inventaires) {
   const ev = pilEvent_(eventId);
   if (!ev) throw new Error('Match introuvable dans Tickie');
   const idm = pilIdMatch_(ev, true), inv = pilProp_('PIL_INVENTAIRE_' + idm, {});
+  const clot = pilProp_('PIL_CLOTURE_' + idm, {});
   PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) {
     if (!inventaires[b]) return;
+    if (inventaires[b] === 'NON_COMPTE') {
+      // Comptage raté (stock rangé, mélangé…) : on reprend le stock théorique de la clôture → pas de fausse casse
+      let theo = (clot[b] || {}).stock;
+      if (PIL.RESERVES.indexOf(b) >= 0) {   // réserve hors tablette : conso non mesurée → on garde le stock de départ
+        const dep = pilStocksPrepa_(idm)[b] || {}; theo = {};
+        Object.keys(dep).forEach(function (ref) { if (ref === 'FUT') theo.FUT_L = dep.FUT * PIL.FUT_LITRES; else theo[ref] = dep[ref]; });
+      }
+      if (!theo || !Object.keys(theo).length) throw new Error(b + ' : pas de stock théorique (clôture tablette absente)');
+      inv[b] = pilNormInventaire_(theo); inv[b]._source = 'théorique (non compté)'; inv[b]._ts = new Date().toISOString();
+      if (PIL.BUVETTES.indexOf(b) >= 0) pilMajStock_(b, pilStockDepuisInventaire_(inv[b]));
+      return;
+    }
     inv[b] = pilNormInventaire_(inventaires[b]); inv[b]._source = 'tableau de bord'; inv[b]._ts = new Date().toISOString();
     if (PIL.BUVETTES.indexOf(b) >= 0) pilMajStock_(b, pilStockDepuisInventaire_(inv[b]));
   });
