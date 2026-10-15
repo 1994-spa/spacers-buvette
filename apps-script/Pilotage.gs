@@ -68,6 +68,8 @@ const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_
 const PIL_NR_TAB = '⚙️ écocups non remboursés';
 const PIL_NR_HDR = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Écocups 30cl', 'Écocups 50cl', 'Annulation de'];
 const PIL_DETAIL_TAB = '🥤 DÉTAIL BUVETTE';
+const PIL_DETAIL_ARCH_TAB = '⚙️ détail buvette archive';   // lignes figées, une fois le match terminé
+const PIL_DETAIL_FIGE_JOURS = 2;
 
 // ── Menu (ajouté à onOpen de Code.gs) ───────────────────────────────────
 function pilotageMenu_(ui) {
@@ -80,6 +82,7 @@ function pilotageMenu_(ui) {
     .addItem('🎫 Relier les billets scannés + fidélité', 'pilotageTraiterBillets')
     .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
     .addItem('🥤 Mettre à jour le détail buvette (alcool, écocups, espèces)', 'pilotageDetailBuvette')
+    .addItem('🔓 Détail buvette : recalculer un match figé', 'pilotageDetailRefiger')
     .addSeparator()
     .addItem("📚 Importer l'historique 22-26", 'importerHistoriqueBuvette')
     .addItem("🗑️ Retirer l'historique 22-26", 'retirerHistoriqueBuvette');
@@ -471,6 +474,35 @@ function pilEnregistrerVentes_(ventes) {
   return recus;
 }
 
+function pilDetailArchive_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(PIL_DETAIL_ARCH_TAB);
+  if (!sh) {
+    sh = ss.insertSheet(PIL_DETAIL_ARCH_TAB);
+    const h = ['SAISON'].concat(PIL_DETAIL_COLS.map(function (c) { return c[1]; })).concat(['FIGÉ LE']);
+    sh.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+// Corriger un match déjà figé (ex. ventes arrivées très en retard) : ses lignes sont recalculées depuis les ventes
+// puis figées à nouveau. Les autres matchs ne bougent pas.
+function pilotageDetailRefiger() {
+  const ui = SpreadsheetApp.getUi();
+  const rep = ui.prompt('Recalculer un match figé', 'ID du match (ex. NAR-10-10) :', ui.ButtonSet.OK_CANCEL);
+  if (rep.getSelectedButton() !== ui.Button.OK) return;
+  const id = String(rep.getResponseText() || '').trim().toUpperCase();
+  const sh = pilDetailArchive_(), d = sh.getDataRange().getValues();
+  const garde = d.slice(1).filter(function (r) { return String(r[1]).toUpperCase() !== id; });
+  if (garde.length === d.length - 1) { ui.alert('Aucune ligne figée pour ' + id + '.'); return; }
+  if (d.length > 1) sh.getRange(2, 1, d.length - 1, d[0].length).clearContent();
+  if (garde.length) sh.getRange(2, 1, garde.length, d[0].length).setValues(garde);
+  pilotageDetailBuvette(true);
+  ui.alert(id + ' recalculé depuis les ventes et figé à nouveau.');
+}
+
 function pilNrSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(PIL_NR_TAB);
@@ -826,6 +858,7 @@ function pilUrlWebApp_() {
 //  · Argent des consignes : payées en CB / en espèces, remboursées en espèces / déduites d'un achat CB
 //  · Espèces : solde du match et fond de caisse minimum (pire déficit du tiroir, monnaie à rendre non comprise)
 // Recalculé à chaque clôture de caisse, toutes les 10 min (traitement auto) et par le menu 📡 Pilotage live.
+// Chaque match est figé 2 jours après sa date (onglet masqué ⚙️ détail buvette archive) : ses chiffres sont conservés tels quels.
 // ═══════════════════════════════════════════════════════════════════════════
 const PIL_DETAIL_COLS = [
   ['match', 'MATCH'], ['date', 'DATE'], ['adv', 'ADVERSAIRE'], ['buv', 'BUVETTE'],
@@ -928,19 +961,55 @@ function pilotageDetailBuvette(silencieux) {
     return PIL_DETAIL_COLS.map(function (c) { return o[c[0]]; });
   };
 
+  // Chiffres figés : un match est figé PIL_DETAIL_FIGE_JOURS jours après sa date (le temps que les tablettes
+  // envoient tout et que les corrections soient faites). Ses lignes sont alors gardées telles quelles dans
+  // l'onglet masqué ⚙️ détail buvette archive et ne sont plus jamais recalculées (même si les ventes brutes changent).
+  const arch = pilDetailArchive_(), archD = lire(arch), figes = {};
+  archD.rows.forEach(function (r) {
+    const m = String(r[1] || ''); if (!m) return;
+    const f = figes[m] = figes[m] || { saison: String(r[0]), date: r[2], rows: [] };
+    f.rows.push(r.slice(1, 1 + PIL_DETAIL_COLS.length));
+  });
+  const blocs = {}, aFiger = [], limite = Date.now() - PIL_DETAIL_FIGE_JOURS * 86400000;
+  Object.keys(figes).forEach(function (m) { blocs[m] = figes[m]; });
+  Object.keys(acc).forEach(function (m) {
+    if (figes[m]) return;
+    const tot = additionner(Object.keys(acc[m]).map(function (b) { return acc[m][b]; }));
+    const rows = [ligne(tot, m, infos[m].date, infos[m].adv, 'Total match')]
+      .concat(Object.keys(acc[m]).sort().map(function (b) { return ligne(acc[m][b], m, infos[m].date, infos[m].adv, b); }));
+    blocs[m] = { saison: infos[m].saison, date: infos[m].date, rows: rows, live: true };
+    if (infos[m].date && new Date(infos[m].date).getTime() < limite) aFiger.push(m);
+  });
+  if (aFiger.length) {
+    const now = new Date(), add = [];
+    aFiger.forEach(function (m) { blocs[m].rows.forEach(function (r) { add.push([blocs[m].saison].concat(r).concat([now])); }); blocs[m].live = false; });
+    arch.getRange(arch.getLastRow() + 1, 1, add.length, add[0].length).setValues(add);
+  }
+
+  // Total saison recalculé à partir des lignes « Total match » (figées ou non)
+  const K = {}; PIL_DETAIL_COLS.forEach(function (c, i) { K[c[0]] = i; });
+  const totalSaison = function (lignes, s, n) {
+    const t = {}; ['alcTTC', 'alcHT', 'saTTC', 'saHT', 'vend', 'v30', 'v50', 'rend', 'nonRemb', 'garde', 'ndEsp', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp']
+      .forEach(function (k) { t[k] = r2(lignes.reduce(function (a, l) { return a + (Number(l[K[k]]) || 0); }, 0)); });
+    t.fond = lignes.reduce(function (a, l) { return Math.max(a, Number(l[K.fond]) || 0); }, 0);
+    t.partAlc = t.alcTTC + t.saTTC ? t.alcTTC / (t.alcTTC + t.saTTC) : ''; t.taux = t.vend > 0 ? t.rend / t.vend : '';
+    t.match = 'SAISON ' + s; t.date = ''; t.adv = n + ' match' + (n > 1 ? 's' : ''); t.buv = 'Toutes';
+    return PIL_DETAIL_COLS.map(function (c) { return t[c[0]]; });
+  };
+
   // Lignes : saison (total) → match (total) → buvettes
-  const matchs = Object.keys(acc).sort(function (x, y) { return new Date(infos[y].date) - new Date(infos[x].date); });
+  const matchs = Object.keys(blocs).sort(function (x, y) { return new Date(blocs[y].date) - new Date(blocs[x].date); });
   const saisons = [];
-  matchs.forEach(function (m) { if (saisons.indexOf(infos[m].saison) < 0) saisons.push(infos[m].saison); });
+  matchs.forEach(function (m) { if (saisons.indexOf(blocs[m].saison) < 0) saisons.push(blocs[m].saison); });
   const out = [], styles = [];
   saisons.forEach(function (s) {
-    const ms = matchs.filter(function (m) { return infos[m].saison === s; });
-    const totMatch = {};
-    ms.forEach(function (m) { totMatch[m] = additionner(Object.keys(acc[m]).map(function (b) { return acc[m][b]; })); });
-    out.push(ligne(additionner(ms.map(function (m) { return totMatch[m]; }), 'max'), 'SAISON ' + s, '', ms.length + ' match' + (ms.length > 1 ? 's' : ''), 'Toutes')); styles.push('saison');
+    const ms = matchs.filter(function (m) { return blocs[m].saison === s; });
+    out.push(totalSaison(ms.map(function (m) { return blocs[m].rows[0]; }), s, ms.length)); styles.push('saison');
     ms.forEach(function (m) {
-      out.push(ligne(totMatch[m], m, infos[m].date, infos[m].adv, 'Total match')); styles.push('match');
-      Object.keys(acc[m]).sort().forEach(function (b) { out.push(ligne(acc[m][b], m, infos[m].date, infos[m].adv, b)); styles.push('buv'); });
+      blocs[m].rows.forEach(function (r, i) {
+        const l = r.slice(); if (i === 0) l[K.buv] = blocs[m].live ? 'Total match (en cours)' : 'Total match 🔒';
+        out.push(l); styles.push(i === 0 ? 'match' : 'buv');
+      });
     });
   });
 
@@ -950,7 +1019,7 @@ function pilotageDetailBuvette(silencieux) {
   sh.clear();
   const nc = PIL_DETAIL_COLS.length, navy = typeof NAVY !== 'undefined' ? NAVY : '#0b1f33', jaune = typeof YELLOW !== 'undefined' ? YELLOW : '#ffd400';
   sh.getRange(1, 1).setValue('🥤 DÉTAIL BUVETTE — alcool / sans alcool, écocups, espèces').setFontSize(16).setFontWeight('bold').setFontColor(navy);
-  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Non remboursés = vendus − rendus : gardés par le spectateur, ou rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète). Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise.")
+  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Chaque match est figé 🔒 deux jours après sa date : ses chiffres sont conservés et ne bougent plus (menu 🔓 pour en recalculer un). Non remboursés = vendus − rendus : gardés par le spectateur, ou rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète). Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise.")
     .setFontStyle('italic').setFontColor('#666666').setWrap(false);
   sh.getRange(3, 1, 1, nc).setValues([PIL_DETAIL_COLS.map(function (c) { return c[1]; })])
     .setBackground(navy).setFontColor(jaune).setFontWeight('bold').setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
