@@ -369,9 +369,10 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <div id="scan-zone">
       <div class="scan-frame"><video id="scan-video" playsinline autoplay muted></video><div class="scan-target" aria-hidden="true"></div></div>
       <canvas id="scan-canvas" hidden></canvas>
+      <button class="btn" id="btn-torche" type="button" onclick="basculerTorche()" hidden style="width:100%;margin-top:8px">🔦 Éclairer</button>
       <div class="scan-status" id="scan-status" role="status"></div>
       <form class="scan-manual" onsubmit="saisieManuelle(event)">
-        <input class="input" id="scan-manual" placeholder="ou tape le code du billet" autocomplete="off" inputmode="text" aria-label="Code du billet">
+        <input class="input" id="scan-manual" placeholder="ou tape le code du billet (10 caractères)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Code du billet">
         <button class="btn prim" type="submit">OK</button>
       </form>
     </div>
@@ -455,7 +456,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.12-cloture-fiable</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.15-scan</p>
     </div>
   </div>
 </div>
@@ -1063,15 +1064,52 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) envo
 // ═══════════════════════════════════════════════════════════════════
 // BILLET / CARTE ABONNÉ — caméra, douchette ou saisie
 // ═══════════════════════════════════════════════════════════════════
-let scanStream = null, scanTimer = null, detector = null;
-function chargerJsQR() {
-  return new Promise((ok, ko) => {
-    if (window.jsQR) return ok();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
-    s.onload = ok; s.onerror = () => ko(new Error('lecteur QR indisponible'));
-    document.head.appendChild(s);
-  });
+let scanStream = null, scanTimer = null, detector = null, scanOccupe = false, scanEchecs = 0;
+// Lecteur QR embarqué dans l'appli (marche sans réseau) ; le CDN ne sert que de secours
+function chargerScript(src) {
+  return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
+}
+async function chargerJsQR() {
+  if (window.jsQR) return;
+  try { await chargerScript('./jsQR.min.js'); } catch(e) {}
+  if (!window.jsQR) { try { await chargerScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'); } catch(e) {} }
+  if (!window.jsQR) throw Object.assign(new Error('lecteur QR indisponible'), { name: 'LecteurAbsent' });
+}
+function messageCamera(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') return '🚫 La caméra est bloquée sur cette tablette. Touche le cadenas 🔒 à gauche de l\'adresse (ou ⋮ → Infos sur l\'appli) → Autorisations → Caméra → Autoriser, puis 🔁 Rescanner. En attendant : tape le code imprimé sous le QR.';
+  if (n === 'NotReadableError' || n === 'AbortError') return '📷 Caméra occupée par une autre appli : ferme l\'appareil photo / les autres applis puis 🔁 Rescanner. En attendant : tape le code.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return '📷 Pas de caméra trouvée : tape le code imprimé sous le QR.';
+  if (n === 'LecteurAbsent') return '📷 Lecteur QR pas chargé (pas de réseau au 1er lancement) : tape le code imprimé sous le QR.';
+  return '📷 Caméra indisponible : tape le code imprimé sous le QR, puis 🔁 Rescanner.';
+}
+async function ouvrirCamera() {
+  const essais = [
+    { video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1280 }, height:{ ideal:720 } } },
+    { video:{ facingMode:{ ideal:'environment' } } },
+    { video:true }
+  ];
+  let err;
+  for (const c of essais) {
+    try { return await navigator.mediaDevices.getUserMedia(c); }
+    catch(e) { err = e; if (e.name === 'NotAllowedError' || e.name === 'SecurityError') break; }
+  }
+  throw err;
+}
+function reglerCamera(stream) {   // mise au point continue + éclairage si la tablette le permet (buvette intérieure peu éclairée)
+  const track = stream.getVideoTracks()[0], btn = document.getElementById('btn-torche');
+  btn.hidden = true;
+  if (!track || !track.getCapabilities) return;
+  const cap = track.getCapabilities(), adv = {};
+  if (cap.focusMode && cap.focusMode.includes('continuous')) adv.focusMode = 'continuous';
+  if (Object.keys(adv).length) track.applyConstraints({ advanced:[adv] }).catch(() => {});
+  if (cap.torch) { btn.hidden = false; btn.dataset.on = ''; btn.textContent = '🔦 Éclairer'; }
+}
+function basculerTorche() {
+  const track = scanStream && scanStream.getVideoTracks()[0], btn = document.getElementById('btn-torche');
+  if (!track) return;
+  const on = !btn.dataset.on;
+  track.applyConstraints({ advanced:[{ torch: on }] }).then(() => { btn.dataset.on = on ? '1' : ''; btn.textContent = on ? '🔦 Éteindre' : '🔦 Éclairer'; }).catch(() => { btn.hidden = true; });
 }
 async function ouvrirScanner() {
   document.getElementById('scan-ko').hidden = true;
@@ -1080,36 +1118,73 @@ async function ouvrirScanner() {
   document.getElementById('scan-manual').value = '';
   setScanStatus('📷 Mets le QR code du billet dans le cadre jaune');
   ouvrir('m-scan');
+  scanEchecs = 0;
+  if (!detector && 'BarcodeDetector' in window) {
+    try {
+      const dispo = BarcodeDetector.getSupportedFormats ? await BarcodeDetector.getSupportedFormats() : ['qr_code'];
+      const formats = ['qr_code','code_128','aztec','data_matrix'].filter(f => dispo.includes(f));
+      if (formats.includes('qr_code')) detector = new BarcodeDetector({ formats });
+    } catch(e) { detector = null; }
+  }
+  try { await chargerJsQR(); } catch(e) { if (!detector) { setScanStatus(messageCamera(e)); document.getElementById('btn-rescan').hidden = false; return; } }
   try {
-    if (!detector && 'BarcodeDetector' in window) { try { detector = new BarcodeDetector({ formats:['qr_code','code_128','aztec','data_matrix'] }); } catch(e) { detector = null; } }
-    if (!detector) await chargerJsQR();
-    scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('pas de caméra'), { name: 'NotFoundError' });
+    scanStream = await ouvrirCamera();
+    if (!document.getElementById('m-scan').classList.contains('open')) { arreterCamera(); return; }   // fenêtre fermée pendant l'ouverture de la caméra
     const v = document.getElementById('scan-video');
     v.srcObject = scanStream; await v.play();
+    reglerCamera(scanStream);
     scanTimer = setInterval(lireImage, 200);
-  } catch(e) { setScanStatus('Caméra indisponible : tape le code imprimé sous le QR.'); }
+  } catch(e) { arreterCamera(); setScanStatus(messageCamera(e)); document.getElementById('btn-rescan').hidden = false; }
+}
+// jsQR sur le centre de l'image (le cadre jaune), réduit : plus rapide et plus fiable sur les petites tablettes
+function lireJsQR(v) {
+  const c = document.getElementById('scan-canvas');
+  const cw = Math.round(v.videoWidth * 0.7), ch = Math.round(v.videoHeight * 0.9);
+  const k = Math.min(1, 800 / cw);
+  c.width = Math.round(cw * k); c.height = Math.round(ch * k);
+  const ctx = c.getContext('2d', { willReadFrequently:true });
+  ctx.drawImage(v, (v.videoWidth - cw) / 2, (v.videoHeight - ch) / 2, cw, ch, 0, 0, c.width, c.height);
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  // attemptBoth : lit aussi les QR clairs sur fond foncé (cartes, téléphones en mode sombre)
+  const r = window.jsQR(img.data, img.width, img.height, { inversionAttempts:'attemptBoth' });
+  return r && r.data ? r.data : null;
 }
 async function lireImage() {
   const v = document.getElementById('scan-video');
-  if (!v.videoWidth) return;
+  if (!v.videoWidth || scanOccupe) return;
+  scanOccupe = true;
   let code = null;
-  if (detector) { try { const r = await detector.detect(v); if (r && r[0]) code = r[0].rawValue; } catch(e) {} }
-  else if (window.jsQR) {
-    const c = document.getElementById('scan-canvas');
-    c.width = v.videoWidth; c.height = v.videoHeight;
-    const ctx = c.getContext('2d', { willReadFrequently:true }); ctx.drawImage(v, 0, 0);
-    const img = ctx.getImageData(0, 0, c.width, c.height);
-    const r = window.jsQR(img.data, img.width, img.height, { inversionAttempts:'dontInvert' });
-    if (r && r.data) code = r.data;
-  }
-  if (code) { arreterCamera(); chercherBillet(code.trim()); }
+  try {
+    if (detector) { try { const r = await detector.detect(v); if (r && r[0]) code = r[0].rawValue; } catch(e) {} }
+    // Le détecteur Android rate souvent les QR affichés sur un téléphone : jsQR en relais une image sur deux
+    if (!code && window.jsQR && (!detector || scanEchecs % 2)) code = lireJsQR(v);
+  } finally { scanOccupe = false; }
+  if (code) { arreterCamera(); chercherBillet(code.trim()); return; }
+  scanEchecs++;
+  if (scanEchecs === 40) setScanStatus('💡 Recule un peu le billet, monte la luminosité du téléphone, ou tape le code imprimé sous le QR.');
 }
-function arreterCamera() { clearInterval(scanTimer); scanTimer = null; if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; } }
+function arreterCamera() { clearInterval(scanTimer); scanTimer = null; scanOccupe = false; if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; } const b = document.getElementById('btn-torche'); if (b) b.hidden = true; }
 function setScanStatus(t) { document.getElementById('scan-status').textContent = t; }
 function saisieManuelle(e) { e.preventDefault(); const v = document.getElementById('scan-manual').value.trim(); if (v) { arreterCamera(); chercherBillet(v); } }
+// Code lu ou tapé → code-barres Tickie (10 caractères minuscules) : enlève espaces, majuscules ajoutées par le clavier, lien éventuel
+function normaliserCode(brut) {
+  let c = String(brut || '').trim();
+  if (/^https?:\/\//i.test(c)) {
+    try {
+      const u = new URL(c);
+      const p = u.searchParams.get('barcode') || u.searchParams.get('code') || u.searchParams.get('ticket') || u.pathname.split('/').filter(Boolean).pop() || '';
+      if (/^[a-z0-9]{8,14}$/i.test(p)) c = p;
+    } catch(e) {}
+  }
+  const sansEspace = c.replace(/[\s-]+/g, '');
+  if (/^[a-z0-9]{8,14}$/i.test(sansEspace)) return sansEspace.toLowerCase();
+  return c;
+}
 
 async function chercherBillet(barcode) {
   if (essayerConfigQr(barcode)) return;
+  barcode = normaliserCode(barcode);
   const local = state.billets[barcode];
   if (local) { relierBillet({ ticket_id: local[0], tarif: local[1], name: local[2], profil: local[3] != null ? local[3] : profilBillet({}, local[1]) }, barcode); return; }
   const codeTickie = /^[a-z0-9]{8,14}$/i.test(barcode);
