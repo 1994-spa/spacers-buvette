@@ -63,6 +63,11 @@ const PIL_I = {}; PIL_LIVE_COLS.forEach(function (c, i) { PIL_I[c] = i; });
 const PIL_NB = PIL_LIVE_COLS.length;
 const PIL_COL_PAIEMENT = PIL_NB + PIL.PRODUITS.length;   // index 0 de la colonne « Paiement » (CB / ESP), après les produits
 const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_UNIT', 'CONSIGNE_UNIT', 'CA_HT', 'CA_CONSIGNE', 'TYPE'];
+// Gobelets rapportés mais non remboursés faute d'espèces (tablette : bouton 🚫 Plus d'espèces).
+// Onglet technique à part : ni 🧾 VENTES ni ⚙️ détail ventes, pour ne pas fausser NB VENTES, panier et consignes de Code.gs.
+const PIL_NR_TAB = '⚙️ écocups non remboursés';
+const PIL_NR_HDR = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Écocups 30cl', 'Écocups 50cl', 'Annulation de'];
+const PIL_DETAIL_TAB = '🥤 DÉTAIL BUVETTE';
 
 // ── Menu (ajouté à onOpen de Code.gs) ───────────────────────────────────
 function pilotageMenu_(ui) {
@@ -74,6 +79,7 @@ function pilotageMenu_(ui) {
     .addItem('🔄 Synchroniser les matchs Tickie', 'pilotageSyncMatchs')
     .addItem('🎫 Relier les billets scannés + fidélité', 'pilotageTraiterBillets')
     .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
+    .addItem('🥤 Mettre à jour le détail buvette (alcool, écocups, espèces)', 'pilotageDetailBuvette')
     .addSeparator()
     .addItem("📚 Importer l'historique 22-26", 'importerHistoriqueBuvette')
     .addItem("🗑️ Retirer l'historique 22-26", 'retirerHistoriqueBuvette');
@@ -420,10 +426,19 @@ function pilEnregistrerVentes_(ventes) {
   if (!hPay.getValue()) hPay.setValue('Paiement').setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
   const last = sh.getLastRow(), deja = {};
   if (last > 1) sh.getRange(2, PIL_I['ID vente'] + 1, last - 1, 1).getValues().forEach(function (r) { deja[String(r[0])] = 1; });
+  const nr = pilNrSheet_(), nrDeja = {}, nrRows = [];
+  if (nr.getLastRow() > 1) nr.getRange(2, 3, nr.getLastRow() - 1, 1).getValues().forEach(function (r) { nrDeja[String(r[0])] = 1; });
   const rows = [], vdRows = [], recus = [], now = new Date();
   ventes.forEach(function (v) {
     if (!v || !v.id) return;
     recus.push(v.id);                       // déjà reçue : accusé quand même (idempotence)
+    if (v.paiement === 'NON_REMB') {        // gobelets non remboursés faute d'espèces : 0 €, onglet à part
+      if (nrDeja[String(v.id)]) return;
+      nrDeja[String(v.id)] = 1;
+      const gn = v.gob || {};
+      nrRows.push([now, new Date(v.ts || Date.now()), v.id, v.matchId || '', v.buvette || '', Number(gn.n33) || 0, Number(gn.n50) || 0, v.annule || '']);
+      return;
+    }
     if (deja[String(v.id)]) return;
     deja[String(v.id)] = 1;
     const t = v.ticket || {}, ts = new Date(v.ts || Date.now()), idm = v.matchId || '', b = v.buvette || '', day = pilDate_(ts);
@@ -452,7 +467,21 @@ function pilEnregistrerVentes_(ventes) {
   });
   if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   if (vdRows.length) vd.getRange(vd.getLastRow() + 1, 1, vdRows.length, vdRows[0].length).setValues(vdRows);
+  if (nrRows.length) nr.getRange(nr.getLastRow() + 1, 1, nrRows.length, PIL_NR_HDR.length).setValues(nrRows);
   return recus;
+}
+
+function pilNrSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(PIL_NR_TAB);
+  if (!sh) {
+    sh = ss.insertSheet(PIL_NR_TAB);
+    const h = sh.getRange(1, 1, 1, PIL_NR_HDR.length).setValues([PIL_NR_HDR]).setFontWeight('bold');
+    if (typeof NAVY !== 'undefined') h.setBackground(NAVY).setFontColor(typeof YELLOW !== 'undefined' ? YELLOW : '#ffffff');
+    sh.setFrozenRows(1);
+    sh.hideSheet();
+  }
+  return sh;
 }
 
 // ── Clôture de caisse envoyée par une tablette (rapport de fin de match) ──
@@ -475,6 +504,7 @@ function pilEnregistrerCloture_(c) {
     pilMajStock_(c.buvette, pilStockDepuisInventaire_(inv[c.buvette]));
   } else if (c.stock && Object.keys(c.stock).length) pilMajStock_(c.buvette, c.stock);
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
+  try { pilotageDetailBuvette(true); } catch (e) {}
   return { recu: c.id };
 }
 
@@ -664,6 +694,7 @@ function pilotageTraiterBillets() {
   rg.setValues(data);
   try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); } catch (e) {}   // achats Pennylane (toutes les 6 h)
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}   // 📅 MATCHS à jour en continu
+  try { pilotageDetailBuvette(true); } catch (e) {}                                // 🥤 DÉTAIL BUVETTE à jour en continu
   try { SpreadsheetApp.getActiveSpreadsheet().toast(relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'); } catch (e) {}
 }
 
@@ -784,4 +815,162 @@ function pilUrlWebApp_() {
   }
   const u = ScriptApp.getService().getUrl();
   return u && /\/exec$/.test(u) ? u : '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🥤 DÉTAIL BUVETTE — une ligne par match (+ une par buvette), totaux par saison
+//  · CA alcoolisé / non alcoolisé, TTC et HT (prix réellement encaissés, formules et remises incluses ;
+//    famille et TVA lues dans 📦 PRODUITS : famille « Bière » = alcoolisé)
+//  · Écocups : vendus (consigne payée), rendus et remboursés, non remboursés = gardés par le spectateur
+//    + rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette)
+//  · Argent des consignes : payées en CB / en espèces, remboursées en espèces / déduites d'un achat CB
+//  · Espèces : solde du match et fond de caisse minimum (pire déficit du tiroir, monnaie à rendre non comprise)
+// Recalculé à chaque clôture de caisse, toutes les 10 min (traitement auto) et par le menu 📡 Pilotage live.
+// ═══════════════════════════════════════════════════════════════════════════
+const PIL_DETAIL_COLS = [
+  ['match', 'MATCH'], ['date', 'DATE'], ['adv', 'ADVERSAIRE'], ['buv', 'BUVETTE'],
+  ['alcTTC', 'CA ALCOOL TTC €', '€'], ['alcHT', 'CA ALCOOL HT €', '€'], ['saTTC', 'CA SANS ALCOOL TTC €', '€'], ['saHT', 'CA SANS ALCOOL HT €', '€'],
+  ['partAlc', 'PART ALCOOL', '%'],
+  ['vend', 'ÉCOCUPS VENDUS', 'n'], ['v30', 'dont 30cl', 'n'], ['v50', 'dont 50cl', 'n'],
+  ['rend', 'RENDUS ET REMBOURSÉS', 'n'], ['taux', 'TAUX DE RETOUR', '%'],
+  ['nonRemb', 'NON REMBOURSÉS (consigne gardée, €)', 'n'], ['garde', 'dont gardés par le spectateur', 'n'], ['ndEsp', "dont rapportés, plus d'espèces", 'n'],
+  ['consCB', 'CONSIGNES PAYÉES EN CB €', '€'], ['consESP', 'CONSIGNES PAYÉES EN ESPÈCES €', '€'],
+  ['rembESP', 'REMBOURSÉES EN ESPÈCES €', '€'], ['rembCB', "DÉDUITES D'UN ACHAT CB €", '€'],
+  ['soldeEsp', 'SOLDE ESPÈCES DU MATCH €', '€'], ['fond', 'FOND DE CAISSE MINIMUM €', '€'],
+];
+
+function pilotageDetailBuvette(silencieux) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const lire = function (sh) {
+    if (!sh || sh.getLastRow() < 2) return { h: {}, rows: [] };
+    const d = sh.getDataRange().getValues(), h = {};
+    d[0].forEach(function (x, i) { if (x !== '' && !(String(x) in h)) h[String(x)] = i; });
+    return { h: h, rows: d.slice(1) };
+  };
+
+  // Catalogue : famille + TVA par référence
+  const prod = lire(ss.getSheetByName('📦 PRODUITS')), alcool = {}, tva = {};
+  const cRef = prod.h['RÉF'], cFam = prod.h['FAMILLE'], cTva = prod.h['TVA'];
+  prod.rows.forEach(function (r) {
+    if (cRef === undefined || !r[cRef]) return;
+    const ref = String(r[cRef]);
+    alcool[ref] = /bi[eè]re|alcool|vin|cidre/i.test(String(cFam === undefined ? '' : r[cFam]));
+    const t = Number(cTva === undefined ? '' : r[cTva]);
+    if (!isNaN(t) && r[cTva] !== '') tva[ref] = t > 1 ? t / 100 : t;
+  });
+  const estAlcool = function (ref) { return ref in alcool ? alcool[ref] : /^P01/.test(ref); };
+  const tauxTva = function (ref) { return ref in tva ? tva[ref] : estAlcool(ref) ? 0.2 : 0.1; };
+
+  // Matchs : date, adversaire, saison
+  const mt = lire(feuille_('MATCHS')), infos = {};
+  mt.rows.forEach(function (r) {
+    const id = String(r[mt.h['ID_MATCH']] || ''); if (!id) return;
+    infos[id] = { date: r[mt.h['DATE']], adv: r[mt.h['ADVERSAIRE']] || '', saison: String(r[mt.h['SAISON']] || '') };
+  });
+
+  const acc = {};   // acc[match][buvette] = compteurs
+  const zero = function () { return { alcTTC: 0, alcHT: 0, saTTC: 0, saHT: 0, v30: 0, v50: 0, rend: 0, ndEsp: 0, consCB: 0, consESP: 0, rembESP: 0, rembCB: 0, soldeEsp: 0, fond: 0, mouv: [] }; };
+  const get = function (m, b) { m = String(m || ''); b = String(b || '—'); acc[m] = acc[m] || {}; return acc[m][b] = acc[m][b] || zero(); };
+
+  // ⚙️ détail ventes : CA par famille (prix encaissés) + écocups vendus / rendus
+  const vd = lire(feuille_('DETAIL')), V = vd.h;
+  vd.rows.forEach(function (r) {
+    const m = String(r[V['MATCH']] || ''), type = String(r[V['TYPE']] || ''), ref = String(r[V['REF']] || '');
+    if (!infos[m] || type === 'HISTORIQUE' || /BENEVOLE/.test(type)) return;
+    const a = get(m, r[V['TABLETTE']]), q = Number(r[V['QTY']]) || 0;
+    if (/^E/.test(ref)) {
+      if (type === 'REMBOURSEMENT_CONSIGNE') a.rend += q;
+      else if (Number(r[V['CONSIGNE_UNIT']]) > 0) { if (ref === 'E50') a.v50 += q; else a.v30 += q; }
+      return;
+    }
+    if (type !== 'VENTE' && type !== 'ANNULATION') return;
+    const ttc = Number(r[V['CA_HT']]) || 0, ht = ttc / (1 + tauxTva(ref));   // colonne CA_HT = montant encaissé TTC
+    if (estAlcool(ref)) { a.alcTTC += ttc; a.alcHT += ht; } else { a.saTTC += ttc; a.saHT += ht; }
+  });
+
+  // 🧾 VENTES : argent des consignes par moyen de paiement + mouvements d'espèces
+  const ve = lire(feuille_('VENTES')), W = ve.h;
+  ve.rows.forEach(function (r) {
+    const m = String(r[W['ID_MATCH']] || ''); if (!infos[m]) return;
+    const pay = String(r[W['Paiement']] || ''), a = get(m, r[W['Buvette']]);
+    const cp = Number(r[W['Consignes +']]) || 0, cr = Number(r[W['Consignes rendues']]) || 0, tot = Number(r[W['Total €']]) || 0;
+    if (pay === 'CB') { a.consCB += cp; a.rembCB += cr; }
+    else if (pay === 'ESP') { a.consESP += cp; a.rembESP += cr; a.soldeEsp += tot; a.mouv.push([new Date(r[W['Horodatage']]).getTime() || 0, tot]); }
+  });
+
+  // ⚙️ écocups non remboursés (plus d'espèces)
+  const nr = lire(ss.getSheetByName(PIL_NR_TAB)), N = nr.h;
+  nr.rows.forEach(function (r) {
+    const m = String(r[N['ID_MATCH']] || ''); if (!infos[m]) return;
+    get(m, r[N['Buvette']]).ndEsp += (Number(r[N['Écocups 30cl']]) || 0) + (Number(r[N['Écocups 50cl']]) || 0);
+  });
+
+  // Fond de caisse minimum : pire déficit cumulé des espèces au fil du match, par buvette
+  Object.keys(acc).forEach(function (m) { Object.keys(acc[m]).forEach(function (b) {
+    const a = acc[m][b]; let cum = 0, mini = 0;
+    a.mouv.sort(function (x, y) { return x[0] - y[0]; }).forEach(function (x) { cum += x[1]; if (cum < mini) mini = cum; });
+    a.fond = Math.ceil(-mini);
+  }); });
+
+  const SOMMES = ['alcTTC', 'alcHT', 'saTTC', 'saHT', 'v30', 'v50', 'rend', 'ndEsp', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp'];
+  const additionner = function (liste, fondMode) {
+    const t = zero();
+    liste.forEach(function (a) { SOMMES.forEach(function (k) { t[k] += a[k]; }); t.fond = fondMode === 'max' ? Math.max(t.fond, a.fond) : t.fond + a.fond; });
+    return t;
+  };
+  const r2 = function (x) { return Math.round(x * 100) / 100; };
+  const ligne = function (a, match, date, adv, buv) {
+    const vend = a.v30 + a.v50, nonRemb = vend - a.rend, ca = a.alcTTC + a.saTTC;
+    const o = { match: match, date: date, adv: adv, buv: buv, alcTTC: r2(a.alcTTC), alcHT: r2(a.alcHT), saTTC: r2(a.saTTC), saHT: r2(a.saHT),
+      partAlc: ca ? a.alcTTC / ca : '', vend: vend, v30: a.v30, v50: a.v50, rend: a.rend, taux: vend > 0 ? a.rend / vend : '',
+      nonRemb: nonRemb, garde: nonRemb - a.ndEsp, ndEsp: a.ndEsp, consCB: r2(a.consCB), consESP: r2(a.consESP),
+      rembESP: r2(a.rembESP), rembCB: r2(a.rembCB), soldeEsp: r2(a.soldeEsp), fond: a.fond };
+    return PIL_DETAIL_COLS.map(function (c) { return o[c[0]]; });
+  };
+
+  // Lignes : saison (total) → match (total) → buvettes
+  const matchs = Object.keys(acc).sort(function (x, y) { return new Date(infos[y].date) - new Date(infos[x].date); });
+  const saisons = [];
+  matchs.forEach(function (m) { if (saisons.indexOf(infos[m].saison) < 0) saisons.push(infos[m].saison); });
+  const out = [], styles = [];
+  saisons.forEach(function (s) {
+    const ms = matchs.filter(function (m) { return infos[m].saison === s; });
+    const totMatch = {};
+    ms.forEach(function (m) { totMatch[m] = additionner(Object.keys(acc[m]).map(function (b) { return acc[m][b]; })); });
+    out.push(ligne(additionner(ms.map(function (m) { return totMatch[m]; }), 'max'), 'SAISON ' + s, '', ms.length + ' match' + (ms.length > 1 ? 's' : ''), 'Toutes')); styles.push('saison');
+    ms.forEach(function (m) {
+      out.push(ligne(totMatch[m], m, infos[m].date, infos[m].adv, 'Total match')); styles.push('match');
+      Object.keys(acc[m]).sort().forEach(function (b) { out.push(ligne(acc[m][b], m, infos[m].date, infos[m].adv, b)); styles.push('buv'); });
+    });
+  });
+
+  // Écriture
+  let sh = ss.getSheetByName(PIL_DETAIL_TAB);
+  if (!sh) { sh = ss.insertSheet(PIL_DETAIL_TAB); }
+  sh.clear();
+  const nc = PIL_DETAIL_COLS.length, navy = typeof NAVY !== 'undefined' ? NAVY : '#0b1f33', jaune = typeof YELLOW !== 'undefined' ? YELLOW : '#ffd400';
+  sh.getRange(1, 1).setValue('🥤 DÉTAIL BUVETTE — alcool / sans alcool, écocups, espèces').setFontSize(16).setFontWeight('bold').setFontColor(navy);
+  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Non remboursés = vendus − rendus : gardés par le spectateur, ou rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète). Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise.")
+    .setFontStyle('italic').setFontColor('#666666').setWrap(false);
+  sh.getRange(3, 1, 1, nc).setValues([PIL_DETAIL_COLS.map(function (c) { return c[1]; })])
+    .setBackground(navy).setFontColor(jaune).setFontWeight('bold').setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
+  sh.setRowHeight(3, 48);
+  if (out.length) {
+    sh.getRange(4, 1, out.length, nc).setValues(out);
+    PIL_DETAIL_COLS.forEach(function (c, i) {
+      const rg = sh.getRange(4, i + 1, out.length, 1);
+      if (c[2] === '€') rg.setNumberFormat('#,##0.00 €'); else if (c[2] === '%') rg.setNumberFormat('0%'); else if (c[2] === 'n') rg.setNumberFormat('0');
+    });
+    sh.getRange(4, 2, out.length, 1).setNumberFormat('dd/MM/yyyy');
+    styles.forEach(function (st, i) {
+      const rg = sh.getRange(4 + i, 1, 1, nc);
+      if (st === 'saison') rg.setBackground('#c9daf8').setFontWeight('bold');
+      else if (st === 'match') rg.setBackground('#e8eef7').setFontWeight('bold');
+      else rg.setFontColor('#444444');
+    });
+  } else sh.getRange(4, 1).setValue('Aucune vente tablette pour le moment.');
+  sh.setFrozenRows(3); sh.setFrozenColumns(4);
+  sh.setColumnWidths(1, 4, 105); sh.setColumnWidths(5, nc - 4, 112);
+  if (!silencieux) { try { ss.toast(out.length + ' ligne(s) dans ' + PIL_DETAIL_TAB); } catch (e) {} }
+  return out.length;
 }
