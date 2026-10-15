@@ -315,7 +315,8 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
       <div class="gobs gob"><span class="lab">🥤 + Gobelet<small>+1 €</small></span>
         <button onclick="gobeletConsigne(33)" aria-label="Gobelet 30 cl consigné">30<small>cl</small></button>
         <button onclick="gobeletConsigne(50)" aria-label="Gobelet 50 cl consigné">50<small>cl</small></button></div>
-      <div class="gobs eco"><span class="lab">♻️ Rendu<small>−1 €</small></span>
+      <div class="gobs eco-off" id="eco-off" hidden><span class="lab">♻️ Pas de caisse ici<small id="eco-off-s">gobelets remboursés à B1 et B2</small></span></div>
+      <div class="gobs eco" id="eco-on"><span class="lab">♻️ Rendu<small>−1 €</small></span>
         <button onclick="ecocupRendue(33)" aria-label="Gobelet 30 cl rendu">30<small>cl</small></button>
         <button onclick="ecocupRendue(50)" aria-label="Gobelet 50 cl rendu">50<small>cl</small></button></div>
       <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Abonné −10 % · billet −5 % · points fidélité</small></span></button>
@@ -675,8 +676,11 @@ function stockSnapshot() {
 const LIEUX = {
   'Buvette 1': { lieu: 'Porte 4', detail: 'Coursive, à côté de la porte du Bloc 4' },
   'Buvette 2': { lieu: 'Porte 6', detail: 'Coursive, à côté de la porte du Bloc 6' },
-  'Buvette 3': { lieu: 'Buvette intérieure', detail: 'Dans la salle, sous la tribune (mur Toulouse Métropole)' },
+  'Buvette 3': { lieu: 'Buvette intérieure', detail: 'Dans la salle, sous la tribune (mur Toulouse Métropole)', sansCaisse: true },
 };
+// Buvette sans caisse espèces : paiement CB uniquement, aucun remboursement de gobelet (renvoi vers les buvettes avec caisse)
+function sansCaisse(t) { return !!(LIEUX[t || state.tab] || {}).sansCaisse; }
+function buvettesAvecCaisse() { return Object.keys(LIEUX).filter(b => !LIEUX[b].sansCaisse).map(b => b.replace('Buvette ', 'B')).join(' et '); }
 function lieuDe(t) { const n = String(t || '').replace(/\D/g, '') || '1'; return Object.assign({ n, photo: 'lieux/buvette-' + n + '.jpg', mini: 'lieux/buvette-' + n + '-mini.jpg' }, LIEUX['Buvette ' + n] || { lieu: '', detail: '' }); }
 function renderLieu() {
   const L = lieuDe(state.tab);
@@ -697,7 +701,13 @@ const vibre = ms => { try { navigator.vibrate && navigator.vibrate(ms || 12); } 
 // ═══════════════════════════════════════════════════════════════════
 // RENDU
 // ═══════════════════════════════════════════════════════════════════
-function renderAll() { renderHeader(); renderBanner(); renderTiles(); renderPanier(); renderAlerts(); renderNet(); }
+function renderCaisse() {
+  const off = sansCaisse();
+  document.getElementById('eco-on').hidden = off;
+  document.getElementById('eco-off').hidden = !off;
+  document.getElementById('eco-off-s').textContent = 'gobelets remboursés à ' + buvettesAvecCaisse();
+}
+function renderAll() { renderCaisse(); renderHeader(); renderBanner(); renderTiles(); renderPanier(); renderAlerts(); renderNet(); }
 
 function renderHeader() {
   document.getElementById('h-buvette').textContent = state.tab;
@@ -858,6 +868,8 @@ function renderPanier() {
   if (!vide && tot < 0) pb.innerHTML = `<button class="pbtn esp full" onclick="encaisser('ESP')">💶 Rendre ${fmt(-tot)}<small>remboursement des gobelets</small></button>`
     + (nonRembPossible() ? `<button class="pbtn benev full${confirmNonRemb ? ' confirme' : ''}" onclick="nonRembourse()">${confirmNonRemb ? '⚠️ Touche encore pour confirmer' : '🚫 Plus d\'espèces : pas remboursé'}<small>le client repart sans son euro · le club garde la consigne</small></button>` : '');
   else if (!vide && tot === 0) pb.innerHTML = `<button class="pbtn cb full" onclick="encaisser('ESP')">✓ Valider<small>rien à payer</small></button>`;
+  else if (sansCaisse()) pb.innerHTML = `<button class="pbtn cb full" onclick="ouvrirCB()" ${vide ? 'disabled' : ''}>💳 CB<small>carte / sans contact · pas d'espèces à cette buvette</small></button>`
+    + (benevolePossible() ? `<button class="pbtn benev full" onclick="encaisser('BENEVOLE')">🙋 Boisson bénévole<small>offerte, 0 € · sort du stock</small></button>` : '');
   else pb.innerHTML = `<button class="pbtn cb" onclick="ouvrirCB()" ${vide ? 'disabled' : ''}>💳 CB<small>carte / sans contact</small></button>
     <button class="pbtn esp" onclick="ouvrirEspeces()" ${vide ? 'disabled' : ''}>💶 Espèces<small>calcul de la monnaie</small></button>`
     + (benevolePossible() ? `<button class="pbtn benev full" onclick="encaisser('BENEVOLE')">🙋 Boisson bénévole<small>offerte, 0 € · sort du stock</small></button>` : '');
@@ -930,7 +942,7 @@ function taille(t) { return t === 50 ? 50 : 33; }
 function changeConsigne(d, t) { const k = 's' + taille(t); if (d < 0 && !panier.gob[k]) return; panier.gob[k] += d; syncConsigne(); renderPanier(); }
 function changeRendue(d, t) { const k = 'r' + taille(t); if (d < 0 && !panier.gob[k]) return; panier.gob[k] += d; syncConsigne(); renderPanier(); }
 function gobeletConsigne(t) { changeConsigne(1, t); vibre(); }
-function ecocupRendue(t) { changeRendue(1, t); vibre(); }
+function ecocupRendue(t) { if (sansCaisse()) return; changeRendue(1, t); vibre(); }
 function viderPanier() { panier = nouveauPanier(); billet = null; renderAll(); }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -942,7 +954,7 @@ function ouvrirCB() {
   ouvrir('m-cb');
 }
 function ouvrirEspeces() {
-  if (panierVide()) return;
+  if (panierVide() || sansCaisse()) return;
   const tot = totalPanier();
   document.getElementById('cash-du').textContent = fmt(tot);
   // Billets/pièces probables : montant exact + coupures supérieures au total
@@ -1277,13 +1289,14 @@ function afficherRapport() {
     <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · à comparer au ticket TPE</small></div>
     <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div>
     ${c.nbBenev ? `<div class="k"><span>🙋 Bénévoles</span><b>${Object.values(c.benev).reduce((a, q) => a + q, 0)}</b><small>boisson${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} offerte${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} · hors CA</small></div>` : ''}</div>`;
-  h += `<div class="sec">Clôture de la caisse espèces</div>
+  h += (sansCaisse() ? `<div hidden><input id="cl-fond" value="0"><input id="cl-compte" value="0"><b id="cl-attendu"></b><div id="cl-ecart-box"><b id="cl-ecart"></b><small id="cl-ecart-s"></small></div></div>`
+    : `<div class="sec">Clôture de la caisse espèces</div>
     <div class="caisse">
       <label>Fond de caisse<input class="input" id="cl-fond" inputmode="decimal" value="${fond}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k"><span>Espèces attendues</span><b id="cl-attendu">—</b><small>fond + ventes espèces</small></div>
       <label>Espèces comptées<input class="input" id="cl-compte" inputmode="decimal" placeholder="compter le tiroir" value="${cl ? cl.compte : ''}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecart-box"><span>Écart</span><b id="cl-ecart">—</b><small id="cl-ecart-s"></small></div>
-    </div>
+    </div>`) + `
     <div class="sec">Contrôle CB</div>
     <div class="caisse">
       <div class="k"><span>CB enregistrée</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} sur la tablette</small></div>

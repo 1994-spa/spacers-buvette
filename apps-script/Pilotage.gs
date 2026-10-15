@@ -36,6 +36,8 @@ const PIL = {
   // et suivi des tablettes sont gardés dans les propriétés du script.
   FUT_LITRES: 30,
   BUVETTES: ['Buvette 1', 'Buvette 2', 'Buvette 3'],
+  // Pas de caisse espèces : CB uniquement, aucun remboursement de gobelet (même réglage dans la tablette, LIEUX)
+  BUVETTES_SANS_CAISSE: ['Buvette 3'],
   // Réserves hors vente : stock de début et de fin saisis au tableau de bord, jamais sur une tablette
   RESERVES: ['Bénévoles'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
@@ -941,6 +943,7 @@ function pilotageDetailBuvette(silencieux) {
   // Fond de caisse minimum : pire déficit cumulé des espèces au fil du match, par buvette
   Object.keys(acc).forEach(function (m) { Object.keys(acc[m]).forEach(function (b) {
     const a = acc[m][b]; let cum = 0, mini = 0;
+    if (PIL.BUVETTES_SANS_CAISSE.indexOf(b) >= 0) { a.fond = 0; a.sansCaisse = true; return; }
     a.mouv.sort(function (x, y) { return x[0] - y[0]; }).forEach(function (x) { cum += x[1]; if (cum < mini) mini = cum; });
     a.fond = Math.ceil(-mini);
   }); });
@@ -957,7 +960,7 @@ function pilotageDetailBuvette(silencieux) {
     const o = { match: match, date: date, adv: adv, buv: buv, alcTTC: r2(a.alcTTC), alcHT: r2(a.alcHT), saTTC: r2(a.saTTC), saHT: r2(a.saHT),
       partAlc: ca ? a.alcTTC / ca : '', vend: vend, v30: a.v30, v50: a.v50, rend: a.rend, taux: vend > 0 ? a.rend / vend : '',
       nonRemb: nonRemb, garde: nonRemb - a.ndEsp, ndEsp: a.ndEsp, consCB: r2(a.consCB), consESP: r2(a.consESP),
-      rembESP: r2(a.rembESP), rembCB: r2(a.rembCB), soldeEsp: r2(a.soldeEsp), fond: a.fond };
+      rembESP: r2(a.rembESP), rembCB: r2(a.rembCB), soldeEsp: r2(a.soldeEsp), fond: a.sansCaisse ? 'sans caisse' : a.fond };
     return PIL_DETAIL_COLS.map(function (c) { return o[c[0]]; });
   };
 
