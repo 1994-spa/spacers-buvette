@@ -40,3 +40,11 @@ Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*
   token avec « Lecture des écritures comptables » + « Lecture des comptes comptables »). Le tableau de bord rapproche
   achats + stock de début − consommé − bénévoles − stock restant = écart non expliqué.
 - Clôture de caisse : écart espèces et écart CB (ticket TPE − CB enregistrée) par match dans 📅 MATCHS.
+
+## Détail buvette (onglet 🥤 DÉTAIL BUVETTE)
+- Une ligne par saison, par match et par buvette : CA alcoolisé / sans alcool (TTC et HT, famille et TVA de 📦 PRODUITS),
+  écocups vendus / rendus et remboursés / non remboursés (gardés par le spectateur ou rapportés sans remboursement faute d'espèces),
+  consignes payées en CB ou en espèces, remboursées en espèces ou déduites d'un achat CB, solde espèces et fond de caisse minimum.
+- Tablette : bouton 🚫 « Plus d'espèces : pas remboursé » sur un panier de gobelets rendus → onglet masqué ⚙️ écocups non remboursés
+  (hors 🧾 VENTES et ⚙️ détail ventes : NB VENTES, panier et consignes de Code.gs inchangés).
+- Recalculé à chaque clôture, toutes les 10 min, ou menu 📡 Pilotage live → 🥤 Mettre à jour le détail buvette.
