@@ -872,6 +872,7 @@ const PIL_DETAIL_COLS = [
   ['consCB', 'CONSIGNES PAYÉES EN CB €', '€'], ['consESP', 'CONSIGNES PAYÉES EN ESPÈCES €', '€'],
   ['rembESP', 'REMBOURSÉES EN ESPÈCES €', '€'], ['rembCB', "DÉDUITES D'UN ACHAT CB €", '€'],
   ['soldeEsp', 'SOLDE ESPÈCES DU MATCH €', '€'], ['fond', 'FOND DE CAISSE MINIMUM €', '€'],
+  ['anom', 'SAISIES IGNORÉES', 'n'],
 ];
 
 function pilotageDetailBuvette(silencieux) {
@@ -904,7 +905,7 @@ function pilotageDetailBuvette(silencieux) {
   });
 
   const acc = {};   // acc[match][buvette] = compteurs
-  const zero = function () { return { alcTTC: 0, alcHT: 0, saTTC: 0, saHT: 0, v30: 0, v50: 0, rend: 0, ndEsp: 0, consCB: 0, consESP: 0, rembESP: 0, rembCB: 0, soldeEsp: 0, fond: 0, mouv: [] }; };
+  const zero = function () { return { ignRend: 0, alcTTC: 0, alcHT: 0, saTTC: 0, saHT: 0, v30: 0, v50: 0, rend: 0, ndEsp: 0, consCB: 0, consESP: 0, rembESP: 0, rembCB: 0, soldeEsp: 0, fond: 0, mouv: [] }; };
   const get = function (m, b) { m = String(m || ''); b = String(b || '—'); acc[m] = acc[m] || {}; return acc[m][b] = acc[m][b] || zero(); };
 
   // ⚙️ détail ventes : CA par famille (prix encaissés) + écocups vendus / rendus
@@ -914,7 +915,9 @@ function pilotageDetailBuvette(silencieux) {
     if (!infos[m] || type === 'HISTORIQUE' || /BENEVOLE/.test(type)) return;
     const a = get(m, r[V['TABLETTE']]), q = Number(r[V['QTY']]) || 0;
     if (/^E/.test(ref)) {
-      if (type === 'REMBOURSEMENT_CONSIGNE') a.rend += q;
+      // Buvette sans caisse : un remboursement y est impossible (gobelets ramassés saisis par erreur) → ignoré
+      if (type === 'REMBOURSEMENT_CONSIGNE' && PIL.BUVETTES_SANS_CAISSE.indexOf(String(r[V['TABLETTE']])) >= 0) a.ignRend += q;
+      else if (type === 'REMBOURSEMENT_CONSIGNE') a.rend += q;
       else if (Number(r[V['CONSIGNE_UNIT']]) > 0) { if (ref === 'E50') a.v50 += q; else a.v30 += q; }
       return;
     }
@@ -928,9 +931,10 @@ function pilotageDetailBuvette(silencieux) {
   ve.rows.forEach(function (r) {
     const m = String(r[W['ID_MATCH']] || ''); if (!infos[m]) return;
     const pay = String(r[W['Paiement']] || ''), a = get(m, r[W['Buvette']]);
-    const cp = Number(r[W['Consignes +']]) || 0, cr = Number(r[W['Consignes rendues']]) || 0, tot = Number(r[W['Total €']]) || 0;
+    const sansCaisse = PIL.BUVETTES_SANS_CAISSE.indexOf(String(r[W['Buvette']])) >= 0;
+    const cp = Number(r[W['Consignes +']]) || 0, cr = sansCaisse ? 0 : Number(r[W['Consignes rendues']]) || 0, tot = Number(r[W['Total €']]) || 0;
     if (pay === 'CB') { a.consCB += cp; a.rembCB += cr; }
-    else if (pay === 'ESP') { a.consESP += cp; a.rembESP += cr; a.soldeEsp += tot; a.mouv.push([new Date(r[W['Horodatage']]).getTime() || 0, tot]); }
+    else if (pay === 'ESP' && !sansCaisse) { a.consESP += cp; a.rembESP += cr; a.soldeEsp += tot; a.mouv.push([new Date(r[W['Horodatage']]).getTime() || 0, tot]); }
   });
 
   // ⚙️ écocups non remboursés (plus d'espèces)
@@ -948,7 +952,7 @@ function pilotageDetailBuvette(silencieux) {
     a.fond = Math.ceil(-mini);
   }); });
 
-  const SOMMES = ['alcTTC', 'alcHT', 'saTTC', 'saHT', 'v30', 'v50', 'rend', 'ndEsp', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp'];
+  const SOMMES = ['ignRend', 'alcTTC', 'alcHT', 'saTTC', 'saHT', 'v30', 'v50', 'rend', 'ndEsp', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp'];
   const additionner = function (liste, fondMode) {
     const t = zero();
     liste.forEach(function (a) { SOMMES.forEach(function (k) { t[k] += a[k]; }); t.fond = fondMode === 'max' ? Math.max(t.fond, a.fond) : t.fond + a.fond; });
@@ -960,7 +964,8 @@ function pilotageDetailBuvette(silencieux) {
     const o = { match: match, date: date, adv: adv, buv: buv, alcTTC: r2(a.alcTTC), alcHT: r2(a.alcHT), saTTC: r2(a.saTTC), saHT: r2(a.saHT),
       partAlc: ca ? a.alcTTC / ca : '', vend: vend, v30: a.v30, v50: a.v50, rend: a.rend, taux: vend > 0 ? a.rend / vend : '',
       nonRemb: nonRemb, garde: nonRemb - a.ndEsp, ndEsp: a.ndEsp, consCB: r2(a.consCB), consESP: r2(a.consESP),
-      rembESP: r2(a.rembESP), rembCB: r2(a.rembCB), soldeEsp: r2(a.soldeEsp), fond: a.sansCaisse ? 'sans caisse' : a.fond };
+      rembESP: r2(a.rembESP), rembCB: r2(a.rembCB), soldeEsp: r2(a.soldeEsp), fond: a.sansCaisse ? 'sans caisse' : a.fond,
+      anom: a.ignRend ? a.ignRend + ' gobelet' + (a.ignRend > 1 ? 's' : '') + ' « rendu' + (a.ignRend > 1 ? 's' : '') + ' » à une buvette sans caisse, non comptés' : '' };
     return PIL_DETAIL_COLS.map(function (c) { return o[c[0]]; });
   };
 
@@ -994,6 +999,8 @@ function pilotageDetailBuvette(silencieux) {
   const totalSaison = function (lignes, s, n) {
     const t = {}; ['alcTTC', 'alcHT', 'saTTC', 'saHT', 'vend', 'v30', 'v50', 'rend', 'nonRemb', 'garde', 'ndEsp', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp']
       .forEach(function (k) { t[k] = r2(lignes.reduce(function (a, l) { return a + (Number(l[K[k]]) || 0); }, 0)); });
+    const ign = lignes.reduce(function (a, l) { const n = parseInt(l[K.anom], 10); return a + (isNaN(n) ? 0 : n); }, 0);
+    t.anom = ign ? ign + ' gobelet' + (ign > 1 ? 's' : '') + ' « rendu' + (ign > 1 ? 's' : '') + ' » à une buvette sans caisse, non comptés' : '';
     t.fond = lignes.reduce(function (a, l) { return Math.max(a, Number(l[K.fond]) || 0); }, 0);
     t.partAlc = t.alcTTC + t.saTTC ? t.alcTTC / (t.alcTTC + t.saTTC) : ''; t.taux = t.vend > 0 ? t.rend / t.vend : '';
     t.match = 'SAISON ' + s; t.date = ''; t.adv = n + ' match' + (n > 1 ? 's' : ''); t.buv = 'Toutes';
