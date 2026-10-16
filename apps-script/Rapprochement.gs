@@ -33,32 +33,58 @@ const RAP_COLS = [
 
 function rapNorm_(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 
-// Lignes Pennylane d'un compte depuis une date : [{date, label, montant (crédit − débit)}]
+// Lignes Pennylane d'un compte depuis une date : [{date, label (ligne), piece (libellé de l'écriture), entryId, montant (crédit − débit)}]
 function rapLignesPennylane_(numero, depuis) {
   const id = plCompteId_(numero);
   if (!id) return [];
   return plLignes_(id, depuis).map(function (l) {
     return {
-      date: String(l.date || (l.ledger_entry && l.ledger_entry.date) || '').slice(0, 10),
-      label: String(l.label || (l.ledger_entry && l.ledger_entry.label) || ''),
+      date: String(l.date || '').slice(0, 10),
+      label: String(l.label || ''),
+      piece: String((l.ledger_entry && l.ledger_entry.label) || ''),
+      entryId: l.ledger_entry && l.ledger_entry.id ? String(l.ledger_entry.id) : '',
       montant: Math.round(((Number(l.credit) || 0) - (Number(l.debit) || 0)) * 100) / 100,
     };
   });
 }
 
+// Le libellé « B1 - Vs Narbonne - 10/10 » est celui de l'écriture (libellé de pièce), pas toujours celui de la ligne :
+// pour les lignes proches d'un match, on lit l'écriture (mémorisée dans le cache du script, 6 h).
+function rapCompleterPieces_(lignes, matchs) {
+  const cache = CacheService.getScriptCache();
+  lignes.forEach(function (l) {
+    if (l.piece || !l.entryId) return;
+    const proche = matchs.some(function (m) { const j = rapJours_(l.date, m.jour); return j >= 0 && j <= RAP.JOURS_APRES; });
+    if (!proche) return;
+    const k = 'pl_ecr_' + l.entryId, memo = cache.get(k);
+    if (memo !== null) { l.piece = memo; return; }
+    try {
+      const e = plApi_('/ledger_entries/' + l.entryId, {});
+      l.piece = String((e && (e.label || (e.ledger_entry && e.ledger_entry.label))) || '');
+      cache.put(k, l.piece, 21600);
+    } catch (err) { Logger.log('Écriture ' + l.entryId + ' : ' + err.message); }
+  });
+  return lignes;
+}
+
+function rapJours_(d, jour) {
+  if (!d || !jour) return -1;
+  return Math.round((new Date(d + 'T12:00:00') - new Date(jour + 'T12:00:00')) / 86400000);
+}
+function rapTexte_(l) { return (l.piece + ' ' + l.label).trim(); }
+
 // Écriture Pennylane rattachée au match ?
 function rapDuMatch_(l, m) {
-  if (!l.date || !m.jour) return false;
-  const j = Math.round((new Date(l.date + 'T12:00:00') - new Date(m.jour + 'T12:00:00')) / 86400000);
+  const j = rapJours_(l.date, m.jour);
   if (j < 0 || j > RAP.JOURS_APRES) return false;
-  const lab = rapNorm_(l.label);
+  const lab = rapNorm_(rapTexte_(l));
   return lab.indexOf(m.jjmm) >= 0 || (m.adv && lab.indexOf('vs ' + rapNorm_(m.adv)) >= 0);
 }
 
-// Buvette d'une écriture du compte buvette : « B1 - … » → Buvette 1
-function rapBuvette_(label) {
-  const x = String(label).match(/^\s*B\s?([0-9])\b/i) || String(label).match(/buvette\s*([0-9])/i);
-  return x ? 'Buvette ' + x[1] : null;
+// Buvette d'une écriture du compte buvette : « B1 - … » → Buvette 1 (libellé de l'écriture, sinon de la ligne)
+function rapBuvette_(l) {
+  const lire = function (s) { const x = String(s || '').match(/^\s*B\s?([0-9])\b/i) || String(s || '').match(/buvette\s*([0-9])/i); return x ? 'Buvette ' + x[1] : null; };
+  return lire(l.piece) || lire(l.label);
 }
 
 function rapprochementCB(silencieux) {
@@ -102,7 +128,10 @@ function rapprochementCB(silencieux) {
     pl.buv = rapLignesPennylane_(RAP.BUVETTE, depuis);
     pl.bou = rapLignesPennylane_(RAP.BOUTIQUE, depuis);
     pl.bil = rapLignesPennylane_(RAP.BILLETTERIE, depuis);
+    const ms = matchs.map(function (m) { return infos[m]; });
+    [pl.buv, pl.bou, pl.bil].forEach(function (x) { rapCompleterPieces_(x, ms); });
   } catch (e) { erreurPl = e.message; }
+  const lus = 'Pennylane : ' + pl.buv.length + ' ligne(s) buvette, ' + pl.bou.length + ' boutique, ' + pl.bil.length + ' billetterie lue(s) depuis le ' + depuis + '.';
 
   const out = [], styles = [];
   const ligne = function (o) { return RAP_COLS.map(function (c) { return o[c[0]] === undefined ? '' : o[c[0]]; }); };
@@ -119,10 +148,10 @@ function rapprochementCB(silencieux) {
     const clo = pilProp_('PIL_CLOTURE_' + m, {});
     const ecr = pl.buv.filter(function (l) { return rapDuMatch_(l, inf); });
     const buvs = Object.keys(acc[m]);
-    ecr.forEach(function (l) { const b = rapBuvette_(l.label); if (b && buvs.indexOf(b) < 0) { buvs.push(b); get(m, b); } });
+    ecr.forEach(function (l) { const b = rapBuvette_(l); if (b && buvs.indexOf(b) < 0) { buvs.push(b); get(m, b); } });
     const tot = { ca: 0, caCB: 0, consCB: 0, cbTab: 0, tpe: 0, nTpe: 0, remise: 0, nRem: 0 };
     const lignesBuv = buvs.sort().map(function (b) {
-      const a = acc[m][b], mine = ecr.filter(function (l) { return rapBuvette_(l.label) === b; });
+      const a = acc[m][b], mine = ecr.filter(function (l) { return rapBuvette_(l) === b; });
       const remise = mine.length ? r2(mine.reduce(function (s, l) { return s + l.montant; }, 0)) : '';
       const tpe = clo[b] && clo[b].tpe != null && clo[b].tpe !== '' ? r2(clo[b].tpe) : '';
       ['ca', 'caCB', 'consCB', 'cbTab'].forEach(function (k) { tot[k] += a[k]; });
@@ -130,15 +159,15 @@ function rapprochementCB(silencieux) {
       if (remise !== '') { tot.remise += remise; tot.nRem++; }
       return ligne(Object.assign({}, base, { ligne: b, ca: r2(a.ca), caCB: r2(a.caCB), caESP: r2(a.ca - a.caCB), consCB: r2(a.consCB),
         cbTab: r2(a.cbTab), tpe: tpe, remise: remise, ecart: remise === '' ? '' : r2(remise - a.cbTab), statut: statut(remise, a.cbTab),
-        compte: mine.length ? RAP.BUVETTE : '', libelle: mine.map(function (l) { return l.label + ' (' + l.date + ')'; }).join(' · ') }));
+        compte: mine.length ? RAP.BUVETTE : '', libelle: mine.map(function (l) { return rapTexte_(l) + ' (' + l.date + ')'; }).join(' · ') }));
     });
     // Écritures buvette du match sans buvette lisible dans le libellé
-    const sansBuv = ecr.filter(function (l) { return !rapBuvette_(l.label); });
+    const sansBuv = ecr.filter(function (l) { return !rapBuvette_(l); });
     const remiseTot = tot.nRem || sansBuv.length ? r2(tot.remise + sansBuv.reduce(function (s, l) { return s + l.montant; }, 0)) : '';
     out.push(ligne(Object.assign({}, base, { ligne: 'Total buvettes', ca: r2(tot.ca), caCB: r2(tot.caCB), caESP: r2(tot.ca - tot.caCB),
       consCB: r2(tot.consCB), cbTab: r2(tot.cbTab), tpe: tot.nTpe ? r2(tot.tpe) : '', remise: remiseTot,
       ecart: remiseTot === '' ? '' : r2(remiseTot - tot.cbTab), statut: statut(remiseTot, tot.cbTab), compte: RAP.BUVETTE,
-      libelle: sansBuv.length ? '⚠️ sans n° de buvette : ' + sansBuv.map(function (l) { return l.label; }).join(' · ') : '' })));
+      libelle: sansBuv.length ? '⚠️ sans n° de buvette : ' + sansBuv.map(function (l) { return rapTexte_(l); }).join(' · ') : '' })));
     styles.push('match');
     lignesBuv.forEach(function (l) { out.push(l); styles.push('buv'); });
     // Autres remises du jour de match (pour retrouver le total crédité en banque)
@@ -146,7 +175,7 @@ function rapprochementCB(silencieux) {
       const mine = x[1].filter(function (l) { return rapDuMatch_(l, inf); });
       if (!mine.length) return;
       out.push(ligne(Object.assign({}, base, { ligne: x[0], remise: r2(mine.reduce(function (s, l) { return s + l.montant; }, 0)),
-        statut: 'ℹ️ hors buvette', compte: x[2], libelle: mine.map(function (l) { return l.label + ' (' + l.date + ')'; }).join(' · ') })));
+        statut: 'ℹ️ hors buvette', compte: x[2], libelle: mine.map(function (l) { return rapTexte_(l) + ' (' + l.date + ')'; }).join(' · ') })));
       styles.push('autre');
     });
   });
@@ -157,7 +186,7 @@ function rapprochementCB(silencieux) {
   sh.clear();
   const nc = RAP_COLS.length, navy = typeof NAVY !== 'undefined' ? NAVY : '#0b1f33', jaune = typeof YELLOW !== 'undefined' ? YELLOW : '#ffd400';
   sh.getRange(1, 1).setValue('💳 RAPPROCHEMENT CB — remises TPE (Pennylane) ↔ ventes des tablettes').setFontSize(16).setFontWeight('bold').setFontColor(navy);
-  sh.getRange(2, 1).setValue((erreurPl ? '⚠️ ' + erreurPl + ' — ' : '') +
+  sh.getRange(2, 1).setValue((erreurPl ? '⚠️ ' + erreurPl + ' — ' : lus + ' ') +
     'Automatique : recalculé après chaque import Pennylane (toutes les 6 h) ou menu 📡 Pilotage live → 💳 Rapprochement CB. ' +
     'CB enregistrée = CA boissons payé CB + consignes nettes payées CB. Écart CB > 0 : paiements passés sur le TPE sans saisie sur la tablette (vente non ventilée par produit). ' +
     'Boutique et billetterie : montants HT tels que comptabilisés, affichés pour retrouver le total crédité en banque ce jour-là.')
@@ -184,7 +213,7 @@ function rapprochementCB(silencieux) {
   }
   sh.setFrozenRows(3); sh.setFrozenColumns(4);
   sh.setColumnWidths(1, 4, 110); sh.setColumnWidths(5, 8, 115); sh.setColumnWidth(13, 230); sh.setColumnWidth(14, 90); sh.setColumnWidth(15, 380);
-  const msg = '💳 Rapprochement CB : ' + matchs.length + ' match(s)' + (erreurPl ? ' — ⚠️ ' + erreurPl : '') + '.';
+  const msg = '💳 Rapprochement CB : ' + matchs.length + ' match(s). ' + (erreurPl ? '⚠️ ' + erreurPl : lus);
   if (!silencieux) { try { ss.toast(msg); } catch (e) {} }
   return msg;
 }
