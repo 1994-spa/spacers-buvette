@@ -33,19 +33,33 @@ const RAP_COLS = [
 
 function rapNorm_(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 
-// Lignes Pennylane d'un compte depuis une date : [{date, label (ligne), piece (libellé de l'écriture), entryId, montant (crédit − débit)}]
-function rapLignesPennylane_(numero, depuis) {
-  const id = plCompteId_(numero);
-  if (!id) return [];
-  return plLignes_(id, depuis).map(function (l) {
-    return {
-      date: String(l.date || '').slice(0, 10),
-      label: String(l.label || ''),
-      piece: String((l.ledger_entry && l.ledger_entry.label) || ''),
-      entryId: l.ledger_entry && l.ledger_entry.id ? String(l.ledger_entry.id) : '',
-      montant: Math.round(((Number(l.credit) || 0) - (Number(l.debit) || 0)) * 100) / 100,
-    };
-  });
+// Toutes les lignes d'écritures Pennylane datées entre deux jours (pagination par curseur), triées par compte.
+// On ne passe pas par l'identifiant du compte : chaque ligne porte son numéro de compte (ledger_account.number).
+function rapLignesFenetre_(depuis, jusqua) {
+  const out = [], comptes = {}; let cursor = null, tour = 0;
+  while (tour++ < 100) {
+    const filtre = [{ field: 'date', operator: 'gteq', value: depuis }, { field: 'date', operator: 'lteq', value: jusqua }];
+    const res = plApi_('/ledger_entry_lines', { filter: JSON.stringify(filtre), limit: 100, cursor: cursor, sort: 'date' });
+    plItems_(res).forEach(function (l) {
+      const num = String((l.ledger_account && l.ledger_account.number) || '');
+      comptes[num] = (comptes[num] || 0) + 1;
+      out.push({
+        compte: num,
+        date: String(l.date || '').slice(0, 10),
+        label: String(l.label || ''),
+        piece: String((l.ledger_entry && l.ledger_entry.label) || ''),
+        entryId: l.ledger_entry && l.ledger_entry.id ? String(l.ledger_entry.id) : '',
+        montant: Math.round(((Number(l.credit) || 0) - (Number(l.debit) || 0)) * 100) / 100,
+      });
+    });
+    if (!res.has_more || !res.next_cursor) break;
+    cursor = res.next_cursor;
+  }
+  return { lignes: out, comptes: comptes };
+}
+function rapDuCompte_(lignes, numero) {
+  const court = String(numero).replace(/0+$/, '');   // 707100000 ou 7071 selon le plan de comptes
+  return lignes.filter(function (l) { return l.compte === numero || l.compte.replace(/0+$/, '') === court; });
 }
 
 // Le libellé « B1 - Vs Narbonne - 10/10 » est celui de l'écriture (libellé de pièce), pas toujours celui de la ligne :
@@ -123,15 +137,19 @@ function rapprochementCB(silencieux) {
   // Pennylane : depuis la veille du plus ancien match
   const premier = matchs.map(function (m) { return infos[m].jour; }).sort()[0];
   const depuis = pilDate_(new Date(new Date(premier + 'T12:00:00').getTime() - 86400000));
-  let pl = { buv: [], bou: [], bil: [] }, erreurPl = '';
+  const dernier = matchs.map(function (m) { return infos[m].jour; }).sort().pop();
+  const jusqua = pilDate_(new Date(new Date(dernier + 'T12:00:00').getTime() + RAP.JOURS_APRES * 86400000));
+  let pl = { buv: [], bou: [], bil: [] }, erreurPl = '', lus = '';
   try {
-    pl.buv = rapLignesPennylane_(RAP.BUVETTE, depuis);
-    pl.bou = rapLignesPennylane_(RAP.BOUTIQUE, depuis);
-    pl.bil = rapLignesPennylane_(RAP.BILLETTERIE, depuis);
+    const f = rapLignesFenetre_(depuis, jusqua);
+    pl.buv = rapDuCompte_(f.lignes, RAP.BUVETTE);
+    pl.bou = rapDuCompte_(f.lignes, RAP.BOUTIQUE);
+    pl.bil = rapDuCompte_(f.lignes, RAP.BILLETTERIE);
     const ms = matchs.map(function (m) { return infos[m]; });
     [pl.buv, pl.bou, pl.bil].forEach(function (x) { rapCompleterPieces_(x, ms); });
+    lus = 'Pennylane du ' + depuis + ' au ' + jusqua + ' : ' + f.lignes.length + ' ligne(s) lue(s), dont ' + pl.buv.length + ' buvette, ' + pl.bou.length + ' boutique, ' + pl.bil.length + ' billetterie.' +
+      (f.lignes.length && !pl.buv.length ? ' Comptes vus : ' + Object.keys(f.comptes).sort().slice(0, 25).join(', ') + '.' : '');
   } catch (e) { erreurPl = e.message; }
-  const lus = 'Pennylane : ' + pl.buv.length + ' ligne(s) buvette, ' + pl.bou.length + ' boutique, ' + pl.bil.length + ' billetterie lue(s) depuis le ' + depuis + '.';
 
   const out = [], styles = [];
   const ligne = function (o) { return RAP_COLS.map(function (c) { return o[c[0]] === undefined ? '' : o[c[0]]; }); };
