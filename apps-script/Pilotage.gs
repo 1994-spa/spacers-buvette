@@ -85,6 +85,7 @@ function pilotageMenu_(ui) {
     .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
     .addItem('🥤 Mettre à jour le détail buvette (alcool, écocups, espèces)', 'pilotageDetailBuvette')
     .addItem('🔓 Détail buvette : recalculer un match figé', 'pilotageDetailRefiger')
+    .addItem('💳 Rapprochement CB (remises TPE Pennylane ↔ tablettes)', 'rapprochementCBMenu')
     .addSeparator()
     .addItem("📚 Importer l'historique 22-26", 'importerHistoriqueBuvette')
     .addItem("🗑️ Retirer l'historique 22-26", 'retirerHistoriqueBuvette');

@@ -1,7 +1,7 @@
 # Matchday Business V13 — scripts du Sheet
 
 Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*. 5 fichiers :
-`Code.gs`, `Reorganisation.gs`, `Pilotage.gs`, `Achats.gs`, `Historique.gs`, `Fidelite.gs`.
+`Code.gs`, `Reorganisation.gs`, `Pilotage.gs`, `Achats.gs`, `Historique.gs`, `Fidelite.gs`, `Rapprochement.gs`.
 
 ## Passage en V13 (une fois)
 1. Sheet → **Extensions → Apps Script**.
@@ -48,3 +48,13 @@ Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*
 - Tablette : bouton 🚫 « Plus d'espèces : pas remboursé » sur un panier de gobelets rendus → onglet masqué ⚙️ écocups non remboursés
   (hors 🧾 VENTES et ⚙️ détail ventes : NB VENTES, panier et consignes de Code.gs inchangés).
 - Recalculé à chaque clôture, toutes les 10 min, ou menu 📡 Pilotage live → 🥤 Mettre à jour le détail buvette.
+
+## Rapprochement CB (onglet 💳 RAPPROCHEMENT CB)
+- Une ligne « Total buvettes » par match, puis une ligne par buvette, puis boutique et billetterie du jour (pour info).
+- Tablettes (🧾 VENTES) : CA boissons TTC, dont payé CB / espèces, consignes nettes payées CB, **CB enregistrée** (= ce que la banque doit créditer).
+- Ticket TPE saisi à la clôture de caisse, s'il l'a été.
+- Pennylane (lecture seule, même clé `PENNYLANE_API_KEY` que 🛒 ACHATS) : remises comptabilisées en 707100000 (libellé « B1 - Vs Narbonne - 10/10 »),
+  707200000 boutique et 706120000 billetterie (HT comptabilisé). Écriture rattachée au match si datée du match à J+7 et libellé contenant jj/mm ou « Vs adversaire ».
+- **Écart CB = remise Pennylane − CB enregistrée** : > 0 = paiements passés sur le TPE sans saisie tablette ; < 0 = CB tablette absente de la remise.
+- Recalculé après chaque import Pennylane (toutes les 6 h) ou menu 📡 Pilotage live → 💳 Rapprochement CB. Aucune saisie.
+- Ajout : Apps Script → Fichiers ➕ → Script `Rapprochement`, coller `Rapprochement.gs` ; remplacer `Pilotage.gs` et `Achats.gs` ; enregistrer.

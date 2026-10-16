@@ -96,6 +96,7 @@ function pennylaneImporterAchats(silencieux) {
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, h.length).clearContent();
   if (garde.length) sh.getRange(2, 1, garde.length, h.length).setValues(garde);
   PropertiesService.getScriptProperties().setProperty('PL_SYNC', String(Date.now()));
+  try { if (typeof rapprochementCB === 'function') rapprochementCB(true); } catch (e) { Logger.log('Rapprochement CB : ' + e.message); }
   const msg = '🧾 Achats Pennylane (compte ' + PENNYLANE.COMPTES.join(', ') + ' depuis le ' + depuis + ') : ' + ajout + ' ajoutée(s), ' + maj + ' mise(s) à jour' + (avant - garde.length ? ', ' + (avant - garde.length) + ' retirée(s)' : '') + '.';
   if (silencieux !== true) alerte_(msg);
   return msg;
