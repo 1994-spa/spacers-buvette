@@ -458,7 +458,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.15-scan</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.16-fond</p>
     </div>
   </div>
 </div>
@@ -674,10 +674,11 @@ function stockSnapshot() {
 
 // Emplacement des buvettes au Palais des Sports (photos dans lieux/)
 const LIEUX = {
-  'Buvette 1': { lieu: 'Porte 4', detail: 'Coursive, à côté de la porte du Bloc 4' },
-  'Buvette 2': { lieu: 'Porte 6', detail: 'Coursive, à côté de la porte du Bloc 6' },
+  'Buvette 1': { lieu: 'Porte 4', detail: 'Coursive, à côté de la porte du Bloc 4', fond: 350 },
+  'Buvette 2': { lieu: 'Porte 6', detail: 'Coursive, à côté de la porte du Bloc 6', fond: 450 },
   'Buvette 3': { lieu: 'Buvette intérieure', detail: 'Dans la salle, sous la tribune (mur Toulouse Métropole)', sansCaisse: true },
 };
+// fond : fond de caisse de départ de la saison (pré-rempli à la clôture, modifiable ; même réglage dans le Sheet, PIL.FONDS_CAISSE)
 // Buvette sans caisse espèces : paiement CB uniquement, aucun remboursement de gobelet (renvoi vers les buvettes avec caisse)
 function sansCaisse(t) { return !!(LIEUX[t || state.tab] || {}).sansCaisse; }
 function buvettesAvecCaisse() { return Object.keys(LIEUX).filter(b => !LIEUX[b].sansCaisse).map(b => b.replace('Buvette ', 'B')).join(' et '); }
@@ -1280,7 +1281,7 @@ document.addEventListener('keydown', e => {
 function openBilan() { avecCode(afficherRapport); }
 function afficherRapport() {
   const c = cumulTab(), cl = state.clotures[state.tab];
-  const fond = cl ? cl.fond : (state.fond[state.tab] ?? 0);
+  const fond = cl ? cl.fond : ((LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0);
   document.getElementById('bilan-titre').textContent = '📊 Rapport ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
   let h = `<div class="kpis">
     <div class="k"><span>🍺 Boissons</span><b>${fmt(Math.round((c.ca - (c.consigne - c.rendue) * CONSIGNE) * 100) / 100)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}${c.nbRemise ? ` · dont ${fmt(c.remise)} de remises billet (${c.nbRemise})` : ''} · hors consignes</small></div>
