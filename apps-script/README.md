@@ -45,6 +45,9 @@ Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*
 - Une ligne par saison, par match et par buvette : CA alcoolisé / sans alcool (TTC et HT, famille et TVA de 📦 PRODUITS),
   écocups vendus / rendus et remboursés / non remboursés (gardés par le spectateur ou rapportés sans remboursement faute d'espèces),
   consignes payées en CB ou en espèces, remboursées en espèces ou déduites d'un achat CB, solde espèces et fond de caisse minimum.
+- Fond de caisse : fond de départ de la saison B1 350 €, B2 450 €, B3 sans caisse (`PIL.FONDS_CAISSE`, `PIL.BUVETTES_SANS_CAISSE` ; même réglage dans la tablette, `LIEUX`).
+  Le fond saisi à la clôture de caisse prime pour ce match. Colonnes calculées à l'affichage, donc aussi pour les matchs figés 🔒 :
+  **fond de départ**, **espèces attendues en fin de match** (fond + solde espèces), **marge sur le minimum** (fond − fond minimum ; négative = caisse à court de liquide).
 - Tablette : bouton 🚫 « Plus d'espèces : pas remboursé » sur un panier de gobelets rendus → onglet masqué ⚙️ écocups non remboursés
   (hors 🧾 VENTES et ⚙️ détail ventes : NB VENTES, panier et consignes de Code.gs inchangés).
 - Recalculé à chaque clôture, toutes les 10 min, ou menu 📡 Pilotage live → 🥤 Mettre à jour le détail buvette.

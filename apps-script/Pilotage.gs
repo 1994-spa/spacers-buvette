@@ -38,6 +38,9 @@ const PIL = {
   BUVETTES: ['Buvette 1', 'Buvette 2', 'Buvette 3'],
   // Pas de caisse espèces : CB uniquement, aucun remboursement de gobelet (même réglage dans la tablette, LIEUX)
   BUVETTES_SANS_CAISSE: ['Buvette 3'],
+  // Fond de caisse de départ, identique à chaque match de la saison (même réglage dans la tablette, LIEUX).
+  // Le fond saisi à la clôture de caisse, s'il a été envoyé, prime pour ce match.
+  FONDS_CAISSE: { 'Buvette 1': 350, 'Buvette 2': 450 },
   // Réserves hors vente : stock de début et de fin saisis au tableau de bord, jamais sur une tablette
   RESERVES: ['Bénévoles'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
@@ -875,6 +878,13 @@ const PIL_DETAIL_COLS = [
   ['soldeEsp', 'SOLDE ESPÈCES DU MATCH €', '€'], ['fond', 'FOND DE CAISSE MINIMUM €', '€'],
   ['anom', 'SAISIES IGNORÉES', 'n'],
 ];
+// Colonnes calculées à l'affichage (jamais archivées) : valables aussi pour les matchs figés 🔒.
+// Insérées juste après FOND DE CAISSE MINIMUM.
+const PIL_DETAIL_FOND_COLS = [
+  ['fondReel', 'FOND DE CAISSE DE DÉPART €', '€'],
+  ['attendu', 'ESPÈCES ATTENDUES EN FIN DE MATCH €', '€'],
+  ['marge', 'MARGE SUR LE MINIMUM €', '€'],
+];
 
 function pilotageDetailBuvette(silencieux) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1008,6 +1018,25 @@ function pilotageDetailBuvette(silencieux) {
     return PIL_DETAIL_COLS.map(function (c) { return t[c[0]]; });
   };
 
+  // Fond de caisse de départ par match et par buvette : fond saisi à la clôture (s'il est > 0), sinon PIL.FONDS_CAISSE
+  const fondDe = function (m, b) {
+    if (PIL.BUVETTES_SANS_CAISSE.indexOf(b) >= 0) return null;
+    const cl = (pilProp_('PIL_CLOTURE_' + m, {}) || {})[b] || {};
+    const f = Number(cl.fond);
+    if (f > 0) return f;
+    return b in PIL.FONDS_CAISSE ? PIL.FONDS_CAISSE[b] : '';
+  };
+  const iFond = PIL_DETAIL_COLS.findIndex(function (c) { return c[0] === 'fond'; }) + 1;
+  const AFF_COLS = PIL_DETAIL_COLS.slice(0, iFond).concat(PIL_DETAIL_FOND_COLS).concat(PIL_DETAIL_COLS.slice(iFond));
+  const avecFond = function (l, ext) { return l.slice(0, iFond).concat(ext).concat(l.slice(iFond)); };
+  const extBuvette = function (m, l) {
+    const b = String(l[K.buv]), f = fondDe(m, b);
+    if (f === null) return ['sans caisse', '', ''];
+    if (f === '') return ['', '', ''];
+    const solde = Number(l[K.soldeEsp]) || 0, mini = Number(l[K.fond]) || 0;
+    return [f, r2(f + solde), r2(f - mini)];
+  };
+
   // Lignes : saison (total) → match (total) → buvettes
   const matchs = Object.keys(blocs).sort(function (x, y) { return new Date(blocs[y].date) - new Date(blocs[x].date); });
   const saisons = [];
@@ -1015,11 +1044,15 @@ function pilotageDetailBuvette(silencieux) {
   const out = [], styles = [];
   saisons.forEach(function (s) {
     const ms = matchs.filter(function (m) { return blocs[m].saison === s; });
-    out.push(totalSaison(ms.map(function (m) { return blocs[m].rows[0]; }), s, ms.length)); styles.push('saison');
+    out.push(avecFond(totalSaison(ms.map(function (m) { return blocs[m].rows[0]; }), s, ms.length), ['', '', ''])); styles.push('saison');
     ms.forEach(function (m) {
+      // Total match : fonds additionnés, espèces attendues additionnées, marge = la plus juste des buvettes avec caisse
+      const exts = blocs[m].rows.slice(1).map(function (r) { return extBuvette(m, r); }).filter(function (e) { return typeof e[0] === 'number'; });
+      const extTot = exts.length ? [exts.reduce(function (a, e) { return a + e[0]; }, 0), r2(exts.reduce(function (a, e) { return a + e[1]; }, 0)),
+        exts.reduce(function (a, e) { return Math.min(a, e[2]); }, Infinity)] : ['', '', ''];
       blocs[m].rows.forEach(function (r, i) {
         const l = r.slice(); if (i === 0) l[K.buv] = blocs[m].live ? 'Total match (en cours)' : 'Total match 🔒';
-        out.push(l); styles.push(i === 0 ? 'match' : 'buv');
+        out.push(avecFond(l, i === 0 ? extTot : extBuvette(m, r))); styles.push(i === 0 ? 'match' : 'buv');
       });
     });
   });
@@ -1028,16 +1061,16 @@ function pilotageDetailBuvette(silencieux) {
   let sh = ss.getSheetByName(PIL_DETAIL_TAB);
   if (!sh) { sh = ss.insertSheet(PIL_DETAIL_TAB); }
   sh.clear();
-  const nc = PIL_DETAIL_COLS.length, navy = typeof NAVY !== 'undefined' ? NAVY : '#0b1f33', jaune = typeof YELLOW !== 'undefined' ? YELLOW : '#ffd400';
+  const nc = AFF_COLS.length, navy = typeof NAVY !== 'undefined' ? NAVY : '#0b1f33', jaune = typeof YELLOW !== 'undefined' ? YELLOW : '#ffd400';
   sh.getRange(1, 1).setValue('🥤 DÉTAIL BUVETTE — alcool / sans alcool, écocups, espèces').setFontSize(16).setFontWeight('bold').setFontColor(navy);
-  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Chaque match est figé 🔒 deux jours après sa date : ses chiffres sont conservés et ne bougent plus (menu 🔓 pour en recalculer un). Non remboursés = vendus − rendus : gardés par le spectateur, ou rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète). Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise.")
+  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Chaque match est figé 🔒 deux jours après sa date : ses chiffres sont conservés et ne bougent plus (menu 🔓 pour en recalculer un). Non remboursés = vendus − rendus : gardés par le spectateur, ou rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète). Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise. Fond de départ = fond saisi à la clôture, sinon fond de la saison (B1 350 €, B2 450 €, B3 sans caisse) ; espèces attendues = fond + solde espèces ; marge négative = la caisse a dû manquer de liquide.")
     .setFontStyle('italic').setFontColor('#666666').setWrap(false);
-  sh.getRange(3, 1, 1, nc).setValues([PIL_DETAIL_COLS.map(function (c) { return c[1]; })])
+  sh.getRange(3, 1, 1, nc).setValues([AFF_COLS.map(function (c) { return c[1]; })])
     .setBackground(navy).setFontColor(jaune).setFontWeight('bold').setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
   sh.setRowHeight(3, 48);
   if (out.length) {
     sh.getRange(4, 1, out.length, nc).setValues(out);
-    PIL_DETAIL_COLS.forEach(function (c, i) {
+    AFF_COLS.forEach(function (c, i) {
       const rg = sh.getRange(4, i + 1, out.length, 1);
       if (c[2] === '€') rg.setNumberFormat('#,##0.00 €'); else if (c[2] === '%') rg.setNumberFormat('0%'); else if (c[2] === 'n') rg.setNumberFormat('0');
     });
