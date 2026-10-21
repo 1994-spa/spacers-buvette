@@ -537,7 +537,8 @@ function pilEnregistrerCloture_(c) {
     esp: c.esp, nbEsp: c.nbEsp, fond: c.fond, attendu: c.attendu, compte: c.compte, ecart: c.ecart,
     gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, gob: c.gob || null, stock: c.stock || {},
     tpe: c.tpe == null ? null : c.tpe, ecartCb: c.ecartCb == null ? null : c.ecartCb, tpeId: c.tpeId || '',
-    nonCompte: !!c.nonCompte, benev: c.benev || {}, nbBenev: Number(c.nbBenev) || 0 };
+    nonCompte: !!c.nonCompte, benev: c.benev || {}, nbBenev: Number(c.nbBenev) || 0,
+    mouvCaisse: Number(c.mouvCaisse) || 0 };   // argent pris (−) / monnaie apportée (+) par le responsable en cours de match
   pilSetProp_('PIL_CLOTURE_' + idm, all);
   if (c.inventaire && Object.keys(c.inventaire).length) {
     // Inventaire compté : il remplace le stock théorique (reste réel pour la commande suivante).
@@ -1046,7 +1047,8 @@ function pilotageDetailBuvette(silencieux) {
     if (f === null) return ['sans caisse', '', ''];
     if (f === '') return ['', '', ''];
     const solde = Number(l[K.soldeEsp]) || 0, mini = Number(l[K.fond]) || 0;
-    return [f, r2(f + solde), r2(f - mini)];
+    const mv = Number(((pilProp_('PIL_CLOTURE_' + m, {}) || {})[b] || {}).mouvCaisse) || 0;   // retraits / apports notés sur la tablette
+    return [f, r2(f + solde + mv), r2(f - mini)];
   };
 
   // Lignes : saison (total) → match (total) → buvettes
@@ -1075,7 +1077,7 @@ function pilotageDetailBuvette(silencieux) {
   sh.clear();
   const nc = AFF_COLS.length, navy = typeof NAVY !== 'undefined' ? NAVY : '#0b1f33', jaune = typeof YELLOW !== 'undefined' ? YELLOW : '#ffd400';
   sh.getRange(1, 1).setValue('🥤 DÉTAIL BUVETTE — alcool / sans alcool, écocups, espèces').setFontSize(16).setFontWeight('bold').setFontColor(navy);
-  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Chaque match est figé 🔒 deux jours après sa date : ses chiffres sont conservés et ne bougent plus (menu 🔓 pour en recalculer un). Non remboursés = vendus − rendus : gardés par le spectateur, rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète), ou récupérés sur le comptoir / ramassés sans demande de remboursement (bouton 🫙, à partir du match contre Cannes). Stock et rachat : onglet 🥤 STOCK ÉCOCUPS. Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise. Fond de départ = fond saisi à la clôture, sinon fond de la saison (B1 350 €, B2 450 €, B3 sans caisse) ; espèces attendues = fond + solde espèces ; marge négative = la caisse a dû manquer de liquide.")
+  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Chaque match est figé 🔒 deux jours après sa date : ses chiffres sont conservés et ne bougent plus (menu 🔓 pour en recalculer un). Non remboursés = vendus − rendus : gardés par le spectateur, rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète), ou récupérés sur le comptoir / ramassés sans demande de remboursement (bouton 🫙, à partir du match contre Cannes). Stock et rachat : onglet 🥤 STOCK ÉCOCUPS. Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise. Fond de départ = fond saisi à la clôture, sinon fond de la saison (B1 350 €, B2 450 €, B3 sans caisse) ; espèces attendues = fond + solde espèces ± argent pris / monnaie apportée en cours de match (notés sur la tablette, bouton 💶) ; marge négative = la caisse a dû manquer de liquide.")
     .setFontStyle('italic').setFontColor('#666666').setWrap(false);
   sh.getRange(3, 1, 1, nc).setValues([AFF_COLS.map(function (c) { return c[1]; })])
     .setBackground(navy).setFontColor(jaune).setFontWeight('bold').setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
