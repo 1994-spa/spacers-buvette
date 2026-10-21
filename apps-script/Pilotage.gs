@@ -92,6 +92,10 @@ function pilotageMenu_(ui) {
     .addItem('🥤 Stock écocups et rachat', 'pilotageStockEcocups')
     .addItem('💳 Rapprochement CB (remises TPE Pennylane ↔ tablettes)', 'rapprochementCBMenu')
     .addSeparator()
+    .addItem('📈 Graphiques buvette : mettre à jour', 'graphiquesMaj')
+    .addItem('📄 Graphiques buvette : PDF pour le bureau', 'graphiquesPdf')
+    .addItem("🧱 Graphiques buvette : recréer l'onglet", 'graphiquesRecreer')
+    .addSeparator()
     .addItem("📚 Importer l'historique 22-26", 'importerHistoriqueBuvette')
     .addItem("🗑️ Retirer l'historique 22-26", 'retirerHistoriqueBuvette');
 }
@@ -695,7 +699,7 @@ function pilDashboard_(eventId) {
 //          écocups sortis / revenus (rendus + plus d'espèces + récupérés).
 // saison : un point par match de la saison (CA boissons, ventes, panier, € / spectateur, ventes reliées à un billet par buvette).
 // Une vente annulée et sa ligne d'annulation sont écartées toutes les deux ; les boissons bénévoles (0 €) ne sont pas des ventes.
-function pilGraphiques_(data, rows, idm) {
+function pilGraphiques_(data, rows, idm, serieSeule) {   // serieSeule : pas de calcul de saison (onglet 📈 GRAPHIQUES)
   const tz = pilTz_();
   const quart = function (ts) { const d = new Date(ts); return isNaN(d) ? '' : Utilities.formatDate(new Date(Math.floor(d.getTime() / 900000) * 900000), tz, 'HH:mm'); };
   const annulees = {};
@@ -728,6 +732,8 @@ function pilGraphiques_(data, rows, idm) {
     nrParMatch[m] = (nrParMatch[m] || 0) + n;
     if (idm && m === idm) { const q = quart(r[1]); if (q) pt(q).revenus += n; }
   });
+
+  if (serieSeule) return { serie: serie, saison: null };
 
   // La saison du match (📅 MATCHS : date, adversaire, affluence, saison)
   const infos = {};
@@ -825,6 +831,7 @@ function pilotageTraiterBillets() {
   try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); } catch (e) {}   // achats Pennylane (toutes les 6 h)
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}   // 📅 MATCHS à jour en continu
   try { pilotageDetailBuvette(true); } catch (e) {}                                // 🥤 DÉTAIL BUVETTE à jour en continu
+  try { if (typeof graphiquesMaj === 'function') graphiquesMaj(true); } catch (e) {}  // 📈 GRAPHIQUES à jour en continu
   try { SpreadsheetApp.getActiveSpreadsheet().toast(relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'); } catch (e) {}
 }
 

@@ -384,7 +384,7 @@ function render(d){
       ${prods ? `<p class="note" style="margin-top:6px">${prods}</p>` : ''}
       ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b>${cl.ecartCb != null ? ` · CB vs TPE <b>${cl.ecartCb > 0 ? '+' : ''}${eur(cl.ecartCb, 2)}</b>` : ''}</div>`
            : `<div class="clot">⏳ Caisse pas encore clôturée sur la tablette</div>`}`;
-    return `<article class="panel"><div class="buv-h"><b>${esc(nom)}</b><span class="ca">${eur(x.ca)}</span></div>
+    return `<article class="panel"><div class="buv-h"><b>${esc(nom)}${BUV_LIEU[nom] ? ` <span class="note">· ${BUV_LIEU[nom]}</span>` : ''}</b><span class="ca">${eur(x.ca)}</span></div>
       <div class="buv-s">${int(x.ventes)} ventes · panier ${eur(x.ventes ? x.ca/x.ventes : null, 2)} · ${pct(x.ca, v.ca)} du CA</div>
       ${rapport}
       <div class="chips">${alerts || (Object.keys(st).length ? '<span class="chip ok">Stock OK</span>' : '<span class="chip">Stock pas encore reçu</span>')}</div>
@@ -667,6 +667,8 @@ function niceStep(max){ const raw = max/4; if (!(raw > 0)) return 1; const p = M
 // ── Graphiques (SVG maison, sans bibliothèque : le tableau de bord marche même si un CDN est bloqué) ──
 // Buvettes = 3 premières couleurs catégorielles (ordre fixe, validé daltonisme) ; une buvette garde sa couleur partout.
 const BUV_COUL = { 'Buvette 1':'var(--s1)', 'Buvette 2':'var(--s2)', 'Buvette 3':'var(--s3)' };
+const BUV_LIEU = { 'Buvette 1':'Porte 4', 'Buvette 2':'Porte 6', 'Buvette 3':'intérieure' };
+const nomBuv = b => BUV_LIEU[b] ? court(b) + ' · ' + BUV_LIEU[b] : b;   // « B1 · Porte 4 »
 const couleurBuv = (b, i) => BUV_COUL[b] || ['var(--s1)','var(--s2)','var(--s3)'][i % 3];
 const court = b => String(b).replace(/^Buvette\s*/, 'B');
 const VIZ = {};
@@ -777,7 +779,7 @@ function renderGraphiques(d){
   const elR = $('g-rythme');
   if (!Q.length) vide(elR, 'Aucune vente validée pour ce match pour l\'instant.');
   else {
-    const series = B.map((b, i) => ({ nom: b, couleur: couleurBuv(b, i), vals: Q.map(q => P(q).ca[b] || 0) }));
+    const series = B.map((b, i) => ({ nom: nomBuv(b), couleur: couleurBuv(b, i), vals: Q.map(q => P(q).ca[b] || 0) }));
     elR.innerHTML = legende(series) + graphBarres(elR, 'rythme', { cats: Q, series, stack: true, fmt: e0, label: 'CA boissons par quart d\'heure et par buvette',
       tip: i => `<b class="h">${Q[i]} – ${finQuart(Q[i])}</b>` + series.map(se => tipLigne(se.couleur, se.nom, e2(se.vals[i]))).join('')
         + tipLigne('', 'Total · ' + int(P(Q[i]).ventes) + ' ventes', e2(series.reduce((a, se) => a + se.vals[i], 0)), 'tot') });
@@ -816,10 +818,10 @@ function renderGraphiques(d){
   if (!Q.length || !avecCaisse.length) vide(elC, !avecCaisse.length ? 'Aucune buvette avec caisse espèces.' : 'Pas encore de mouvement d\'espèces.');
   else {
     const fond = b => { const c = (d.clotures || {})[b]; return c && Number(c.fond) > 0 ? Number(c.fond) : Number((d.fonds || {})[b]) || 0; };
-    const series = avecCaisse.map(b => { let c = fond(b); return { nom: b, court: court(b), couleur: couleurBuv(b, B.indexOf(b)), vals: Q.map(q => c += P(q).espB[b] || 0) }; });
+    const series = avecCaisse.map(b => { let c = fond(b); return { buv: b, nom: nomBuv(b), court: court(b), couleur: couleurBuv(b, B.indexOf(b)), vals: Q.map(q => c += P(q).espB[b] || 0) }; });
     elC.innerHTML = legende(series.map(x => Object.assign({ ln: 1 }, x))) + graphCourbes(elC, 'caisse', { cats: Q, series, fmt: e0, label: 'Espèces en caisse par buvette',
       refs: [{ v: 100, nom: '100 € ⚠️', couleur: 'var(--warn)' }, { v: 50, nom: '50 € ⛔', couleur: 'var(--bad)' }],
-      tip: i => `<b class="h">À ${Q[i]}</b>` + series.map(se => tipLigne(se.couleur, se.nom + ' (fond ' + eur(fond(se.nom)) + ')', e2(se.vals[i]))).join('') });
+      tip: i => `<b class="h">À ${Q[i]}</b>` + series.map(se => tipLigne(se.couleur, se.nom + ' (fond ' + eur(fond(se.buv)) + ')', e2(se.vals[i]))).join('') });
   }
 
   // 5. Écocups pendant le match
@@ -840,7 +842,7 @@ function renderGraphiques(d){
   const elB = $('g-billet');
   if (!S.length) vide(elB, 'Pas encore de match avec des ventes cette saison.');
   else {
-    const series = B.map((b, i) => ({ nom: b, couleur: couleurBuv(b, i), vals: S.map(m => { const x = (m.parBuvette || {})[b]; return x && x.ventes ? Math.round(x.reliees / x.ventes * 1000) / 10 : null; }) }));
+    const series = B.map((b, i) => ({ nom: nomBuv(b), couleur: couleurBuv(b, i), vals: S.map(m => { const x = (m.parBuvette || {})[b]; return x && x.ventes ? Math.round(x.reliees / x.ventes * 1000) / 10 : null; }) }));
     elB.innerHTML = legende(series) + graphBarres(elB, 'billet', { cats, series, fmt: n => int(n) + ' %', min: 10, cur, label: 'Part des ventes reliées à un billet, par match et par buvette',
       haut: i => S[i].ventes ? Math.round(S[i].reliees / S[i].ventes * 100) + ' %' : '',
       tip: i => `<b class="h">${esc(S[i].adversaire)} · ${cats[i][1]}</b>` + series.map((se, k) => { const x = (S[i].parBuvette || {})[B[k]] || {}; return tipLigne(se.couleur, se.nom, se.vals[i] == null ? '—' : se.vals[i].toLocaleString('fr-FR') + ' % (' + int(x.reliees) + '/' + int(x.ventes) + ')'); }).join('')

@@ -1,7 +1,7 @@
 # Matchday Business V13 — scripts du Sheet
 
 Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*. 5 fichiers :
-`Code.gs`, `Reorganisation.gs`, `Pilotage.gs`, `Achats.gs`, `Historique.gs`, `Fidelite.gs`, `Rapprochement.gs`.
+`Code.gs`, `Reorganisation.gs`, `Pilotage.gs`, `Achats.gs`, `Historique.gs`, `Fidelite.gs`, `Rapprochement.gs`, `Ecocups.gs`, `Graphiques.gs`.
 
 ## Passage en V13 (une fois)
 1. Sheet → **Extensions → Apps Script**.
@@ -67,3 +67,10 @@ Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*
   écocups sortis / revenus) et `saison` (un point par match de la saison : CA boissons, ventes, ventes reliées par buvette, affluence).
 - Ventes annulées écartées avec leur annulation ; boissons bénévoles hors ventes ; CA par produit lu dans ⚙️ détail ventes.
 - Aucun onglet du Sheet n'est modifié.
+
+## Onglet 📈 GRAPHIQUES (Graphiques.gs)
+- Les graphiques du tableau de bord, dans le Sheet : menu déroulant « Match » en B4, tout l'onglet suit (formules, sans script).
+- Indicateurs du match + moyenne de la saison ; saison : CA boissons, recette par spectateur, ventes reliées à un billet par buvette ;
+  match : rythme par buvette, produits, encaissements CB / espèces cumulés, écocups ; en bas, les tableaux de chiffres.
+- Données dans l'onglet masqué ⚙️ graphiques données, recalculées toutes les 10 min (traitement auto) ou par le menu.
+- Menu 📡 Pilotage live → 📈 mettre à jour (crée l'onglet la 1re fois) · 📄 PDF pour le bureau (A4 paysage, dossier du Sheet) · 🧱 recréer l'onglet.
