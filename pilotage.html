@@ -130,6 +130,39 @@ th:first-child,td:first-child{text-align:left}
 .btn{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer}
 .btn.small{padding:5px 8px;font-size:.72rem;margin-top:5px;background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
 :focus-visible{outline:2px solid var(--day);outline-offset:2px}
+.two.eq{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Graphiques : buvettes = 3 premières couleurs catégorielles validées (daltonisme), CB / espèces à part */
+:root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--cb:#6250d6;--esp:#eda100;--soft:#a9c8e6}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--s1:#3987e5;--s2:#d95926;--s3:#199e70;--cb:#9085e9;--esp:#c98500;--soft:#2f5a7a}}
+:root[data-theme="dark"]{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--cb:#9085e9;--esp:#c98500;--soft:#2f5a7a}
+.viz{position:relative;min-height:60px}
+.viz svg{display:block;overflow:visible}
+.viz .hit{fill:transparent;cursor:crosshair}
+.viz .cx{stroke:var(--faint);stroke-width:1;stroke-dasharray:3 3;visibility:hidden}
+.viz .axis{stroke:var(--border)}
+.viz text.lbl{fill:var(--text);font-weight:700}
+.viz text.cur{fill:var(--text);font-weight:800}
+.lgd{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;font-weight:600;color:var(--muted);margin:-4px 0 8px}
+.lgd span{display:inline-flex;align-items:center;gap:6px}
+.lgd i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.lgd i.ln{height:3px;border-radius:2px}
+.lgd i.dash{background:repeating-linear-gradient(90deg,currentColor 0 4px,transparent 4px 7px)!important}
+#tip{position:fixed;z-index:50;pointer-events:none;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);padding:8px 10px;font-size:.8rem;min-width:150px;display:none}
+#tip b.h{display:block;margin-bottom:4px}
+#tip div{display:flex;justify-content:space-between;gap:14px;align-items:center}
+#tip div span{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-weight:600}
+#tip div i{width:9px;height:9px;border-radius:2px;display:inline-block}
+#tip div b{font-variant-numeric:tabular-nums}
+#tip .tot{border-top:1px solid var(--divider);margin-top:4px;padding-top:4px}
+.split{display:flex;height:26px;border-radius:6px;overflow:hidden;gap:2px;margin-bottom:6px}
+.split div{display:flex;align-items:center;padding:0 8px;font-size:.78rem;font-weight:800;color:#fff;white-space:nowrap;min-width:0;overflow:hidden}
+.split .alc{background:var(--bar)}.split .sa{background:var(--soft);color:var(--text)}
+.split-l{display:flex;justify-content:space-between;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:12px}
+.hbars .t div.sa{background:var(--soft)}
+.hbars small{color:var(--faint);font-weight:600;margin-left:6px}
+.multi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.multi h3{font-size:.78rem;font-weight:800;color:var(--muted);margin-bottom:6px}
+@media (max-width:800px){.two.eq,.multi{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:1150px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:800px){.grid3,.two{grid-template-columns:minmax(0,1fr)}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
@@ -206,15 +239,26 @@ th:first-child,td:first-child{text-align:left}
   <section class="kpis" id="kpis" aria-label="Indicateurs du match"></section>
   <section class="grid3" id="buvettes" aria-label="Points de vente"></section>
   <div class="two">
-    <section class="panel"><h2>Rythme des ventes <span>CA par quart d'heure</span></h2><div id="rythme"></div></section>
-    <section class="panel"><h2>Produits vendus <span>quantités</span></h2><div class="hbars" id="produits"></div></section>
+    <section class="panel"><h2>Rythme des ventes <span>CA boissons par quart d'heure, par buvette</span></h2><div class="viz" id="g-rythme"></div></section>
+    <section class="panel"><h2>Produits vendus <span>CA encaissé · quantités</span></h2><div id="g-mix"></div></section>
   </div>
+  <div class="two eq">
+    <section class="panel"><h2>Encaissements cumulés <span>💳 CB et 💶 espèces, consignes comprises</span></h2><div class="viz" id="g-pay"></div></section>
+    <section class="panel"><h2>Espèces en caisse <span>fond de départ + espèces encaissées</span></h2><div class="viz" id="g-caisse"></div>
+      <p class="note">Calcul théorique : les retraits de gros billets et apports de monnaie notés sur la tablette ne remontent qu'à la clôture.</p></section>
+  </div>
+  <div class="two eq">
+    <section class="panel"><h2>Écocups pendant le match <span>cumul des gobelets sortis et revenus</span></h2><div class="viz" id="g-gob"></div></section>
+    <section class="panel"><h2>Ventes reliées à un billet <span>match par match, par buvette</span></h2><div class="viz" id="g-billet"></div></section>
+  </div>
+  <section class="panel"><h2>Comparatif de la saison <span id="g-saison-t">un repère par match</span></h2><div class="multi" id="g-saison"></div></section>
   <div class="two">
     <section class="panel"><h2>Dépense selon le billet <span>ventes reliées par scan</span></h2><div id="clientele"></div>
       <p class="note" style="margin-top:10px">Le lien vente → acheteur (identifiant client CRM) est complété dans le Google Sheet avec « Relier les ventes aux acheteurs ». Ce tableau n'affiche que des totaux.</p></section>
     <section class="panel"><h2>Billetterie <span>billets valides du match</span></h2><div id="billetterie"></div></section>
   </div>
   <section class="panel"><h2>Installer les tablettes <span>QR plein écran à scanner, ou lien à envoyer par WhatsApp</span></h2><div class="links" id="links"></div></section>
+  <div id="tip" role="tooltip"></div>
   <div id="qr-ov"><h3 id="qr-t"></h3><div id="qr-box"></div><p>Avec l'appareil photo de la tablette, vise ce QR puis touche le lien.<br>iPad : après « Sur l'écran d'accueil », ouvre l'icône, touche « 📷 Scanner le QR de configuration » et vise à nouveau.</p><button type="button" id="qr-x">Fermer</button></div>
   <section class="panel"><h2>Repères historiques <span>CA boissons par match, reportings 22-23 à 25-26</span></h2><div id="repere"></div></section>
 </main>
@@ -228,7 +272,7 @@ const HIST = { saisons:{"22-23":1371,"23-24":1755,"24-25":2191,"25-26":1771},
   adversaires:{"Nice":2080,"Sète":1762,"Narbonne":1414,"Tours":1444,"Chaumont":1981,"Tourcoing":1873,"Paris":1697,"Montpellier":2190,"Cambrai":1128,"Poitiers":1889,"Saint-Nazaire":1839,"Nantes":1238,"Plessis-Robinson":1730,"Saint-Jean-d'Illac":1948,"Cannes":1476,"Ajaccio":1987} };
 const APPS_SCRIPT_URL = '';  // fourni par le lien de configuration (menu du Sheet)
 let cfg = { url: APPS_SCRIPT_URL, token:'' };
-let events = [], current = '', timer = null, lastOk = 0;
+let events = [], current = '', timer = null, lastOk = 0, lastDash = null;
 const $ = id => document.getElementById(id);
 const eur = (n, d=0) => (n==null||isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d}) + ' €';
 const int = n => (n==null||isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR');
@@ -347,29 +391,9 @@ function render(d){
       ${maj ? `<p class="note" style="margin-top:8px">Dernière remontée de la tablette à ${maj.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}${(Date.now()-maj) > 15*60000 ? ' · hors ligne ou sans vente depuis ' + Math.round((Date.now()-maj)/60000) + ' min' : ''}</p>` : '<p class="note" style="margin-top:8px">Aucune remontée pour l\'instant (tablette hors ligne ou pas encore de vente).</p>'}</article>`;
   }).join('');
 
-  // Rythme
-  const q = Object.entries(v.parQuartHeure).sort((a,b)=>a[0].localeCompare(b[0]));
-  if (!q.length) $('rythme').innerHTML = '<p class="empty">Aucune vente validée pour ce match pour l\'instant.</p>';
-  else {
-    const W = Math.max(520, q.length*34+60), H = 220, pl = 46, pb = 26, pt = 10;
-    const max = Math.max(...q.map(x=>x[1])) * 1.1 || 1;
-    const step = niceStep(max);
-    const y = val => pt + (H-pt-pb)*(1 - val/max);
-    const bw = (W-pl-10)/q.length;
-    let s = '';
-    for (let t=0; t<=max; t+=step) s += `<line class="grid" x1="${pl}" x2="${W-10}" y1="${y(t)}" y2="${y(t)}"/><text x="${pl-6}" y="${y(t)+4}" text-anchor="end">${int(t)} €</text>`;
-    q.forEach(([h, val], i) => {
-      const x = pl + i*bw;
-      s += `<rect x="${x+3}" y="${y(val)}" width="${bw-6}" height="${y(0)-y(val)}" rx="3" fill="var(--bar)"><title>${h} · ${eur(val)}</title></rect>`;
-      if (q.length <= 16 || i % 2 === 0) s += `<text x="${x+bw/2}" y="${H-8}" text-anchor="middle">${h}</text>`;
-    });
-    $('rythme').innerHTML = `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${Math.min(W,520)}px" role="img" aria-label="CA par quart d'heure">${s}</svg></div>`;
-  }
-
-  // Produits
-  const prods = Object.entries(v.parProduit).sort((a,b)=>b[1].qte-a[1].qte);
-  const pmax = Math.max(1, ...prods.map(p=>p[1].qte));
-  $('produits').innerHTML = prods.map(([ref,p]) => `<span>${esc(p.nom)}</span><div class="t"><div style="width:${p.qte/pmax*100}%"></div></div><b>${int(p.qte)}</b>`).join('');
+  // Graphiques
+  lastDash = d;
+  renderGraphiques(d);
 
   // Clientèle
   const fams = ['Abonné','Billet payant','Invité / gratuit','Billet à vérifier','Sans billet'].filter(f => f !== 'Billet à vérifier' || v.parFamilleTarif[f]);
@@ -638,7 +662,231 @@ async function enregistrerPrepa(auto){
 function kpi(l, val, s, cls, ratio, extra){
   return `<div class="kpi ${cls||''}"><span class="l">${l}</span><span class="v">${val}</span><span class="s">${s}${extra ? ' · ' + extra : ''}</span>${ratio != null ? `<div class="meter"><div style="width:${Math.min(100, ratio*100).toFixed(1)}%"></div></div>` : ''}</div>`;
 }
-function niceStep(max){ const raw = max/4; const p = Math.pow(10, Math.floor(Math.log10(raw))); const n = raw/p; return (n<=1?1:n<=2?2:n<=5?5:10)*p; }
+function niceStep(max){ const raw = max/4; if (!(raw > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(raw))); const n = raw/p; return (n<=1?1:n<=2?2:n<=5?5:10)*p; }
+
+// ── Graphiques (SVG maison, sans bibliothèque : le tableau de bord marche même si un CDN est bloqué) ──
+// Buvettes = 3 premières couleurs catégorielles (ordre fixe, validé daltonisme) ; une buvette garde sa couleur partout.
+const BUV_COUL = { 'Buvette 1':'var(--s1)', 'Buvette 2':'var(--s2)', 'Buvette 3':'var(--s3)' };
+const couleurBuv = (b, i) => BUV_COUL[b] || ['var(--s1)','var(--s2)','var(--s3)'][i % 3];
+const court = b => String(b).replace(/^Buvette\s*/, 'B');
+const VIZ = {};
+const svgNS = (W, H, label, corps) => `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(label)}">${corps}</svg>`;
+function echelle(min, max){
+  if (!(max > min)) max = min + 1;
+  const step = niceStep(max - min), lo = Math.floor(min/step)*step, hi = Math.ceil(max/step)*step, ticks = [];
+  for (let t = lo; t <= hi + step/1e6; t += step) ticks.push(Math.round(t*1e6)/1e6);
+  return { lo, hi, ticks };
+}
+// Quarts d'heure continus entre la première et la dernière vente (les creux restent visibles)
+function quarts(serie){
+  const ks = Object.keys(serie || {}).sort(); if (!ks.length) return [];
+  const m = k => Number(k.slice(0,2))*60 + Number(k.slice(3,5)), out = [];
+  for (let t = m(ks[0]); t <= m(ks[ks.length-1]); t += 15) out.push(String(Math.floor(t/60)%24).padStart(2,'0') + ':' + String(t%60).padStart(2,'0'));
+  return out;
+}
+function legende(items){
+  return `<div class="lgd">${items.map(x => `<span><i class="${x.ln ? 'ln' : ''}${x.dash ? ' dash' : ''}" style="background:${x.couleur};color:${x.couleur}"></i>${esc(x.nom)}</span>`).join('')}</div>`;
+}
+const tipLigne = (couleur, nom, val, cls) => `<div class="${cls||''}"><span>${couleur ? `<i style="background:${couleur}"></i>` : ''}${esc(nom)}</span><b>${val}</b></div>`;
+// Barre à coins arrondis côté valeur, posée à plat sur la ligne de base
+function barre(x, y, w, h, couleur, r){
+  if (h <= 0 || w <= 0) return '';
+  r = Math.min(r == null ? 3 : r, w/2, h);
+  return `<path d="M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z" fill="${couleur}"/>`;
+}
+function axeX(cats, x0, pas, H, pb, cur){
+  const larg = Math.max(...cats.map(c => Array.isArray(c) ? Math.max(String(c[0]).length, String(c[1]||'').length) : String(c).length)) * 6.2 + 8;
+  const k = Math.max(1, Math.ceil(larg / pas));
+  return cats.map((c, i) => {
+    if (i % k && i !== cur) return '';
+    const x = x0 + i*pas + pas/2, cl = i === cur ? ' class="cur"' : '';
+    return Array.isArray(c) ? `<text x="${x}" y="${H-pb+15}" text-anchor="middle"${cl}>${esc(c[0])}</text><text x="${x}" y="${H-pb+28}" text-anchor="middle"${cl}>${esc(c[1]||'')}</text>`
+      : `<text x="${x}" y="${H-pb+15}" text-anchor="middle"${cl}>${esc(c)}</text>`;
+  }).join('');
+}
+function grille(sc, y, x1, x2, fmt){
+  return sc.ticks.map(t => `<line class="grid" x1="${x1}" x2="${x2}" y1="${y(t)}" y2="${y(t)}"/><text x="${x1-6}" y="${y(t)+4}" text-anchor="end">${fmt(t)}</text>`).join('')
+    + (sc.lo < 0 ? `<line class="axis" x1="${x1}" x2="${x2}" y1="${y(0)}" y2="${y(0)}"/>` : '');
+}
+function cibles(id, n, x0, pas, H, pt, pb){
+  let s = '';
+  for (let i = 0; i < n; i++) s += `<rect class="hit" data-c="${id}" data-i="${i}" data-x="${x0 + i*pas + pas/2}" x="${x0 + i*pas}" y="${pt}" width="${pas}" height="${H-pt-pb}"/>`;
+  return s;
+}
+// Barres empilées (stack) ou groupées ; o = { cats, series:[{nom,couleur,vals}], fmt, yfmt, H, cur, tip(i), haut(i) }
+function graphBarres(el, id, o){
+  const W = Math.max(280, el.clientWidth || 600), H = o.H || 230, pl = 52, pr = 10, pt = o.haut ? 22 : 10, pb = o.cats.some(Array.isArray) ? 34 : 22;
+  const n = o.cats.length, S = o.series, pas = (W-pl-pr)/n;
+  const tot = i => o.stack ? S.reduce((a, s) => a + Math.max(0, s.vals[i]||0), 0) : Math.max(0, ...S.map(s => s.vals[i]||0));
+  const sc = echelle(0, Math.max(o.min || 0, ...o.cats.map((c, i) => tot(i)))), y = v => pt + (H-pt-pb) * (1 - (v - sc.lo)/(sc.hi - sc.lo));
+  let s = grille(sc, y, pl, W-pr, o.yfmt || o.fmt);
+  o.cats.forEach((c, i) => {
+    const gw = Math.min(pas * (o.stack ? 0.72 : 0.84), o.stack ? 46 : 26*S.length), gx = pl + i*pas + (pas-gw)/2;
+    if (o.stack) {
+      let base = y(0), premier = true;
+      const iTop = S.map((se, k) => (se.vals[i]||0) > 0 ? k : -1).reduce((a, b) => Math.max(a, b), -1);
+      S.forEach((se, k) => { const v = Math.max(0, se.vals[i]||0); if (!v) return;
+        const h = y(0) - y(v), haut = h - (premier ? 0 : 2);   // 2 px d'écart entre segments
+        s += barre(gx, base - h, gw, haut, se.couleur, k === iTop ? 3 : 0); base -= h; premier = false; });
+    } else {
+      const bw = (gw - 2*(S.length-1)) / S.length;
+      S.forEach((se, k) => { const v = se.vals[i]; if (v == null) return; s += barre(gx + k*(bw+2), y(Math.max(0, v)), bw, y(0) - y(Math.max(0, v)), se.couleurs ? se.couleurs[i] : se.couleur); });
+    }
+    if (o.haut) { const t = o.haut(i); if (t) s += `<text class="${i === o.cur ? 'cur' : 'lbl'}" x="${pl + i*pas + pas/2}" y="${y(tot(i)) - 6}" text-anchor="middle">${t}</text>`; }
+  });
+  s += axeX(o.cats, pl, pas, H, pb, o.cur) + cibles(id, n, pl, pas, H, pt, pb);
+  VIZ[id] = { tip: o.tip };
+  return svgNS(W, H, o.label || id, s);
+}
+// Courbes ; o = { cats, series:[{nom,couleur,vals,dash,court}], fmt, refs:[{v,nom,couleur}], H, tip(i) }
+function graphCourbes(el, id, o){
+  const W = Math.max(280, el.clientWidth || 600), H = o.H || 230, pl = 52, pr = 86, pt = 12, pb = 22;
+  const n = o.cats.length, S = o.series, pas = (W-pl-pr)/Math.max(1, n);
+  const vals = S.flatMap(se => se.vals).concat((o.refs||[]).map(r => r.v)).filter(v => v != null);
+  const sc = echelle(Math.min(0, ...vals), Math.max(...vals, 1)), y = v => pt + (H-pt-pb) * (1 - (v - sc.lo)/(sc.hi - sc.lo));
+  const X = i => pl + i*pas + pas/2;
+  let s = grille(sc, y, pl, W-pr, o.fmt);
+  (o.refs||[]).forEach(r => { s += `<line x1="${pl}" x2="${W-pr}" y1="${y(r.v)}" y2="${y(r.v)}" stroke="${r.couleur}" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-pr+6}" y="${y(r.v)+4}" style="fill:${r.couleur};font-weight:700">${esc(r.nom)}</text>`; });
+  s += `<line class="cx" id="cx-${id}" x1="0" x2="0" y1="${pt}" y2="${H-pb}"/>`;
+  const fins = [];
+  S.forEach(se => {
+    const pts = se.vals.map((v, i) => v == null ? null : [X(i), y(v)]).filter(Boolean);
+    if (!pts.length) return;
+    s += `<path d="M${pts.map(p => p.join(',')).join('L')}" fill="none" stroke="${se.couleur}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${se.dash ? ' stroke-dasharray="6 4"' : ''}/>`;
+    const [lx, ly] = pts[pts.length-1];
+    s += `<circle cx="${lx}" cy="${ly}" r="4" fill="${se.couleur}" stroke="var(--surface)" stroke-width="2"/>`;
+    fins.push({ y: ly, x: lx, t: (se.court || se.nom) + ' ' + o.fmt(se.vals[se.vals.length-1]) });
+  });
+  // étiquettes de fin de courbe, écartées pour ne pas se chevaucher
+  fins.sort((a, b) => a.y - b.y).forEach((f, i, arr) => { if (i && f.y - arr[i-1].y < 14) f.y = arr[i-1].y + 14; });
+  fins.forEach(f => s += `<text class="lbl" x="${f.x + 8}" y="${f.y + 4}">${esc(f.t)}</text>`);
+  s += axeX(o.cats, pl, pas, H, pb) + cibles(id, n, pl, pas, H, pt, pb);
+  VIZ[id] = { tip: o.tip };
+  return svgNS(W, H, o.label || id, s);
+}
+function finQuart(q){ const t = Number(q.slice(0,2))*60 + Number(q.slice(3,5)) + 15; return String(Math.floor(t/60)%24).padStart(2,'0') + ':' + String(t%60).padStart(2,'0'); }
+function vide(el, txt){ el.innerHTML = `<p class="empty">${txt}</p>`; }
+
+function renderGraphiques(d){
+  const v = d.buvette, B = Object.keys(v.parBuvette), serie = d.serie || {}, Q = quarts(serie);
+  const P = q => serie[q] || { ca:{}, espB:{}, cb:0, esp:0, ventes:0, sortis:0, revenus:0 };
+  const cumul = f => { let c = 0; return Q.map(q => c += f(P(q))); };
+  const e0 = n => eur(n), e2 = n => eur(n, 2);
+
+  // 1. Rythme par buvette
+  const elR = $('g-rythme');
+  if (!Q.length) vide(elR, 'Aucune vente validée pour ce match pour l\'instant.');
+  else {
+    const series = B.map((b, i) => ({ nom: b, couleur: couleurBuv(b, i), vals: Q.map(q => P(q).ca[b] || 0) }));
+    elR.innerHTML = legende(series) + graphBarres(elR, 'rythme', { cats: Q, series, stack: true, fmt: e0, label: 'CA boissons par quart d\'heure et par buvette',
+      tip: i => `<b class="h">${Q[i]} – ${finQuart(Q[i])}</b>` + series.map(se => tipLigne(se.couleur, se.nom, e2(se.vals[i]))).join('')
+        + tipLigne('', 'Total · ' + int(P(Q[i]).ventes) + ' ventes', e2(series.reduce((a, se) => a + se.vals[i], 0)), 'tot') });
+  }
+
+  // 2. Produits : part alcool et CA par produit
+  const elM = $('g-mix');
+  const prods = Object.entries(v.parProduit).map(([ref, p]) => ({ ref, nom: p.nom, qte: p.qte, ca: p.ca || 0, alc: /^P01/.test(ref) })).filter(p => p.qte);
+  if (!prods.length) vide(elM, 'Aucune boisson vendue pour l\'instant.');
+  else {
+    const parCa = prods.some(p => p.ca), val = p => parCa ? p.ca : p.qte;
+    const alc = prods.filter(p => p.alc).reduce((a, p) => a + val(p), 0), sa = prods.filter(p => !p.alc).reduce((a, p) => a + val(p), 0), t = alc + sa || 1;
+    const fmtV = n => parCa ? eur(n) : int(n);
+    prods.sort((a, b) => val(b) - val(a));
+    const max = Math.max(...prods.map(val), 1);
+    elM.innerHTML = `<div class="split" role="img" aria-label="Part alcool ${Math.round(alc/t*100)} %">${alc ? `<div class="alc" style="flex:${alc}">🍺 ${Math.round(alc/t*100)} %</div>` : ''}${sa ? `<div class="sa" style="flex:${sa}">${Math.round(sa/t*100)} %</div>` : ''}</div>
+      <div class="split-l"><span>Alcool ${fmtV(alc)}</span><span>Sans alcool ${fmtV(sa)}</span></div>
+      <div class="hbars">${prods.map(p => `<span>${esc(p.nom)}</span><div class="t"><div class="${p.alc ? '' : 'sa'}" style="width:${val(p)/max*100}%"></div></div><b>${parCa ? eur(p.ca) : ''}<small>${int(p.qte)}</small></b>`).join('')}</div>
+      <p class="note" style="margin-top:8px">${parCa ? 'CA encaissé (remises billet comprises, hors consignes) ; en petit, les quantités.' : 'Quantités vendues.'}</p>`;
+  }
+
+  // 3. Encaissements cumulés CB / espèces
+  const elP = $('g-pay');
+  if (!Q.length) vide(elP, 'Pas encore d\'encaissement.');
+  else {
+    const cb = cumul(p => p.cb), es = cumul(p => p.esp);
+    const series = [{ nom: '💳 CB', court: 'CB', couleur: 'var(--cb)', vals: cb }, { nom: '💶 Espèces', court: 'Esp.', couleur: 'var(--esp)', vals: es, dash: true }];
+    elP.innerHTML = legende(series.map(x => Object.assign({ ln: 1 }, x))) + graphCourbes(elP, 'pay', { cats: Q, series, fmt: e0, label: 'Encaissements cumulés CB et espèces',
+      tip: i => `<b class="h">À ${Q[i]}</b>` + tipLigne('var(--cb)', 'CB cumulée', e2(cb[i])) + tipLigne('var(--esp)', 'Espèces cumulées', e2(es[i]))
+        + tipLigne('', 'Total encaissé', e2(cb[i] + es[i]), 'tot') + tipLigne('', 'Dans ce quart d\'heure', e2(P(Q[i]).cb + P(Q[i]).esp)) });
+  }
+
+  // 4. Espèces en caisse (B1, B2 ; la B3 n'a pas de caisse)
+  const elC = $('g-caisse');
+  const avecCaisse = B.filter(b => !(d.sansCaisse || []).includes(b));
+  if (!Q.length || !avecCaisse.length) vide(elC, !avecCaisse.length ? 'Aucune buvette avec caisse espèces.' : 'Pas encore de mouvement d\'espèces.');
+  else {
+    const fond = b => { const c = (d.clotures || {})[b]; return c && Number(c.fond) > 0 ? Number(c.fond) : Number((d.fonds || {})[b]) || 0; };
+    const series = avecCaisse.map(b => { let c = fond(b); return { nom: b, court: court(b), couleur: couleurBuv(b, B.indexOf(b)), vals: Q.map(q => c += P(q).espB[b] || 0) }; });
+    elC.innerHTML = legende(series.map(x => Object.assign({ ln: 1 }, x))) + graphCourbes(elC, 'caisse', { cats: Q, series, fmt: e0, label: 'Espèces en caisse par buvette',
+      refs: [{ v: 100, nom: '100 € ⚠️', couleur: 'var(--warn)' }, { v: 50, nom: '50 € ⛔', couleur: 'var(--bad)' }],
+      tip: i => `<b class="h">À ${Q[i]}</b>` + series.map(se => tipLigne(se.couleur, se.nom + ' (fond ' + eur(fond(se.nom)) + ')', e2(se.vals[i]))).join('') });
+  }
+
+  // 5. Écocups pendant le match
+  const elG = $('g-gob');
+  const so = cumul(p => p.sortis), re = cumul(p => p.revenus);
+  if (!Q.length || !so[so.length-1]) vide(elG, 'Aucun écocup sorti pour l\'instant.');
+  else {
+    const series = [{ nom: 'Sortis (consigne payée)', court: 'Sortis', couleur: 'var(--bar)', vals: so }, { nom: 'Revenus (rendus, récupérés, sans remboursement)', court: 'Revenus', couleur: 'var(--faint)', vals: re, dash: true }];
+    elG.innerHTML = legende(series.map(x => Object.assign({ ln: 1 }, x))) + graphCourbes(elG, 'gob', { cats: Q, series, fmt: int, label: 'Écocups sortis et revenus, cumulés',
+      tip: i => `<b class="h">À ${Q[i]}</b>` + tipLigne('var(--bar)', 'Sortis', int(so[i])) + tipLigne('var(--faint)', 'Revenus', int(re[i]))
+        + tipLigne('', 'Encore dehors', int(so[i] - re[i]) + (so[i] ? ' (' + pct(so[i] - re[i], so[i]) + ')' : ''), 'tot') });
+  }
+
+  // 6 et 7. Saison
+  const S = (d.saison && d.saison.matchs) || [];
+  const cur = S.findIndex(m => m.id === d.idMatch);
+  const cats = S.map(m => [String(m.adversaire).split(/[\s-]/)[0].slice(0, 11), m.date ? m.date.slice(8,10) + '/' + m.date.slice(5,7) : '']);
+  const elB = $('g-billet');
+  if (!S.length) vide(elB, 'Pas encore de match avec des ventes cette saison.');
+  else {
+    const series = B.map((b, i) => ({ nom: b, couleur: couleurBuv(b, i), vals: S.map(m => { const x = (m.parBuvette || {})[b]; return x && x.ventes ? Math.round(x.reliees / x.ventes * 1000) / 10 : null; }) }));
+    elB.innerHTML = legende(series) + graphBarres(elB, 'billet', { cats, series, fmt: n => int(n) + ' %', min: 10, cur, label: 'Part des ventes reliées à un billet, par match et par buvette',
+      haut: i => S[i].ventes ? Math.round(S[i].reliees / S[i].ventes * 100) + ' %' : '',
+      tip: i => `<b class="h">${esc(S[i].adversaire)} · ${cats[i][1]}</b>` + series.map((se, k) => { const x = (S[i].parBuvette || {})[B[k]] || {}; return tipLigne(se.couleur, se.nom, se.vals[i] == null ? '—' : se.vals[i].toLocaleString('fr-FR') + ' % (' + int(x.reliees) + '/' + int(x.ventes) + ')'); }).join('')
+        + tipLigne('', 'Toutes buvettes', pct(S[i].reliees, S[i].ventes) + ' (' + int(S[i].reliees) + '/' + int(S[i].ventes) + ')', 'tot') });
+  }
+  const elS = $('g-saison');
+  $('g-saison-t').textContent = (d.saison && d.saison.nom ? 'Saison ' + d.saison.nom + ' · ' : '') + S.length + ' match' + (S.length > 1 ? 's' : '') + (cur >= 0 ? ' · ce match en foncé' : '');
+  if (!S.length) vide(elS, 'Pas encore de match avec des ventes cette saison.');
+  else {
+    const mesures = [
+      ['CA boissons', m => m.ca, e0, 'hors consignes'],
+      ['Panier moyen', m => m.ventes ? m.ca / m.ventes : null, e2, 'par vente de boissons'],
+      ['Recette par spectateur', m => m.affluence ? m.ca / m.affluence : null, e2, 'CA boissons / affluence'],
+    ];
+    elS.innerHTML = mesures.map((_, k) => `<div><h3>${mesures[k][0]} <span class="note">· ${mesures[k][3]}</span></h3><div class="viz" id="g-s${k}"></div></div>`).join('');
+    mesures.forEach(([nom, f, fmt], k) => {
+      const el = $('g-s' + k), vals = S.map(f);
+      const series = [{ nom, couleur: 'var(--soft)', couleurs: vals.map((x, i) => i === cur ? 'var(--bar)' : 'var(--soft)'), vals }];
+      const svg = graphBarres(el, 'saison' + k, { cats, series, fmt, yfmt: k ? (n => eur(n, n < 10 && n % 1 ? 1 : 0)) : e0, cur, H: 190, label: nom + ' par match',
+        haut: i => (i === cur || i === S.length - 1) && vals[i] != null ? fmt(vals[i]) : '',
+        tip: i => `<b class="h">${esc(S[i].adversaire)} · ${cats[i][1]}</b>` + tipLigne('', nom, vals[i] == null ? '—' : fmt(vals[i]))
+          + tipLigne('', 'Ventes', int(S[i].ventes)) + tipLigne('', 'Affluence', S[i].affluence ? int(S[i].affluence) : '—') });
+      el.innerHTML = svg;
+    });
+  }
+}
+
+// Infobulle commune à tous les graphiques (souris et doigt)
+function infobulle(e){
+  const tip = $('tip'), h = e.target && e.target.closest ? e.target.closest('.hit') : null;
+  document.querySelectorAll('.cx').forEach(c => { if (!h || c.id !== 'cx-' + h.dataset.c) c.style.visibility = 'hidden'; });
+  if (!h || !VIZ[h.dataset.c] || !VIZ[h.dataset.c].tip) { tip.style.display = 'none'; return; }
+  tip.innerHTML = VIZ[h.dataset.c].tip(Number(h.dataset.i)); tip.style.display = 'block';
+  const cx = document.getElementById('cx-' + h.dataset.c);
+  if (cx) { cx.setAttribute('x1', h.dataset.x); cx.setAttribute('x2', h.dataset.x); cx.style.visibility = 'visible'; }
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+}
+document.addEventListener('pointermove', infobulle);
+document.addEventListener('pointerdown', infobulle);
+document.addEventListener('scroll', () => { $('tip').style.display = 'none'; }, { passive: true });
+let resizeT = null;
+addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (lastDash) renderGraphiques(lastDash); }, 200); });
 
 function renderLinks(){
   const base = location.origin && location.origin.startsWith('http') ? location.origin + '/' : 'https://spacers-buvette.spacersytb.workers.dev/';
