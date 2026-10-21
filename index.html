@@ -475,7 +475,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.21-arrondi</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.21-saisies</p>
     </div>
   </div>
 </div>
@@ -546,6 +546,7 @@ const state = {
   historique:[],     // dernières ventes de la tablette (pour annuler / bilan)
   clotures:{},       // { 'Buvette 1': { fond, compte, attendu, ecart, ts, envoyee } } clôture de caisse du match
   fond:{},           // fond de caisse par buvette (mémorisé d'un match à l'autre)
+  brouillons:{},     // { 'Buvette 1': saisies de fin de match enregistrées sans clôturer (caisse, TPE, inventaire) }
   prix:{},           // prix et seuils lus dans l'onglet 📦 PRODUITS du Sheet { réf: {prix, seuil} }
   forcer:{},         // produits que la tablette croit épuisés mais que le bénévole a confirmé avoir encore
   reassorts:[],      // stock reçu en cours de match, saisi sur la tablette, pas encore arrivé au Sheet
@@ -569,7 +570,7 @@ function cumulTab(tab) {
   if (typeof c.nbBenev !== 'number') c.nbBenev = 0;
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons'];
 let alerteMemoire = false;
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(CLES.map(k => [k, state[k]])))); return; } catch(e) {}
@@ -589,7 +590,7 @@ function load() {
     CLES.forEach(k => { if (s[k] !== undefined) state[k] = s[k]; });
     if (!state.url) state.url = s.pilotage || APPS_SCRIPT_URL;
     if (!Array.isArray(state.historique)) state.historique = [];
-    state.clotures = state.clotures || {}; state.fond = state.fond || {}; state.prix = state.prix || {}; state.forcer = state.forcer || {};
+    state.clotures = state.clotures || {}; state.brouillons = state.brouillons || {}; state.fond = state.fond || {}; state.prix = state.prix || {}; state.forcer = state.forcer || {};
     if (!Array.isArray(state.reassorts)) state.reassorts = [];
   } catch(e) {}
 }
@@ -1327,8 +1328,10 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════════════
 function openBilan() { avecCode(afficherRapport); }
 function afficherRapport() {
-  const c = cumulTab(), cl = state.clotures[state.tab];
-  const fond = cl ? cl.fond : ((LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0);
+  const c = cumulTab(), cl = state.clotures[state.tab], b = cl ? {} : brouillon();
+  if (!cl) invNonCompte = !!b.nc;
+  const fond = cl ? cl.fond : (b.fond ?? (LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0);
+  const compte = cl ? cl.compte : (b.compte ?? ''), tpeVal = cl ? (cl.tpe ?? '') : (b.tpe ?? ''), tpeId = cl ? cl.tpeId : b.tpeId;
   document.getElementById('bilan-titre').textContent = '📊 Rapport ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
   let h = `<div class="kpis">
     <div class="k"><span>🍺 Boissons</span><b>${fmt(Math.round((c.ca - (c.consigne - c.rendue) * CONSIGNE) * 100) / 100)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}${c.nbRemise ? ` · dont ${fmt(c.remise)} de remises billet (${c.nbRemise})` : ''} · hors consignes</small></div>
@@ -1342,19 +1345,21 @@ function afficherRapport() {
     <div class="caisse">
       <label>Fond de caisse<input class="input" id="cl-fond" inputmode="decimal" value="${fond}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k"><span>Espèces attendues</span><b id="cl-attendu">—</b><small>fond + ventes espèces</small></div>
-      <label>Espèces comptées<input class="input" id="cl-compte" inputmode="decimal" placeholder="compter le tiroir" value="${cl ? cl.compte : ''}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
+      <label>Espèces comptées<input class="input" id="cl-compte" inputmode="decimal" placeholder="compter le tiroir" value="${esc(String(compte))}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecart-box"><span>Écart</span><b id="cl-ecart">—</b><small id="cl-ecart-s"></small></div>
     </div>`) + `
     <div class="sec">Contrôle CB</div>
     <div class="caisse">
       <div class="k"><span>CB enregistrée</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} sur la tablette</small></div>
-      <label>TPE utilisé à cette buvette<select class="input" id="cl-tpe-id" ${cl ? 'disabled' : ''}>
-        <option value="">choisir le TPE</option>${TPES.map(t => `<option value="${t.id}" ${cl && cl.tpeId === t.id ? 'selected' : ''}>${esc(t.nom)}</option>`).join('')}</select></label>
-      <label>Total du ticket TPE<input class="input" id="cl-tpe" inputmode="decimal" placeholder="ticket de fin" value="${cl && cl.tpe != null ? cl.tpe : ''}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
+      <label>TPE utilisé à cette buvette<select class="input" id="cl-tpe-id" ${cl ? 'disabled' : ''} onchange="memoBrouillon()">
+        <option value="">choisir le TPE</option>${TPES.map(t => `<option value="${t.id}" ${tpeId === t.id ? 'selected' : ''}>${esc(t.nom)}</option>`).join('')}</select></label>
+      <label>Total du ticket TPE<input class="input" id="cl-tpe" inputmode="decimal" placeholder="ticket de fin" value="${esc(String(tpeVal))}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecb-box"><span>Écart CB</span><b id="cl-ecb">—</b><small id="cl-ecb-s"></small></div>
     </div>
+    ${cl ? '' : boutonEnregistrer('caisse', sansCaisse() ? '💾 Enregistrer le contrôle CB' : '💾 Enregistrer la caisse et le TPE')}
     ${cl ? '' : reassortHtml()}
-    ${inventaireHtml(cl)}`
+    ${inventaireHtml(cl)}
+    ${cl || !stockSuivi() ? '' : boutonEnregistrer('inv', '💾 Enregistrer l\'inventaire')}`
     + (cl ? `<div class="msg ${cl.envoyee ? 'ok' : 'warn'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })} — ${cl.envoyee ? 'rapport arrivé dans le Sheet ✅' : 'rapport gardé dans la tablette, il partira au retour du wifi 📶'}</div>
           <button class="btn small" style="margin-top:8px" onclick="rouvrirCaisse()">Rouvrir la caisse (corriger le comptage)</button>`
          : `<button class="btn prim" style="width:100%;margin-top:10px;min-height:60px" onclick="cloturerCaisse()">🔒 Clôturer : caisse + inventaire, envoyer le rapport</button>`
@@ -1393,7 +1398,7 @@ function afficherRapport() {
 function produitsInventaire() { return stockSuivi() ? CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)) : []; }
 function inventaireHtml(cl) {
   if (!stockSuivi()) return '';
-  const inv = (cl && cl.inventaire) || {}, nc = cl ? !!cl.nonCompte : invNonCompte, dis = cl || nc ? 'disabled' : '';
+  const inv = cl ? (cl.inventaire || {}) : (brouillon().inv || {}), nc = cl ? !!cl.nonCompte : invNonCompte, dis = cl || nc ? 'disabled' : '';
   let h = `<div class="sec">Inventaire de fin (compter ce qui reste, <u>avant</u> de ranger le stock)</div>
     <label class="inv-nc"><input type="checkbox" id="inv-nc" ${nc ? 'checked' : ''} ${cl ? 'disabled' : ''} onchange="basculerNonCompte(this.checked)">
       Le stock est déjà rangé / mélangé : je ne peux pas compter <small>(on gardera le stock théorique, à corriger au tableau de bord)</small></label>
@@ -1412,7 +1417,35 @@ function inventaireHtml(cl) {
   return h + `</div>`;
 }
 let invNonCompte = false;
-function basculerNonCompte(v) { invNonCompte = !!v; afficherRapport(); }
+function basculerNonCompte(v) { invNonCompte = !!v; memoBrouillon(); afficherRapport(); }
+// ── Saisies de fin de match enregistrées sans clôturer ──
+// La caisse/TPE et l'inventaire ne se font pas au même endroit : chaque saisie est gardée dans la tablette
+// (à chaque frappe, et par les boutons 💾), retrouvée en rouvrant le Rapport, et effacée à la clôture.
+function brouillon() { return (state.brouillons || {})[state.tab] || {}; }
+function memoBrouillon(partie) {
+  if (state.clotures[state.tab] || !document.getElementById('cl-fond')) return;
+  state.brouillons = state.brouillons || {};
+  const b = Object.assign({}, brouillon()), val = id => { const e = document.getElementById(id); return e ? String(e.value).trim() : undefined; };
+  if (!sansCaisse()) { b.fond = val('cl-fond'); b.compte = val('cl-compte'); }
+  b.tpe = val('cl-tpe'); b.tpeId = val('cl-tpe-id');
+  if (document.getElementById('inv-nc')) {
+    const inv = {};
+    if (document.getElementById('inv-fut')) { inv.FUT_PLEINS = val('inv-fut'); inv.FUT_ENTAME = val('inv-entame'); }
+    document.querySelectorAll('.inv-n').forEach(i => { inv[i.dataset.ref] = String(i.value).trim(); });
+    b.inv = inv; b.nc = invNonCompte;
+  }
+  if (partie) b['ts_' + partie] = new Date().toISOString();
+  state.brouillons[state.tab] = b;
+  save();
+}
+function boutonEnregistrer(partie, libelle) {
+  const ts = brouillon()['ts_' + partie];
+  return `<button class="btn" style="width:100%;margin-top:8px;min-height:54px" onclick="enregistrerSaisie('${partie}')">${libelle}<small style="display:block;font-weight:600">${ts ? 'enregistré à ' + new Date(ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) + ' · ' : ''}gardé dans la tablette, sans clôturer</small></button>`;
+}
+function enregistrerSaisie(partie) {
+  memoBrouillon(partie); afficherRapport();
+  info(partie === 'inv' ? '💾 Inventaire enregistré (pas encore clôturé)' : '💾 Caisse et TPE enregistrés (pas encore clôturés)');
+}
 // Stock théorique au format inventaire (bière en litres, softs en bouteilles, eaux en unités)
 function inventaireTheorique() {
   const o = {};
@@ -1443,6 +1476,7 @@ function lireInventaire() {
   return { inv: out, manque };
 }
 function majInventaire() {
+  memoBrouillon();
   const { inv } = lireInventaire();
   const s = document.getElementById('inv-fut-s');
   if (s) s.textContent = inv.FUT_L != null ? `compté : ${inv.FUT_L.toLocaleString('fr-FR')} L (écart ${(inv.FUT_L - litresRestants(false)).toLocaleString('fr-FR', { signDisplay:'always' })} L)` : 'compté : —';
@@ -1456,6 +1490,7 @@ function majInventaire() {
 }
 const lireEuros = id => { const v = String(document.getElementById(id).value).replace(/\s/g, '').replace(',', '.'); return v === '' ? null : Number(v); };
 function majEcart() {
+  memoBrouillon();
   const c0 = cumulTab(), tpe = lireEuros('cl-tpe'), eb = document.getElementById('cl-ecb'), ebx = document.getElementById('cl-ecb-box');
   if (eb) {
     if (tpe == null || isNaN(tpe)) { eb.textContent = '—'; ebx.className = 'k'; document.getElementById('cl-ecb-s').textContent = 'saisir le total du ticket'; }
@@ -1501,6 +1536,7 @@ function cloturerCaisse() {
     stock: stockSuivi() ? stockSnapshot() : {}, inventaire: inv, nonCompte: !!nonCompte, tpeId,
     benev: Object.assign({}, c.benev), nbBenev: c.nbBenev, envoyee: false };
   invNonCompte = false; ecartConfirme = '';
+  if (state.brouillons) delete state.brouillons[state.tab];
   save();
   envoyerVentes();
   afficherRapport();
@@ -1685,7 +1721,7 @@ function appliquerChargement(d, nouveau) {
   (state.reassorts || []).filter(r => !r.envoye && r.buvette === state.tab && r.matchId === d.match.idMatch)
     .forEach(r => Object.entries(r.ajout).forEach(([k, q]) => { state.stocks[state.tab][k] = (Number(state.stocks[state.tab][k]) || 0) + q; }));
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
-  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.forcer = {}; panier = nouveauPanier(); billet = null; }
+  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.brouillons = {}; state.forcer = {}; panier = nouveauPanier(); billet = null; }
   else if (reassort) state.forcer = {};   // nouveau stock reçu : on refait confiance au comptage
   save(); renderAll(); renderEtatMatch();
   info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
