@@ -68,10 +68,11 @@ const PIL_I = {}; PIL_LIVE_COLS.forEach(function (c, i) { PIL_I[c] = i; });
 const PIL_NB = PIL_LIVE_COLS.length;
 const PIL_COL_PAIEMENT = PIL_NB + PIL.PRODUITS.length;   // index 0 de la colonne « Paiement » (CB / ESP), après les produits
 const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_UNIT', 'CONSIGNE_UNIT', 'CA_HT', 'CA_CONSIGNE', 'TYPE'];
-// Gobelets rapportés mais non remboursés faute d'espèces (tablette : bouton 🚫 Plus d'espèces).
+// Gobelets revenus sans remboursement : rapportés mais pas remboursés faute d'espèces (bouton 🚫 Plus d'espèces,
+// motif PLUS_ESPECES) ou posés sur le comptoir / ramassés sans que personne demande l'euro (bouton 🫙 Récupéré, motif RECUPERE).
 // Onglet technique à part : ni 🧾 VENTES ni ⚙️ détail ventes, pour ne pas fausser NB VENTES, panier et consignes de Code.gs.
 const PIL_NR_TAB = '⚙️ écocups non remboursés';
-const PIL_NR_HDR = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Écocups 30cl', 'Écocups 50cl', 'Annulation de'];
+const PIL_NR_HDR = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Écocups 30cl', 'Écocups 50cl', 'Annulation de', 'Motif'];
 const PIL_DETAIL_TAB = '🥤 DÉTAIL BUVETTE';
 const PIL_DETAIL_ARCH_TAB = '⚙️ détail buvette archive';   // lignes figées, une fois le match terminé
 const PIL_DETAIL_FIGE_JOURS = 2;
@@ -88,6 +89,7 @@ function pilotageMenu_(ui) {
     .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
     .addItem('🥤 Mettre à jour le détail buvette (alcool, écocups, espèces)', 'pilotageDetailBuvette')
     .addItem('🔓 Détail buvette : recalculer un match figé', 'pilotageDetailRefiger')
+    .addItem('🥤 Stock écocups et rachat', 'pilotageStockEcocups')
     .addItem('💳 Rapprochement CB (remises TPE Pennylane ↔ tablettes)', 'rapprochementCBMenu')
     .addSeparator()
     .addItem("📚 Importer l'historique 22-26", 'importerHistoriqueBuvette')
@@ -441,11 +443,12 @@ function pilEnregistrerVentes_(ventes) {
   ventes.forEach(function (v) {
     if (!v || !v.id) return;
     recus.push(v.id);                       // déjà reçue : accusé quand même (idempotence)
-    if (v.paiement === 'NON_REMB') {        // gobelets non remboursés faute d'espèces : 0 €, onglet à part
+    if (v.paiement === 'NON_REMB' || v.paiement === 'LAISSE') {   // gobelets revenus sans remboursement : 0 €, onglet à part
       if (nrDeja[String(v.id)]) return;
       nrDeja[String(v.id)] = 1;
-      const gn = v.gob || {};
-      nrRows.push([now, new Date(v.ts || Date.now()), v.id, v.matchId || '', v.buvette || '', Number(gn.n33) || 0, Number(gn.n50) || 0, v.annule || '']);
+      const gn = v.gob || {}, rec = v.paiement === 'LAISSE';
+      nrRows.push([now, new Date(v.ts || Date.now()), v.id, v.matchId || '', v.buvette || '',
+        Number(rec ? gn.l33 : gn.n33) || 0, Number(rec ? gn.l50 : gn.n50) || 0, v.annule || '', rec ? 'RECUPERE' : 'PLUS_ESPECES']);
       return;
     }
     if (deja[String(v.id)]) return;
@@ -519,6 +522,9 @@ function pilNrSheet_() {
     sh.setFrozenRows(1);
     sh.hideSheet();
   }
+  if (sh.getMaxColumns() < PIL_NR_HDR.length) sh.insertColumnsAfter(sh.getMaxColumns(), PIL_NR_HDR.length - sh.getMaxColumns());
+  const hm = sh.getRange(1, PIL_NR_HDR.length);
+  if (!hm.getValue()) hm.setValue(PIL_NR_HDR[PIL_NR_HDR.length - 1]).setFontWeight('bold');   // onglet créé avant la colonne Motif
   return sh;
 }
 
@@ -872,7 +878,7 @@ const PIL_DETAIL_COLS = [
   ['partAlc', 'PART ALCOOL', '%'],
   ['vend', 'ÉCOCUPS VENDUS', 'n'], ['v30', 'dont 30cl', 'n'], ['v50', 'dont 50cl', 'n'],
   ['rend', 'RENDUS ET REMBOURSÉS', 'n'], ['taux', 'TAUX DE RETOUR', '%'],
-  ['nonRemb', 'NON REMBOURSÉS (consigne gardée, €)', 'n'], ['garde', 'dont gardés par le spectateur', 'n'], ['ndEsp', "dont rapportés, plus d'espèces", 'n'],
+  ['nonRemb', 'NON REMBOURSÉS (consigne gardée, €)', 'n'], ['garde', 'dont gardés par le spectateur', 'n'], ['ndEsp', "dont rapportés, plus d'espèces", 'n'], ['recup', 'dont récupérés sans remboursement', 'n'],
   ['consCB', 'CONSIGNES PAYÉES EN CB €', '€'], ['consESP', 'CONSIGNES PAYÉES EN ESPÈCES €', '€'],
   ['rembESP', 'REMBOURSÉES EN ESPÈCES €', '€'], ['rembCB', "DÉDUITES D'UN ACHAT CB €", '€'],
   ['soldeEsp', 'SOLDE ESPÈCES DU MATCH €', '€'], ['fond', 'FOND DE CAISSE MINIMUM €', '€'],
@@ -916,7 +922,7 @@ function pilotageDetailBuvette(silencieux) {
   });
 
   const acc = {};   // acc[match][buvette] = compteurs
-  const zero = function () { return { ignRend: 0, alcTTC: 0, alcHT: 0, saTTC: 0, saHT: 0, v30: 0, v50: 0, rend: 0, ndEsp: 0, consCB: 0, consESP: 0, rembESP: 0, rembCB: 0, soldeEsp: 0, fond: 0, mouv: [] }; };
+  const zero = function () { return { ignRend: 0, alcTTC: 0, alcHT: 0, saTTC: 0, saHT: 0, v30: 0, v50: 0, rend: 0, ndEsp: 0, recup: 0, consCB: 0, consESP: 0, rembESP: 0, rembCB: 0, soldeEsp: 0, fond: 0, mouv: [] }; };
   const get = function (m, b) { m = String(m || ''); b = String(b || '—'); acc[m] = acc[m] || {}; return acc[m][b] = acc[m][b] || zero(); };
 
   // ⚙️ détail ventes : CA par famille (prix encaissés) + écocups vendus / rendus
@@ -948,11 +954,13 @@ function pilotageDetailBuvette(silencieux) {
     else if (pay === 'ESP' && !sansCaisse) { a.consESP += cp; a.rembESP += cr; a.soldeEsp += tot; a.mouv.push([new Date(r[W['Horodatage']]).getTime() || 0, tot]); }
   });
 
-  // ⚙️ écocups non remboursés (plus d'espèces)
+  // ⚙️ écocups non remboursés : plus d'espèces, ou récupérés sans que personne demande l'euro
   const nr = lire(ss.getSheetByName(PIL_NR_TAB)), N = nr.h;
   nr.rows.forEach(function (r) {
     const m = String(r[N['ID_MATCH']] || ''); if (!infos[m]) return;
-    get(m, r[N['Buvette']]).ndEsp += (Number(r[N['Écocups 30cl']]) || 0) + (Number(r[N['Écocups 50cl']]) || 0);
+    const n = (Number(r[N['Écocups 30cl']]) || 0) + (Number(r[N['Écocups 50cl']]) || 0);
+    if ('Motif' in N && String(r[N['Motif']]) === 'RECUPERE') get(m, r[N['Buvette']]).recup += n;
+    else get(m, r[N['Buvette']]).ndEsp += n;
   });
 
   // Fond de caisse minimum : pire déficit cumulé des espèces au fil du match, par buvette
@@ -963,7 +971,7 @@ function pilotageDetailBuvette(silencieux) {
     a.fond = Math.ceil(-mini);
   }); });
 
-  const SOMMES = ['ignRend', 'alcTTC', 'alcHT', 'saTTC', 'saHT', 'v30', 'v50', 'rend', 'ndEsp', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp'];
+  const SOMMES = ['ignRend', 'alcTTC', 'alcHT', 'saTTC', 'saHT', 'v30', 'v50', 'rend', 'ndEsp', 'recup', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp'];
   const additionner = function (liste, fondMode) {
     const t = zero();
     liste.forEach(function (a) { SOMMES.forEach(function (k) { t[k] += a[k]; }); t.fond = fondMode === 'max' ? Math.max(t.fond, a.fond) : t.fond + a.fond; });
@@ -974,7 +982,7 @@ function pilotageDetailBuvette(silencieux) {
     const vend = a.v30 + a.v50, nonRemb = vend - a.rend, ca = a.alcTTC + a.saTTC;
     const o = { match: match, date: date, adv: adv, buv: buv, alcTTC: r2(a.alcTTC), alcHT: r2(a.alcHT), saTTC: r2(a.saTTC), saHT: r2(a.saHT),
       partAlc: ca ? a.alcTTC / ca : '', vend: vend, v30: a.v30, v50: a.v50, rend: a.rend, taux: vend > 0 ? a.rend / vend : '',
-      nonRemb: nonRemb, garde: nonRemb - a.ndEsp, ndEsp: a.ndEsp, consCB: r2(a.consCB), consESP: r2(a.consESP),
+      nonRemb: nonRemb, garde: nonRemb - a.ndEsp - a.recup, ndEsp: a.ndEsp, recup: a.recup, consCB: r2(a.consCB), consESP: r2(a.consESP),
       rembESP: r2(a.rembESP), rembCB: r2(a.rembCB), soldeEsp: r2(a.soldeEsp), fond: a.sansCaisse ? 'sans caisse' : a.fond,
       anom: a.ignRend ? a.ignRend + ' gobelet' + (a.ignRend > 1 ? 's' : '') + ' « rendu' + (a.ignRend > 1 ? 's' : '') + ' » à une buvette sans caisse, non comptés' : '' };
     return PIL_DETAIL_COLS.map(function (c) { return o[c[0]]; });
@@ -984,10 +992,14 @@ function pilotageDetailBuvette(silencieux) {
   // envoient tout et que les corrections soient faites). Ses lignes sont alors gardées telles quelles dans
   // l'onglet masqué ⚙️ détail buvette archive et ne sont plus jamais recalculées (même si les ventes brutes changent).
   const arch = pilDetailArchive_(), archD = lire(arch), figes = {};
+  // Lignes archivées avant la colonne « récupérés sans remboursement » : la date d'archivage tombe sur la dernière colonne
+  const iRecup = PIL_DETAIL_COLS.findIndex(function (c) { return c[0] === 'recup'; });
   archD.rows.forEach(function (r) {
     const m = String(r[1] || ''); if (!m) return;
     const f = figes[m] = figes[m] || { saison: String(r[0]), date: r[2], rows: [] };
-    f.rows.push(r.slice(1, 1 + PIL_DETAIL_COLS.length));
+    let l = r.slice(1, 1 + PIL_DETAIL_COLS.length);
+    if (r[PIL_DETAIL_COLS.length] instanceof Date) { l = r.slice(1, PIL_DETAIL_COLS.length); l.splice(iRecup, 0, 0); }
+    f.rows.push(l);
   });
   const blocs = {}, aFiger = [], limite = Date.now() - PIL_DETAIL_FIGE_JOURS * 86400000;
   Object.keys(figes).forEach(function (m) { blocs[m] = figes[m]; });
@@ -1008,7 +1020,7 @@ function pilotageDetailBuvette(silencieux) {
   // Total saison recalculé à partir des lignes « Total match » (figées ou non)
   const K = {}; PIL_DETAIL_COLS.forEach(function (c, i) { K[c[0]] = i; });
   const totalSaison = function (lignes, s, n) {
-    const t = {}; ['alcTTC', 'alcHT', 'saTTC', 'saHT', 'vend', 'v30', 'v50', 'rend', 'nonRemb', 'garde', 'ndEsp', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp']
+    const t = {}; ['alcTTC', 'alcHT', 'saTTC', 'saHT', 'vend', 'v30', 'v50', 'rend', 'nonRemb', 'garde', 'ndEsp', 'recup', 'consCB', 'consESP', 'rembESP', 'rembCB', 'soldeEsp']
       .forEach(function (k) { t[k] = r2(lignes.reduce(function (a, l) { return a + (Number(l[K[k]]) || 0); }, 0)); });
     const ign = lignes.reduce(function (a, l) { const n = parseInt(l[K.anom], 10); return a + (isNaN(n) ? 0 : n); }, 0);
     t.anom = ign ? ign + ' gobelet' + (ign > 1 ? 's' : '') + ' « rendu' + (ign > 1 ? 's' : '') + ' » à une buvette sans caisse, non comptés' : '';
@@ -1063,7 +1075,7 @@ function pilotageDetailBuvette(silencieux) {
   sh.clear();
   const nc = AFF_COLS.length, navy = typeof NAVY !== 'undefined' ? NAVY : '#0b1f33', jaune = typeof YELLOW !== 'undefined' ? YELLOW : '#ffd400';
   sh.getRange(1, 1).setValue('🥤 DÉTAIL BUVETTE — alcool / sans alcool, écocups, espèces').setFontSize(16).setFontWeight('bold').setFontColor(navy);
-  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Chaque match est figé 🔒 deux jours après sa date : ses chiffres sont conservés et ne bougent plus (menu 🔓 pour en recalculer un). Non remboursés = vendus − rendus : gardés par le spectateur, ou rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète). Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise. Fond de départ = fond saisi à la clôture, sinon fond de la saison (B1 350 €, B2 450 €, B3 sans caisse) ; espèces attendues = fond + solde espèces ; marge négative = la caisse a dû manquer de liquide.")
+  sh.getRange(2, 1).setValue("Mis à jour automatiquement (clôtures + toutes les 10 min). Chaque match est figé 🔒 deux jours après sa date : ses chiffres sont conservés et ne bougent plus (menu 🔓 pour en recalculer un). Non remboursés = vendus − rendus : gardés par le spectateur, rapportés mais pas remboursés faute d'espèces (bouton 🚫 de la tablette, à partir du match contre Sète), ou récupérés sur le comptoir / ramassés sans demande de remboursement (bouton 🫙, à partir du match contre Cannes). Stock et rachat : onglet 🥤 STOCK ÉCOCUPS. Par buvette, un gobelet vendu à une buvette et rendu à une autre fausse un peu le détail : se fier au total du match. Fond de caisse minimum = pire déficit d'espèces pendant le match (consignes payées en CB et remboursées en liquide), monnaie à rendre non comprise. Fond de départ = fond saisi à la clôture, sinon fond de la saison (B1 350 €, B2 450 €, B3 sans caisse) ; espèces attendues = fond + solde espèces ; marge négative = la caisse a dû manquer de liquide.")
     .setFontStyle('italic').setFontColor('#666666').setWrap(false);
   sh.getRange(3, 1, 1, nc).setValues([AFF_COLS.map(function (c) { return c[1]; })])
     .setBackground(navy).setFontColor(jaune).setFontWeight('bold').setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
@@ -1085,5 +1097,6 @@ function pilotageDetailBuvette(silencieux) {
   sh.setFrozenRows(3); sh.setFrozenColumns(4);
   sh.setColumnWidths(1, 4, 105); sh.setColumnWidths(5, nc - 4, 112);
   if (!silencieux) { try { ss.toast(out.length + ' ligne(s) dans ' + PIL_DETAIL_TAB); } catch (e) {} }
+  try { pilotageStockEcocups(true); } catch (e) {}   // 🥤 STOCK ÉCOCUPS suit le détail buvette
   return out.length;
 }
