@@ -197,6 +197,12 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .rendu .l{font-size:1.1rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .rendu .v{font-family:var(--font-display);font-size:5rem;line-height:1.05;color:var(--ok)}
 .rendu .s{font-weight:700;color:var(--muted);margin-bottom:14px}
+.qb-modal{text-align:center;max-width:560px}
+.qb-modal h3{padding:0;font-size:1.9rem;margin-bottom:6px}
+.qb-modal p{color:var(--muted);font-weight:800;font-size:1.05rem;margin-bottom:16px}
+.qb-oui{width:100%;min-height:96px;border-radius:18px;background:var(--primary);color:var(--on-primary);font-size:1.5rem;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.qb-oui small,.qb-non small{font-size:.85rem;font-weight:700;opacity:.85}
+.qb-non{width:100%;min-height:70px;margin-top:10px;border-radius:16px;background:var(--surface);border:2px solid var(--border);font-size:1.15rem;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .big-ok{width:100%;min-height:70px;border-radius:16px;background:var(--primary);color:var(--on-primary);font-size:1.3rem;font-weight:900}
 
 /* Scanner */
@@ -362,10 +368,21 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
   </div>
 </div>
 
+<!-- QUESTION BILLET (avant chaque encaissement sans billet) -->
+<div class="overlay" id="m-question">
+  <div class="modal qb-modal">
+    <button class="x" onclick="annulerQuestion()" aria-label="Fermer">✕</button>
+    <h3>🎫 « Vous avez votre billet ? »</h3>
+    <p>Demande-le avant d'encaisser · Abonné −10 % · billet −5 %</p>
+    <button class="qb-oui" onclick="questionOui()">🎫 Oui → scanner<small>la remise s'applique toute seule</small></button>
+    <button class="qb-non" id="qb-non" onclick="questionNon()">Non, pas de billet</button>
+  </div>
+</div>
+
 <!-- SCANNER -->
 <div class="overlay" id="m-scan">
   <div class="modal">
-    <button class="x" onclick="fermerScanner()" aria-label="Fermer">✕</button>
+    <button class="x" onclick="annulerScanner()" aria-label="Fermer">✕</button>
     <h3>🎫 Montre-moi ton billet ou ta carte</h3>
     <div id="scan-ko" hidden></div>
     <div id="scan-zone">
@@ -378,7 +395,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         <button class="btn prim" type="submit">OK</button>
       </form>
     </div>
-    <div class="row2"><button class="btn" onclick="fermerScanner()">Pas de billet → continuer</button><button class="btn" id="btn-rescan" onclick="relancerScan()" hidden>🔁 Rescanner</button></div>
+    <div class="row2"><button class="btn" onclick="sansBillet()">Pas de billet → continuer</button><button class="btn" id="btn-rescan" onclick="relancerScan()" hidden>🔁 Rescanner</button></div>
   </div>
 </div>
 
@@ -458,7 +475,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.16-fond</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.21-billet</p>
     </div>
   </div>
 </div>
@@ -949,13 +966,33 @@ function viderPanier() { panier = nouveauPanier(); billet = null; renderAll(); }
 // ═══════════════════════════════════════════════════════════════════
 // ENCAISSEMENT
 // ═══════════════════════════════════════════════════════════════════
-function ouvrirCB() {
+// Avant d'encaisser : si la commande contient des boissons et qu'aucun billet n'est scanné,
+// la tablette pose la question « Vous avez votre billet ? » (une touche « Non » pour passer).
+let paiementEnAttente = null;   // 'CB' | 'ESP' pendant la question / le scan
+function questionBillet(mode) {
+  if (billet || !Object.values(panier.lignes).some(q => q > 0) || totalPanier() <= 0) return false;
+  paiementEnAttente = mode;
+  document.getElementById('qb-non').innerHTML = `Non, pas de billet<small>${mode === 'CB' ? '💳 CB' : '💶 Espèces'} · ${fmt(totalPanier())}</small>`;
+  ouvrir('m-question');
+  return true;
+}
+function questionOui() { fermer('m-question'); ouvrirScanner(); }
+function questionNon() { fermer('m-question'); reprendrePaiement(); }
+function annulerQuestion() { paiementEnAttente = null; fermer('m-question'); }
+function reprendrePaiement() {
+  const m = paiementEnAttente; paiementEnAttente = null;
+  if (m === 'CB') ouvrirCB(true); else if (m === 'ESP') ouvrirEspeces(true);
+}
+function sansBillet() { fermerScanner(); reprendrePaiement(); }
+function ouvrirCB(dejaDemande) {
   if (panierVide()) return;
+  if (!dejaDemande && questionBillet('CB')) return;
   document.getElementById('cb-montant').textContent = fmt(totalPanier());
   ouvrir('m-cb');
 }
-function ouvrirEspeces() {
+function ouvrirEspeces(dejaDemande) {
   if (panierVide() || sansCaisse()) return;
+  if (!dejaDemande && questionBillet('ESP')) return;
   const tot = totalPanier();
   document.getElementById('cash-du').textContent = fmt(tot);
   // Billets/pièces probables : montant exact + coupures supérieures au total
@@ -1250,6 +1287,7 @@ function relierBillet(t, barcode) {
   fermerScanner();
   vibre(30);
   renderPanier();
+  if (paiementEnAttente) setTimeout(reprendrePaiement, 600);   // question « billet ? » → on enchaîne sur le paiement, remise incluse
   info((t.nonVerifie ? '🎫 Billet enregistré (vérifié plus tard)' : `🎫 ${nom || 'Billet'} relié`) + ' · ' + libelleRemise() + ' appliquée');
 }
 function refuserBillet(msg) {
@@ -1261,6 +1299,7 @@ function refuserBillet(msg) {
 }
 function relancerScan() { arreterCamera(); ouvrirScanner(); }
 function fermerScanner() { arreterCamera(); fermer('m-scan'); }
+function annulerScanner() { paiementEnAttente = null; fermerScanner(); }
 function retirerBillet() { billet = null; renderPanier(); }
 
 // Douchette USB/Bluetooth : elle « tape » le code très vite puis Entrée
@@ -1671,7 +1710,7 @@ function verrouiller() { deverrouilleJusqua = 0; }
 function fermerEtVerrouiller(id) { fermer(id); info('🔒 Verrouillé'); }
 document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => {
   if (e.target !== o) return;
-  if (o.id === 'm-scan') fermerScanner(); else if (o.id === 'm-aide') fermerAide(); else fermer(o.id);
+  if (o.id === 'm-scan') annulerScanner(); else if (o.id === 'm-question') annulerQuestion(); else if (o.id === 'm-aide') fermerAide(); else fermer(o.id);
 }));
 
 try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch(e) {}
