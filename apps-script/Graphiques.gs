@@ -194,38 +194,35 @@ function grConstruire_(ss) {
   // Graphiques
   const base = function (b, titre, w, h) {
     return b.setOption('title', titre).setOption('titleTextStyle', { color: C.navy, fontSize: 13, bold: true })
-      .setOption('legend', { position: 'bottom', textStyle: { color: '#33495a' } }).setOption('width', w).setOption('height', h)
-      .setOption('backgroundColor', '#ffffff').setOption('chartArea', { left: 60, top: 40, width: '82%', height: '62%' })
-      .setOption('hAxis', { textStyle: { color: '#33495a', fontSize: 10 } });
+      .setOption('legend', { position: 'bottom' }).setOption('width', w).setOption('height', h)
+      // Plages séparées (catégories + valeurs) assemblées en colonnes : sans cela, Sheets peut afficher un graphique vide
+      .setMergeStrategy(Charts.ChartMergeStrategy.MERGE_COLUMNS).setTransposeRowsAndColumns(false);
   };
   const R = function (r, c, n, k) { return sh.getRange(r, c, n, k || 1); };
   const S1 = rs, SN = ns + 1, M1 = rm, MN = nm + 1;
   const w3 = 426, h3 = 300, w2 = 650, h2 = 320;
   // Saison
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(S1, 1, SN)).addRange(R(S1, 4, SN)).setNumHeaders(1), 'CA boissons par match', w3, h3)
-    .setOption('colors', [C.navy]).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '#,##0 €', minValue: 0, gridlines: { color: '#e6edf3' } })
+    .setOption('colors', [C.navy]).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '#,##0 €', minValue: 0 })
     .setPosition(11, 1, 4, 6).build());
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(S1, 1, SN)).addRange(R(S1, 7, SN)).setNumHeaders(1), 'Recette par spectateur', w3, h3)
-    .setOption('colors', [C.day]).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '0.00 €', minValue: 0, gridlines: { color: '#e6edf3' } })
+    .setOption('colors', [C.day]).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '0.00 €', minValue: 0 })
     .setPosition(11, 5, 8, 6).build());
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(S1, 1, SN)).addRange(R(S1, 8, SN, 3)).setNumHeaders(1), 'Ventes reliées à un billet, par buvette', w3, h3)
-    .setOption('colors', C.b).setOption('vAxis', { format: '0%', minValue: 0, gridlines: { color: '#e6edf3' } })
+    .setOption('colors', C.b).setOption('vAxis', { format: '0%', minValue: 0 })
     .setPosition(11, 9, 12, 6).build());
   // Match
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(M1, 1, MN)).addRange(R(M1, 2, MN, 3)).setNumHeaders(1).setStacked(), 'Rythme des ventes : CA boissons par quart d\'heure', w2, h2)
-    .setOption('colors', C.b).setOption('vAxis', { format: '#,##0 €', minValue: 0, gridlines: { color: '#e6edf3' } }).setOption('bar', { groupWidth: '75%' })
+    .setOption('colors', C.b).setOption('vAxis', { format: '#,##0 €', minValue: 0 }).setOption('bar', { groupWidth: '75%' })
     .setPosition(30, 1, 4, 6).build());
   sh.insertChart(base(sh.newChart().asBarChart().addRange(R(M1, 10, 13)).addRange(R(M1, 11, 13)).setNumHeaders(1), 'Produits vendus (CA encaissé)', w2, h2)
-    .setOption('colors', [C.navy]).setOption('legend', { position: 'none' }).setOption('hAxis', { format: '#,##0 €', minValue: 0, textStyle: { color: '#33495a', fontSize: 10 } })
-    .setOption('chartArea', { left: 130, top: 40, width: '72%', height: '75%' })
+    .setOption('colors', [C.navy]).setOption('legend', { position: 'none' }).setOption('hAxis', { format: '#,##0 €', minValue: 0 })
     .setPosition(30, 7, 20, 6).build());
   sh.insertChart(base(sh.newChart().asLineChart().addRange(R(M1, 1, MN)).addRange(R(M1, 5, MN, 2)).setNumHeaders(1), 'Encaissements cumulés : CB et espèces', w2, h2)
-    .setOption('colors', [C.cb, C.esp]).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0 €', gridlines: { color: '#e6edf3' } })
-    .setOption('series', { 1: { lineDashStyle: [6, 4] } })
+    .setOption('colors', [C.cb, C.esp]).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0 €' })
     .setPosition(47, 1, 4, 6).build());
   sh.insertChart(base(sh.newChart().asLineChart().addRange(R(M1, 1, MN)).addRange(R(M1, 7, MN, 2)).setNumHeaders(1), 'Écocups pendant le match (cumul)', w2, h2)
-    .setOption('colors', [C.navy, C.gris]).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0', minValue: 0, gridlines: { color: '#e6edf3' } })
-    .setOption('series', { 1: { lineDashStyle: [6, 4] } })
+    .setOption('colors', [C.navy, C.gris]).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0', minValue: 0 })
     .setPosition(47, 7, 20, 6).build());
 
   sh.hideColumns(16);
