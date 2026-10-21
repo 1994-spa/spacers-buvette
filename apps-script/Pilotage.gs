@@ -673,7 +673,10 @@ function pilDashboard_(eventId) {
   const vd = idm ? feuille_('DETAIL') : null;
   if (vd && vd.getLastRow() > 1) {
     vd.getRange(2, 1, vd.getLastRow() - 1, PIL_VD_HDR.length).getValues().forEach(function (r) {
-      if (String(r[0]) !== idm || !/^E(01|33|50)$/.test(String(r[3]))) return;
+      if (String(r[0]) !== idm) return;
+      const pp = buv.parProduit[String(r[3])];   // CA encaissé par produit (prix de la tablette, remises comprises), pour le graphique
+      if (pp && /^(VENTE|ANNULATION)$/.test(String(r[10]))) pp.ca = (pp.ca || 0) + (Number(r[8]) || 0);
+      if (!/^E(01|33|50)$/.test(String(r[3]))) return;
       const k = (/REMBOURSEMENT/.test(String(r[10])) ? 'r' : 's') + (String(r[3]) === 'E50' ? '50' : '33'), q = Number(r[5]) || 0;
       buv.gob[k] += q;
       const pb = buv.parBuvette[r[2]]; if (pb) { pb.gob = pb.gob || { s33: 0, r33: 0, s50: 0, r50: 0 }; pb.gob[k] += q; }
@@ -681,8 +684,90 @@ function pilDashboard_(eventId) {
   }
   const stock = pilProp_('PIL_STOCK', {});
   const clotures = idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {};
+  const graph = pilGraphiques_(data, rows, idm);
   return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(), clotures: clotures,
-    produits: PIL.PRODUITS.map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString() };
+    produits: PIL.PRODUITS.map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString(),
+    serie: graph.serie, saison: graph.saison, fonds: PIL.FONDS_CAISSE, sansCaisse: PIL.BUVETTES_SANS_CAISSE };
+}
+
+// ── Graphiques du tableau de bord ────────────────────────────────────────
+// serie  : le match, par quart d'heure — CA boissons (hors consignes) par buvette, CB / espèces, espèces par buvette,
+//          écocups sortis / revenus (rendus + plus d'espèces + récupérés).
+// saison : un point par match de la saison (CA boissons, ventes, panier, € / spectateur, ventes reliées à un billet par buvette).
+// Une vente annulée et sa ligne d'annulation sont écartées toutes les deux ; les boissons bénévoles (0 €) ne sont pas des ventes.
+function pilGraphiques_(data, rows, idm) {
+  const tz = pilTz_();
+  const quart = function (ts) { const d = new Date(ts); return isNaN(d) ? '' : Utilities.formatDate(new Date(Math.floor(d.getTime() / 900000) * 900000), tz, 'HH:mm'); };
+  const annulees = {};
+  data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
+  const ecartee = function (r) { return annulees[String(r[PIL_I['ID vente']])] || /^annulation/.test(String(r[PIL_I['Fidélité']])); };
+  const boissons = function (r) { return (Number(r[PIL_I['Total €']]) || 0) - (Number(r[PIL_I['Consignes +']]) || 0) + (Number(r[PIL_I['Consignes rendues']]) || 0); };
+  const relie = function (r) { return !!(r[PIL_I['ID billet']] || r[PIL_I['Code-barres']]); };
+
+  // Le match affiché
+  const serie = {};
+  const pt = function (q) { return serie[q] = serie[q] || { ca: {}, cb: 0, esp: 0, espB: {}, ventes: 0, sortis: 0, revenus: 0 }; };
+  rows.forEach(function (r) {
+    if (ecartee(r)) return;
+    const q = quart(r[PIL_I['Horodatage']]); if (!q) return;
+    const p = pt(q), b = String(r[PIL_I['Buvette']] || '?'), pay = String(r[PIL_COL_PAIEMENT] || ''), tot = Number(r[PIL_I['Total €']]) || 0;
+    p.sortis += Number(r[PIL_I['Consignes +']]) || 0;
+    p.revenus += Number(r[PIL_I['Consignes rendues']]) || 0;
+    if (pay === 'BENEVOLE') return;
+    p.ca[b] = (p.ca[b] || 0) + boissons(r);
+    if (pay === 'CB') p.cb += tot;
+    else if (pay === 'ESP') { p.esp += tot; p.espB[b] = (p.espB[b] || 0) + tot; }
+    if (boissons(r) > 0) p.ventes++;
+  });
+
+  // Écocups revenus sans remboursement (plus d'espèces, récupérés) : onglet technique à part
+  const nrParMatch = {};
+  const nr = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PIL_NR_TAB);
+  if (nr && nr.getLastRow() > 1) nr.getRange(2, 1, nr.getLastRow() - 1, 7).getValues().forEach(function (r) {
+    const n = (Number(r[5]) || 0) + (Number(r[6]) || 0), m = String(r[3] || '');
+    nrParMatch[m] = (nrParMatch[m] || 0) + n;
+    if (idm && m === idm) { const q = quart(r[1]); if (q) pt(q).revenus += n; }
+  });
+
+  // La saison du match (📅 MATCHS : date, adversaire, affluence, saison)
+  const infos = {};
+  let saisonCourante = '';
+  const sm = feuille_('MATCHS');
+  if (sm && sm.getLastRow() > 1) {
+    const d = sm.getDataRange().getValues(), h = d[0].map(String);
+    const c = { id: h.indexOf('ID_MATCH'), date: h.indexOf('DATE'), adv: h.indexOf('ADVERSAIRE'), aff: h.indexOf('AFFLUENCE'), s: h.indexOf('SAISON') };
+    d.slice(1).forEach(function (r) {
+      const id = String(r[c.id] || ''); if (!id) return;
+      const dv = c.date >= 0 ? r[c.date] : '';
+      infos[id] = { date: dv ? pilDate_(dv instanceof Date ? dv : new Date(dv)) : '', adv: c.adv >= 0 ? String(r[c.adv] || '') : '',
+        aff: c.aff >= 0 ? Number(r[c.aff]) || 0 : 0, saison: c.s >= 0 ? String(r[c.s] || '') : '' };
+    });
+    if (idm && infos[idm]) saisonCourante = infos[idm].saison;
+  }
+  const parMatch = {};
+  data.forEach(function (r) {
+    const m = String(r[PIL_I['ID_MATCH']] || ''); if (!m || ecartee(r)) return;
+    if (saisonCourante && infos[m] && infos[m].saison && infos[m].saison !== saisonCourante) return;
+    const o = parMatch[m] = parMatch[m] || { ca: 0, ventes: 0, reliees: 0, parBuvette: {}, sortis: 0, rendus: 0, premier: null };
+    const b = String(r[PIL_I['Buvette']] || '?'), pay = String(r[PIL_COL_PAIEMENT] || '');
+    o.sortis += Number(r[PIL_I['Consignes +']]) || 0;
+    o.rendus += Number(r[PIL_I['Consignes rendues']]) || 0;
+    const t = new Date(r[PIL_I['Horodatage']]); if (!isNaN(t) && (!o.premier || t < o.premier)) o.premier = t;
+    if (pay === 'BENEVOLE') return;
+    const ca = boissons(r);
+    o.ca += ca;
+    if (ca <= 0) return;                     // remboursement de gobelets seul : pas une vente de boisson
+    const pb = o.parBuvette[b] = o.parBuvette[b] || { ventes: 0, reliees: 0 };
+    o.ventes++; pb.ventes++;
+    if (relie(r)) { o.reliees++; pb.reliees++; }
+  });
+  const saison = Object.keys(parMatch).filter(function (m) { return parMatch[m].ventes > 0; }).map(function (m) {
+    const o = parMatch[m], inf = infos[m] || {};
+    return { id: m, date: inf.date || (o.premier ? pilDate_(o.premier) : ''), adversaire: inf.adv || m, affluence: inf.aff || 0,
+      ca: Math.round(o.ca * 100) / 100, ventes: o.ventes, reliees: o.reliees, parBuvette: o.parBuvette,
+      sortis: o.sortis, revenus: o.rendus + (nrParMatch[m] || 0) };
+  }).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+  return { serie: serie, saison: { nom: saisonCourante, matchs: saison } };
 }
 
 // Affluence Tickie → colonne AFFLUENCE de 📅 MATCHS

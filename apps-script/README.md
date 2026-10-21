@@ -61,3 +61,9 @@ Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*
 - **Écart CB = remise Pennylane − CB enregistrée** : > 0 = paiements passés sur le TPE sans saisie tablette ; < 0 = CB tablette absente de la remise.
 - Recalculé après chaque import Pennylane (toutes les 6 h) ou menu 📡 Pilotage live → 💳 Rapprochement CB. Aucune saisie.
 - Ajout : Apps Script → Fichiers ➕ → Script `Rapprochement`, coller `Rapprochement.gs` ; remplacer `Pilotage.gs` et `Achats.gs` ; enregistrer.
+
+## Graphiques du tableau de bord (pilotage.html)
+- `action=dashboard` renvoie aussi `serie` (le match par quart d'heure : CA boissons par buvette, CB / espèces, espèces par buvette,
+  écocups sortis / revenus) et `saison` (un point par match de la saison : CA boissons, ventes, ventes reliées par buvette, affluence).
+- Ventes annulées écartées avec leur annulation ; boissons bénévoles hors ventes ; CA par produit lu dans ⚙️ détail ventes.
+- Aucun onglet du Sheet n'est modifié.
