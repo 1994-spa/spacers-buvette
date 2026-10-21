@@ -475,7 +475,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.21-billet</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.21-arrondi</p>
     </div>
   </div>
 </div>
@@ -828,18 +828,26 @@ function remiseLigne(ref, q) {
 }
 function remiseFormules() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { const l = remiseLigne(r, q); if (l.type === 'formule') t += l.m; }); return Math.round(t * 100) / 100; }
 function sousTotalProduits() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { t += q * priceOf(prod(r)); }); return t - remiseFormules(); }
-function remisePanier() {
+// Remise billet brute (au centime près), avant arrondi
+function remiseBilletBrute(lignes) {
   if (!billet) return 0;
-  let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) { const l = remiseLigne(r, q); if (l.type === 'billet') t += l.m; } });
+  let t = 0; Object.entries(lignes).forEach(([r, q]) => { if (q > 0) { const l = remiseLigne(r, q); if (l.type === 'billet') t += l.m; } });
   return Math.round(t * 100) / 100;
+}
+// Arrondie aux 10 centimes supérieurs, en faveur du client : pas de pièces de 5 centimes à rendre
+// (ex. eau 1 € −5 % → 0,90 €). La consigne n'est jamais remisée.
+function remisePanier() {
+  const t = remiseBilletBrute(panier.lignes);
+  return t > 0 ? Math.ceil(Math.round(t * 1000) / 100) / 10 : 0;
 }
 function totalPanier() {
   return Math.round((sousTotalProduits() - remisePanier() + (panier.consigne - panier.rendue) * CONSIGNE) * 100) / 100;
 }
 // Prix réellement encaissé par verre (formules et remise billet réparties), envoyé au Sheet pour un CA exact
 function prixEncaisses(lignes) {
-  return Object.fromEntries(Object.keys(lignes).map(r => { const q = lignes[r], pu = priceOf(prod(r));
-    return [r, Math.round((pu - remiseLigne(r, q).m / q) * 1000) / 1000]; }));
+  const brute = remiseBilletBrute(lignes), k = brute > 0 ? remisePanier() / brute : 1;   // l'arrondi est réparti sur les lignes remisées
+  return Object.fromEntries(Object.keys(lignes).map(r => { const q = lignes[r], pu = priceOf(prod(r)), l = remiseLigne(r, q);
+    return [r, Math.round((pu - (l.type === 'billet' ? l.m * k : l.m) / q) * 1000) / 1000]; }));
 }
 // Conso bénévole : seulement des boissons (pas d'écocup ni de billet), jamais un remboursement
 function benevolePossible() {
@@ -997,10 +1005,10 @@ function ouvrirEspeces(dejaDemande) {
   document.getElementById('cash-du').textContent = fmt(tot);
   // Billets/pièces probables : montant exact + coupures supérieures au total
   const cand = [5, 10, 20, 50, 100].filter(v => v > tot);
-  const arr = [Math.ceil(tot), Math.ceil(tot / 5) * 5].filter(v => v > tot && !cand.includes(v));
+  const arr = [Math.ceil(tot * 2) / 2, Math.ceil(tot), Math.ceil(tot / 5) * 5].filter(v => v > tot && !cand.includes(v));
   const choix = [...new Set([...arr, ...cand])].sort((a, b) => a - b).slice(0, 6);
   document.getElementById('notes').innerHTML = `<button class="note exact" onclick="payerEspeces(${tot})">✓ Compte juste (${fmt(tot)})</button>`
-    + choix.map(v => `<button class="note" onclick="payerEspeces(${v})">${v} €</button>`).join('');
+    + choix.map(v => `<button class="note" onclick="payerEspeces(${v})">${fmt(v)}</button>`).join('');
   document.getElementById('cash-step1').hidden = false;
   document.getElementById('cash-step2').hidden = true;
   ouvrir('m-cash');
@@ -1349,7 +1357,8 @@ function afficherRapport() {
     ${inventaireHtml(cl)}`
     + (cl ? `<div class="msg ${cl.envoyee ? 'ok' : 'warn'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })} — ${cl.envoyee ? 'rapport arrivé dans le Sheet ✅' : 'rapport gardé dans la tablette, il partira au retour du wifi 📶'}</div>
           <button class="btn small" style="margin-top:8px" onclick="rouvrirCaisse()">Rouvrir la caisse (corriger le comptage)</button>`
-         : `<button class="btn prim" style="width:100%;margin-top:10px;min-height:60px" onclick="cloturerCaisse()">🔒 Clôturer : caisse + inventaire, envoyer le rapport</button>`);
+         : `<button class="btn prim" style="width:100%;margin-top:10px;min-height:60px" onclick="cloturerCaisse()">🔒 Clôturer : caisse + inventaire, envoyer le rapport</button>`
+           + (stockSuivi() ? `<button class="btn" style="width:100%;margin-top:8px;min-height:54px" onclick="cloturerCaisseSeule()">💶 Clôturer la caisse seulement<small style="display:block;font-weight:600">pas le temps de compter le stock : on garde le stock théorique, à corriger au tableau de bord</small></button>` : ''));
   h += `<div class="grid2"><div><div class="sec">Vendu</div><div class="rows">`;
   const vendus = CATALOGUE.filter(p => (c.lignes[p.ref] || 0) > 0);
   h += vendus.length ? vendus.map(p => `<div><span>${esc(p.nom)} × ${c.lignes[p.ref]}</span><b>${fmt(c.lignes[p.ref] * p.pv)}</b></div>`).join('') : '<div><span>Aucune vente</span><b>—</b></div>';
@@ -1497,6 +1506,8 @@ function cloturerCaisse() {
   afficherRapport();
   info('🔒 Caisse clôturée');
 }
+// Clôture caisse sans inventaire : même envoi, stock théorique (comme la case « je ne peux pas compter »)
+function cloturerCaisseSeule() { invNonCompte = true; cloturerCaisse(); if (!state.clotures[state.tab]) invNonCompte = false; }
 function rouvrirCaisse() { delete state.clotures[state.tab]; save(); afficherRapport(); }
 // ── Stock reçu pendant le match (packs rajoutés, fût apporté…) ──
 function refsReassort() { return [['FUT', '🍺 Fûts de 30 L']].concat(CATALOGUE.filter(p => !LITRES[p.ref]).map(p => [p.ref, p.nom + (BOUTEILLE_L[p.ref] ? ' (bouteilles)' : '')])); }
