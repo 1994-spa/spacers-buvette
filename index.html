@@ -191,6 +191,9 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .cash-q{text-align:center;font-weight:900;font-size:1.05rem;margin:10px 0}
 .notes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .note{min-height:80px;border-radius:16px;background:var(--surface-2);border:2px solid var(--border);font-family:var(--font-display);font-size:1.8rem;font-weight:700}
+.autre{grid-column:1/-1;display:flex;gap:10px}
+.autre .input{flex:1;font-size:1.5rem;font-weight:700;text-align:right;min-height:64px}
+.autre .btn{min-width:110px;font-size:1.2rem}
 .note.exact{grid-column:1/-1;background:var(--cash);color:var(--on-cash);border:none;font-family:var(--font-body);font-size:1.25rem;font-weight:900}
 .note:active{transform:scale(.97)}
 .rendu{text-align:center;padding:10px 0}
@@ -475,7 +478,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.21-saisies</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.21-especes</p>
     </div>
   </div>
 </div>
@@ -1009,10 +1012,19 @@ function ouvrirEspeces(dejaDemande) {
   const arr = [Math.ceil(tot * 2) / 2, Math.ceil(tot), Math.ceil(tot / 5) * 5].filter(v => v > tot && !cand.includes(v));
   const choix = [...new Set([...arr, ...cand])].sort((a, b) => a - b).slice(0, 6);
   document.getElementById('notes').innerHTML = `<button class="note exact" onclick="payerEspeces(${tot})">✓ Compte juste (${fmt(tot)})</button>`
-    + choix.map(v => `<button class="note" onclick="payerEspeces(${v})">${fmt(v)}</button>`).join('');
+    + choix.map(v => `<button class="note" onclick="payerEspeces(${v})">${fmt(v)}</button>`).join('')
+    + `<div class="autre"><input class="input" id="cash-autre" inputmode="decimal" placeholder="autre montant reçu" onkeydown="if(event.key==='Enter')payerAutre()"><button class="btn prim" onclick="payerAutre()">OK</button></div>`;
   document.getElementById('cash-step1').hidden = false;
   document.getElementById('cash-step2').hidden = true;
   ouvrir('m-cash');
+}
+// Montant donné hors boutons (ex. 10,20 € pour qu'on lui rende une pièce ronde)
+function payerAutre() {
+  const v = Number(String(document.getElementById('cash-autre').value).replace(/\s/g, '').replace(',', '.'));
+  const tot = totalPanier();
+  if (!v || isNaN(v)) { info('Tape le montant donné par le client'); return; }
+  if (v < tot) { info('Il manque ' + fmt(Math.round((tot - v) * 100) / 100)); return; }
+  payerEspeces(Math.round(v * 100) / 100);
 }
 function payerEspeces(donne) {
   const tot = totalPanier();
