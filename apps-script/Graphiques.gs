@@ -14,6 +14,8 @@
 
 const GR_TAB = '📈 GRAPHIQUES';
 const GR_DATA_TAB = '⚙️ graphiques données';
+// Noms des buvettes dans les tableaux et légendes (B1 Porte 4, B2 Porte 6, B3 intérieure)
+const GR_BUV = ['B1 · Porte 4', 'B2 · Porte 6', 'B3 · Intérieure'];
 const GR_COUL = { navy: '#001E2D', day: '#91BEE6', b: ['#2a78d6', '#eb6834', '#1baf7a'], cb: '#6250d6', esp: '#eda100', gris: '#8a99a8', fond: '#f1f6fb' };
 // Blocs de l'onglet de données (colonnes)
 const GR_S_HDR = ['LIBELLÉ', 'ID_MATCH', 'SAISON', 'MATCH', 'DATE', 'AFFLUENCE', 'CA BOISSONS €', 'VENTES', 'PANIER MOYEN €', 'RECETTE / SPECTATEUR €',
@@ -166,7 +168,7 @@ function grConstruire_(ss) {
 
   // Tableau saison
   const rs = GR_R.saisonT, ns = GR_R.lignesSaison;
-  const hs = ['Match', 'Date', 'Affluence', 'CA boissons', 'Ventes', 'Panier moyen', 'Recette / spectateur', 'Buvette 1', 'Buvette 2', 'Buvette 3', 'Billet : toutes', 'Part alcool', 'Écocups sortis', 'Écocups revenus'];
+  const hs = ['Match', 'Date', 'Affluence', 'CA boissons', 'Ventes', 'Panier moyen', 'Recette / spectateur', GR_BUV[0], GR_BUV[1], GR_BUV[2], 'Billet : toutes', 'Part alcool', 'Écocups sortis', 'Écocups revenus'];
   sh.getRange(rs, 1, 1, hs.length).setValues([hs]).setBackground(C.day).setFontColor(C.navy).setFontWeight('bold').setWrap(true).setFontSize(9);
   sh.getRange(rs + 1, 1).setFormula(grF_('=IFERROR(FILTER(' + D + 'D2:Q,' + D + 'C2:C=$P$5,' + D + 'B2:B<>""),"Pas encore de vente cette saison")'));
   sh.getRange(rs + 1, 2, ns, 1).setNumberFormat('dd/MM/yyyy');
@@ -180,7 +182,7 @@ function grConstruire_(ss) {
 
   // Tableaux du match : quarts d'heure (A:H) et produits (J:L)
   const rm = GR_R.matchT, nm = GR_R.lignesMatch;
-  const hq = ['Heure', 'Buvette 1', 'Buvette 2', 'Buvette 3', 'CB cumulée', 'Espèces cumulées', 'Écocups sortis', 'Écocups revenus'];
+  const hq = ['Heure', GR_BUV[0], GR_BUV[1], GR_BUV[2], 'CB cumulée', 'Espèces cumulées', 'Écocups sortis', 'Écocups revenus'];
   sh.getRange(rm, 1, 1, hq.length).setValues([hq]).setBackground(C.day).setFontColor(C.navy).setFontWeight('bold').setWrap(true).setFontSize(9);
   sh.getRange(rm + 1, 1).setFormula(grF_('=IFERROR(FILTER(' + D + nl(GR_Q_COL + 1) + '2:' + nl(GR_Q_COL + 8) + ',' + D + nl(GR_Q_COL) + '2:' + nl(GR_Q_COL) + '=$P$4),"")'));
   sh.getRange(rm + 1, 2, nm, 5).setNumberFormat('#,##0 €');
@@ -203,26 +205,26 @@ function grConstruire_(ss) {
   const w3 = 426, h3 = 300, w2 = 650, h2 = 320;
   // Saison
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(S1, 1, SN)).addRange(R(S1, 4, SN)).setNumHeaders(1), 'CA boissons par match', w3, h3)
-    .setOption('colors', [C.navy]).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '#,##0 €', minValue: 0 })
+    .setOption('series', grSeries_([C.navy])).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '#,##0 €', minValue: 0 })
     .setPosition(11, 1, 4, 6).build());
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(S1, 1, SN)).addRange(R(S1, 7, SN)).setNumHeaders(1), 'Recette par spectateur', w3, h3)
-    .setOption('colors', [C.day]).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '0.00 €', minValue: 0 })
+    .setOption('series', grSeries_([C.day])).setOption('legend', { position: 'none' }).setOption('vAxis', { format: '0.00 €', minValue: 0 })
     .setPosition(11, 5, 8, 6).build());
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(S1, 1, SN)).addRange(R(S1, 8, SN, 3)).setNumHeaders(1), 'Ventes reliées à un billet, par buvette', w3, h3)
-    .setOption('colors', C.b).setOption('vAxis', { format: '0%', minValue: 0 })
+    .setOption('series', grSeries_(C.b)).setOption('vAxis', { format: '0%', minValue: 0 })
     .setPosition(11, 9, 12, 6).build());
   // Match
   sh.insertChart(base(sh.newChart().asColumnChart().addRange(R(M1, 1, MN)).addRange(R(M1, 2, MN, 3)).setNumHeaders(1).setStacked(), 'Rythme des ventes : CA boissons par quart d\'heure', w2, h2)
-    .setOption('colors', C.b).setOption('vAxis', { format: '#,##0 €', minValue: 0 }).setOption('bar', { groupWidth: '75%' })
+    .setOption('series', grSeries_(C.b)).setOption('vAxis', { format: '#,##0 €', minValue: 0 }).setOption('bar', { groupWidth: '75%' })
     .setPosition(30, 1, 4, 6).build());
   sh.insertChart(base(sh.newChart().asBarChart().addRange(R(M1, 10, 13)).addRange(R(M1, 11, 13)).setNumHeaders(1), 'Produits vendus (CA encaissé)', w2, h2)
-    .setOption('colors', [C.navy]).setOption('legend', { position: 'none' }).setOption('hAxis', { format: '#,##0 €', minValue: 0 })
+    .setOption('series', grSeries_([C.navy])).setOption('legend', { position: 'none' }).setOption('hAxis', { format: '#,##0 €', minValue: 0 })
     .setPosition(30, 7, 20, 6).build());
   sh.insertChart(base(sh.newChart().asLineChart().addRange(R(M1, 1, MN)).addRange(R(M1, 5, MN, 2)).setNumHeaders(1), 'Encaissements cumulés : CB et espèces', w2, h2)
-    .setOption('colors', [C.cb, C.esp]).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0 €' })
+    .setOption('series', grSeries_([C.cb, C.esp])).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0 €' })
     .setPosition(47, 1, 4, 6).build());
   sh.insertChart(base(sh.newChart().asLineChart().addRange(R(M1, 1, MN)).addRange(R(M1, 7, MN, 2)).setNumHeaders(1), 'Écocups pendant le match (cumul)', w2, h2)
-    .setOption('colors', [C.navy, C.gris]).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0', minValue: 0 })
+    .setOption('series', grSeries_([C.navy, C.gris])).setOption('lineWidth', 3).setOption('vAxis', { format: '#,##0', minValue: 0 })
     .setPosition(47, 7, 20, 6).build());
 
   sh.hideColumns(16);
@@ -244,6 +246,9 @@ function grF_(formule) {
   }
   return out;
 }
+
+// Couleur par série (ordre fixe : une buvette garde sa couleur dans tous les graphiques)
+function grSeries_(couleurs) { const o = {}; couleurs.forEach(function (c, i) { o[i] = { color: c }; }); return o; }
 
 function grLettre_(c) { let s = ''; while (c > 0) { const m = (c - 1) % 26; s = String.fromCharCode(65 + m) + s; c = Math.floor((c - 1) / 26); } return s; }
 
