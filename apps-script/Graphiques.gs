@@ -137,8 +137,8 @@ function grConstruire_(ss) {
   sh.getRange('B4:D4').merge().setBackground(C.day).setFontWeight('bold').setFontSize(13).setHorizontalAlignment('center')
     .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(ss.getSheetByName(GR_DATA_TAB).getRange('A2:A'), true).setAllowInvalid(false).build());
   sh.getRange('E4:N4').merge().setValue('← choisis un match : indicateurs, graphiques du match et tableaux se mettent à jour').setFontColor('#64778A').setFontStyle('italic');
-  sh.getRange('P4').setFormula('=IFERROR(VLOOKUP($B$4,' + D + 'A2:B,2,FALSE),"")');
-  sh.getRange('P5').setFormula('=IFERROR(VLOOKUP($B$4,' + D + 'A2:C,3,FALSE),"")');
+  sh.getRange('P4').setFormula(grF_('=IFERROR(VLOOKUP($B$4,' + D + 'A2:B,2,FALSE),"")'));
+  sh.getRange('P5').setFormula(grF_('=IFERROR(VLOOKUP($B$4,' + D + 'A2:C,3,FALSE),"")'));
 
   // Indicateurs du match + moyenne de la saison
   const kpis = [['CA BOISSONS', 'G', '#,##0 €'], ['VENTES', 'H', '#,##0'], ['PANIER MOYEN', 'I', '0.00 €'],
@@ -146,9 +146,9 @@ function grConstruire_(ss) {
   kpis.forEach(function (k, i) {
     const col = 1 + i * 2;
     sh.getRange(6, col, 1, 2).merge().setValue(k[0]).setFontSize(9).setFontWeight('bold').setFontColor('#33495a');
-    sh.getRange(7, col, 1, 2).merge().setFormula('=IFERROR(INDEX(' + D + k[1] + '2:' + k[1] + ',MATCH($P$4,' + D + 'B2:B,0)),"")')
+    sh.getRange(7, col, 1, 2).merge().setFormula(grF_('=IFERROR(INDEX(' + D + k[1] + '2:' + k[1] + ',MATCH($P$4,' + D + 'B2:B,0)),"")'))
       .setNumberFormat(k[2]).setFontSize(22).setFontWeight('bold').setFontColor(C.navy);
-    sh.getRange(8, col, 1, 2).merge().setFormula('=IFERROR(AVERAGEIF(' + D + 'C2:C,$P$5,' + D + k[1] + '2:' + k[1] + '),"")')
+    sh.getRange(8, col, 1, 2).merge().setFormula(grF_('=IFERROR(AVERAGEIF(' + D + 'C2:C,$P$5,' + D + k[1] + '2:' + k[1] + '),"")'))
       .setNumberFormat('"moyenne saison : "' + k[2]).setFontSize(9).setFontColor('#64778A');
     sh.getRange(6, col, 3, 2).setBackground(C.fond).setBorder(true, true, true, true, false, false, '#c9d8e6', SpreadsheetApp.BorderStyle.SOLID);
   });
@@ -156,7 +156,7 @@ function grConstruire_(ss) {
 
   const section = function (r, txt, formule) {
     const g = sh.getRange(r, 1, 1, 14).merge().setBackground(C.navy).setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
-    if (formule) g.setFormula(formule); else g.setValue(txt);
+    if (formule) g.setFormula(grF_(formule)); else g.setValue(txt);
     sh.setRowHeight(r, 28);
   };
   section(10, '', '="LA SAISON "&$P$5&" — un repère par match"');
@@ -168,7 +168,7 @@ function grConstruire_(ss) {
   const rs = GR_R.saisonT, ns = GR_R.lignesSaison;
   const hs = ['Match', 'Date', 'Affluence', 'CA boissons', 'Ventes', 'Panier moyen', 'Recette / spectateur', 'Buvette 1', 'Buvette 2', 'Buvette 3', 'Billet : toutes', 'Part alcool', 'Écocups sortis', 'Écocups revenus'];
   sh.getRange(rs, 1, 1, hs.length).setValues([hs]).setBackground(C.day).setFontColor(C.navy).setFontWeight('bold').setWrap(true).setFontSize(9);
-  sh.getRange(rs + 1, 1).setFormula('=IFERROR(FILTER(' + D + 'D2:Q,' + D + 'C2:C=$P$5,' + D + 'B2:B<>""),"Pas encore de vente cette saison")');
+  sh.getRange(rs + 1, 1).setFormula(grF_('=IFERROR(FILTER(' + D + 'D2:Q,' + D + 'C2:C=$P$5,' + D + 'B2:B<>""),"Pas encore de vente cette saison")'));
   sh.getRange(rs + 1, 2, ns, 1).setNumberFormat('dd/MM/yyyy');
   sh.getRange(rs + 1, 3, ns, 1).setNumberFormat('#,##0');
   sh.getRange(rs + 1, 4, ns, 1).setNumberFormat('#,##0 €');
@@ -182,11 +182,11 @@ function grConstruire_(ss) {
   const rm = GR_R.matchT, nm = GR_R.lignesMatch;
   const hq = ['Heure', 'Buvette 1', 'Buvette 2', 'Buvette 3', 'CB cumulée', 'Espèces cumulées', 'Écocups sortis', 'Écocups revenus'];
   sh.getRange(rm, 1, 1, hq.length).setValues([hq]).setBackground(C.day).setFontColor(C.navy).setFontWeight('bold').setWrap(true).setFontSize(9);
-  sh.getRange(rm + 1, 1).setFormula('=IFERROR(FILTER(' + D + nl(GR_Q_COL + 1) + '2:' + nl(GR_Q_COL + 8) + ',' + D + nl(GR_Q_COL) + '2:' + nl(GR_Q_COL) + '=$P$4),"")');
+  sh.getRange(rm + 1, 1).setFormula(grF_('=IFERROR(FILTER(' + D + nl(GR_Q_COL + 1) + '2:' + nl(GR_Q_COL + 8) + ',' + D + nl(GR_Q_COL) + '2:' + nl(GR_Q_COL) + '=$P$4),"")'));
   sh.getRange(rm + 1, 2, nm, 5).setNumberFormat('#,##0 €');
   sh.getRange(rm + 1, 7, nm, 2).setNumberFormat('#,##0');
   sh.getRange(rm, 10, 1, 3).setValues([['Produit', 'CA encaissé', 'Quantité']]).setBackground(C.day).setFontColor(C.navy).setFontWeight('bold').setFontSize(9);
-  sh.getRange(rm + 1, 10).setFormula('=IFERROR(SORT(FILTER(' + D + nl(GR_P_COL + 1) + '2:' + nl(GR_P_COL + 3) + ',' + D + nl(GR_P_COL) + '2:' + nl(GR_P_COL) + '=$P$4),2,FALSE),"")');
+  sh.getRange(rm + 1, 10).setFormula(grF_('=IFERROR(SORT(FILTER(' + D + nl(GR_P_COL + 1) + '2:' + nl(GR_P_COL + 3) + ',' + D + nl(GR_P_COL) + '2:' + nl(GR_P_COL) + '=$P$4),2,FALSE),"")'));
   sh.getRange(rm + 1, 11, 12, 1).setNumberFormat('#,##0 €');
   sh.getRange(rm, 1, 1, 14).setVerticalAlignment('middle');
   sh.setRowHeight(rs, 34); sh.setRowHeight(rm, 34);
@@ -231,6 +231,21 @@ function grConstruire_(ss) {
   sh.hideColumns(16);
   sh.setFrozenRows(4);
   return sh;
+}
+
+// Formules écrites à l'anglaise (virgules) : converties au format du Sheet. En français (et autres locales à virgule
+// décimale), le séparateur d'arguments est « ; » — sinon Sheets affiche #ERROR!. Les virgules entre guillemets sont gardées.
+function grF_(formule) {
+  let loc = 'fr_FR';
+  try { loc = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetLocale() || loc; } catch (e) {}
+  if (/^(en|ja|ko|zh|th|he|iw|hi)(_|$)/i.test(loc)) return formule;
+  let out = '', dansTexte = false;
+  for (let i = 0; i < formule.length; i++) {
+    const c = formule.charAt(i);
+    if (c === '"') dansTexte = !dansTexte;
+    out += (!dansTexte && c === ',') ? ';' : c;
+  }
+  return out;
 }
 
 function grLettre_(c) { let s = ''; while (c > 0) { const m = (c - 1) % 26; s = String.fromCharCode(65 + m) + s; c = Math.floor((c - 1) / 26); } return s; }
