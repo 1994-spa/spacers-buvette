@@ -149,6 +149,16 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .vider:disabled{opacity:.3;color:var(--muted)}
 .billet{margin:0 12px 6px;display:flex;align-items:center;gap:10px;background:var(--ok-bg);border:2px solid var(--ok);border-radius:12px;padding:8px 10px}
 .billet .i{font-size:1.5rem}
+.boisson-billet{margin:0 12px 6px;display:flex;align-items:center;gap:10px;border-radius:12px;padding:8px 10px;border:2px solid}
+.boisson-billet .i{font-size:1.5rem}
+.boisson-billet div{flex:1;line-height:1.2;min-width:0}
+.boisson-billet b{display:block;font-size:.95rem}
+.boisson-billet small{font-size:.8rem;font-weight:700;color:var(--muted)}
+.boisson-billet.ok{background:var(--ok-bg);border-color:var(--ok)}
+.boisson-billet.warn{background:var(--warn-bg);border-color:var(--warn)}
+.boisson-billet.ko{background:var(--err-bg);border-color:var(--err)}
+.boisson-billet.ko b{color:var(--err)}
+.line.offert .m{color:var(--ok);font-weight:900}
 .billet div{flex:1;line-height:1.2;min-width:0}
 .billet b{display:block;font-size:.95rem}
 .billet small{font-size:.8rem;color:var(--muted);font-weight:700}
@@ -578,7 +588,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.22-benevoles</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.22-boisson-billet</p>
     </div>
   </div>
 </div>
@@ -642,7 +652,8 @@ const state = {
   match:null,        // { eventId, idMatch, nom, date, charge, prepa }
   futLitres:30,
   stocks:{},         // { 'Buvette 1': { FUT: fûts, P02_COCA: unités, … } }
-  billets:{},        // { code-barres: [id billet, tarif, nom, profil remise] } pour vérifier hors ligne
+  billets:{},        // { code-barres: [id billet, tarif, nom, profil remise, type de billet] } pour vérifier hors ligne
+  boissons:{},       // { code-barres: { ts, ref, buvette, vente } } boissons incluses au billet déjà retirées (ce match)
   cumul:{},          // { 'Buvette 1': { lignes, consigne, rendue, ventes, ca, cb, esp } }
   outbox:[],         // ventes pas encore reçues par le Sheet
   envoyees:0,
@@ -659,7 +670,7 @@ const state = {
 };
 let panier = nouveauPanier();
 let billet = null;   // { ticket_id, barcode, tarif, nom, nonVerifie, profil }
-function nouveauPanier() { return { lignes:{}, consigne:0, rendue:0, gob: nouveauxGob() }; }
+function nouveauPanier() { return { lignes:{}, consigne:0, rendue:0, gob: nouveauxGob(), offert: null }; }   // offert : réf. de la boisson incluse au billet
 // Écocups suivis par taille : s = sortis (consignés), r = rendus
 // n = gobelet rapporté mais pas remboursé faute d'espèces dans la caisse (le club garde la consigne)
 function nouveauxGob() { return { s33:0, s50:0, r33:0, r50:0, n33:0, n50:0, l33:0, l50:0 }; }   // l = récupéré sans remboursement (laissé, ramassé)
@@ -674,9 +685,11 @@ function cumulTab(tab) {
   c.lignes = c.lignes || {};
   c.benev = c.benev || {};   // boissons offertes aux bénévoles (hors CA)
   if (typeof c.nbBenev !== 'number') c.nbBenev = 0;
+  c.offert = c.offert || {};   // boissons incluses au billet (AISC…) : hors CA, sortent du stock
+  if (typeof c.nbOffert !== 'number') c.nbOffert = 0;
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','mouvCaisse','releves','modeFin'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','boissons','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','mouvCaisse','releves','modeFin'];
 let alerteMemoire = false;
 function save() {
   if (entrainement) return;
@@ -759,11 +772,12 @@ const BOUTEILLE_L = { P02_COCA:1.25, P02_ICET:1.25, P02_ORAN:1.5, P02_SCHW:1.5 }
 const FORMULES = { P01_25: { n:2, prix:7, nom:'2 bières 30cl' }, P01_50: { n:2, prix:10, nom:'2 bières 50cl' } };
 function stockInit(ref) { return Number((state.stocks[state.tab] || {})[ref]) || 0; }
 // Sorti du stock = vendu + offert aux bénévoles (mode 🙋 Bénévole, 0 €)
-function consomme(ref) { const c = cumulTab(); return (c.lignes[ref] || 0) + (c.benev[ref] || 0); }
+function consomme(ref) { const c = cumulTab(); return (c.lignes[ref] || 0) + (c.benev[ref] || 0) + (c.offert[ref] || 0); }
+function qPanier(ref) { return (panier.lignes[ref] || 0) + (panier.offert === ref ? 1 : 0); }
 function litresRestants(avecPanier) {
   const c = cumulTab();
   let l = stockInit('FUT') * (state.futLitres || 30);
-  Object.keys(LITRES).forEach(r => { l -= (consomme(r) + (avecPanier ? (panier.lignes[r] || 0) : 0)) * LITRES[r]; });
+  Object.keys(LITRES).forEach(r => { l -= (consomme(r) + (avecPanier ? qPanier(r) : 0)) * LITRES[r]; });
   return Math.max(0, Math.round(l * 100) / 100);
 }
 function bouteillesApresVentes(ref) {   // softs : bouteilles restantes (décimales = bouteille entamée)
@@ -771,7 +785,7 @@ function bouteillesApresVentes(ref) {   // softs : bouteilles restantes (décima
   return Math.max(0, Math.round(b * 10) / 10);
 }
 function verresSoft(ref, avecPanier) {
-  const vendus = consomme(ref) + (avecPanier ? (panier.lignes[ref] || 0) : 0);
+  const vendus = consomme(ref) + (avecPanier ? qPanier(ref) : 0);
   return Math.max(0, Math.floor((stockInit(ref) * BOUTEILLE_L[ref] + 1e-9) / VERRE_SOFT) - vendus);
 }
 function stockApresVentes(ref) {
@@ -782,7 +796,7 @@ function stockApresVentes(ref) {
 function stockDispo(ref) {
   if (LITRES[ref]) return Math.floor(litresRestants(true) / LITRES[ref] + 1e-9);
   if (BOUTEILLE_L[ref]) return verresSoft(ref, true);
-  return Math.max(0, stockApresVentes(ref) - (panier.lignes[ref] || 0));
+  return Math.max(0, stockApresVentes(ref) - qPanier(ref));
 }
 // Ce qu'on compte à l'inventaire : bouteilles pour les softs, unités pour le reste
 function stockCompte(ref) { return BOUTEILLE_L[ref] ? bouteillesApresVentes(ref) : stockApresVentes(ref); }
@@ -926,7 +940,11 @@ function renderTiles() {
 // −10 % abonné (événement « Abonnement 2026-2027 ») ou lot partenaire (CROUS), −5 % pour tout autre billet.
 const REMISE_BILLET = 0.05, REMISE_ABONNE = 0.10;
 const ABONNEMENT_EVENT_ID = '69fc9d2b69a5578199f9d5e9';
-const CLIENTS_REMISE = { '6a300038606cb61d33ae0f79': 'CROUS' };   // client Tickie → partenaire (même liste que Pilotage.gs)
+const CLIENTS_REMISE = { '6a300038606cb61d33ae0f79': 'CROUS' };
+// Tarifs Tickie qui comprennent une boisson (toutes boissons, consigne écocup payante) : type de billet → { groupe, seule buvette où la retirer }
+// Même liste que PIL.BOISSONS_BILLET dans Pilotage.gs. Une seule buvette par groupe : le contrôle « déjà retirée » marche même sans wifi.
+const BOISSONS_BILLET = { '6ada071ec4a71b3c0a3d34d4': { nom:'AISC', buvette:'Buvette 1' } };
+function droitBoisson(typeId) { return (typeId && BOISSONS_BILLET[typeId]) || null; }   // client Tickie → partenaire (même liste que Pilotage.gs)
 function profilBillet(t, tarif) {   // réponse du proxy Tickie (billet absent de la liste chargée)
   if (t.eventId === ABONNEMENT_EVENT_ID || t.event === ABONNEMENT_EVENT_ID) return 'ABO';
   if (CLIENTS_REMISE[t.customerId]) return CLIENTS_REMISE[t.customerId];
@@ -985,7 +1003,27 @@ function nonRembourse() {
   confirmNonRemb = false;
   encaisser('NON_REMB');
 }
-function panierVide() { return !Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue; }
+function panierVide() { return !Object.values(panier.lignes).some(q => q > 0) && !panier.consigne && !panier.rendue && !panier.offert; }
+// ── Boisson incluse au billet (tarif AISC…) ─────────────────────────
+// etat : DISPO (à servir ici), PRISE (déjà retirée : quand, quoi, où), AILLEURS (à retirer dans une autre buvette), INCONNU (billet pas vérifié)
+function etatBoisson(b) {
+  if (!b || !b.droit) return null;
+  const r = (state.boissons || {})[b.barcode];
+  if (r) return { etat:'PRISE', r };
+  if (b.droit.buvette !== state.tab) return { etat:'AILLEURS' };
+  return { etat:'DISPO' };
+}
+function boissonDispo() { const e = etatBoisson(billet); return !!e && e.etat === 'DISPO'; }
+// Billet relié alors que des boissons sont déjà dans le panier : la plus chère devient la boisson offerte
+function appliquerBoissonOfferte() {
+  if (!boissonDispo() || panier.offert) return;
+  const refs = Object.keys(panier.lignes).filter(r => panier.lignes[r] > 0).sort((a, b) => priceOf(prod(b)) - priceOf(prod(a)));
+  if (!refs.length) return;
+  const r = refs[0];
+  panier.lignes[r]--; if (!panier.lignes[r]) delete panier.lignes[r];
+  panier.offert = r;
+}
+function heureFr(ts) { return new Date(ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }); }
 
 function ligneHtml(label, sub, qte, montant, moins, plus, neg) {
   return `<div class="line${neg ? ' neg' : ''}"><span class="n">${label}${sub ? `<small>${sub}</small>` : ''}</span>
@@ -995,6 +1033,9 @@ function ligneHtml(label, sub, qte, montant, moins, plus, neg) {
 function renderPanier() {
   const rows = [];
   CATALOGUE.forEach(p => { const q = panier.lignes[p.ref] || 0; if (q) rows.push(ligneHtml(esc(p.nom), fmt(p.pv) + ' pièce', q, q * p.pv, `retirer('${p.ref}')`, `ajouter('${p.ref}')`)); });
+  if (panier.offert && billet && billet.droit) { const p = prod(panier.offert);
+    rows.push(`<div class="line offert"><span class="n">🥤 ${esc(p.nom)} offert${/^(Bière|Eau)/.test(p.nom || '') ? 'e' : ''}<small>boisson incluse au billet ${esc(billet.droit.nom)}</small></span>
+    <span class="step"><button onclick="retirer('${panier.offert}')" aria-label="Retirer la boisson offerte">−</button><b>1</b><button disabled>+</button></span><span class="m">0,00 €</span></div>`); }
   const g = panier.gob || nouveauxGob();
   [33, 50].forEach(t => { if (g['s' + t]) rows.push(ligneHtml(`🥤 Gobelet ${t}cl consigné`, '+1 € par gobelet', g['s' + t], g['s' + t] * CONSIGNE, `changeConsigne(-1,${t})`, `changeConsigne(1,${t})`)); });
   [33, 50].forEach(t => { if (g['r' + t]) rows.push(ligneHtml(`♻️ Gobelet ${t}cl rendu`, 'consigne remboursée', g['r' + t], g['r' + t] * CONSIGNE, `changeRendue(-1,${t})`, `changeRendue(1,${t})`, true)); });
@@ -1028,7 +1069,7 @@ function renderPanier() {
 
   const bz = document.getElementById('billet'), bs = document.getElementById('btn-scan');
   if (billet) {
-    bz.innerHTML = `<div class="billet"><span class="i">🎫</span><div><b>${esc(billet.nom || (billet.nonVerifie ? 'Billet (vérifié plus tard)' : 'Billet'))}</b><small>${esc(billet.tarif ? billet.tarif + ' · ' : '')}${libelleRemise()} · points fidélité</small></div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>`;
+    bz.innerHTML = `<div class="billet"><span class="i">🎫</span><div><b>${esc(billet.nom || (billet.nonVerifie ? 'Billet (vérifié plus tard)' : 'Billet'))}</b><small>${esc(billet.tarif ? billet.tarif + ' · ' : '')}${libelleRemise()} · points fidélité</small></div><button onclick="retirerBillet()" aria-label="Retirer le billet">✕</button></div>` + carteBoissonHtml();
     bs.classList.add('lie'); bs.classList.remove('attente'); bs.innerHTML = `<span class="ico">✅</span><span>Billet relié<small>Toucher pour en scanner un autre</small></span>`;
   } else {
     bz.innerHTML = '';
@@ -1036,6 +1077,19 @@ function renderPanier() {
     bs.classList.toggle('attente', !panierVide());   // rappel doux : demander le billet tant que la commande est en cours
     bs.innerHTML = `<span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span>`;
   }
+}
+
+function carteBoissonHtml() {
+  const e = etatBoisson(billet);
+  if (!e) return '';
+  const g = esc(billet.droit.nom);
+  if (e.etat === 'PRISE') { const p = prod(e.r.ref);
+    return `<div class="boisson-billet ko"><span class="i">⛔</span><div><b>Boisson ${g} déjà retirée</b><small>à ${heureFr(e.r.ts)} · ${esc(p.nom || e.r.ref)} · ${esc(e.r.buvette)} — les boissons sont payantes</small></div></div>`; }
+  if (e.etat === 'AILLEURS') { const L = lieuDe(billet.droit.buvette);
+    return `<div class="boisson-billet warn"><span class="i">➡️</span><div><b>Boisson ${g} à retirer à la ${esc(billet.droit.buvette)}</b><small>${esc(L.lieu)} · pas ici : les boissons sont payantes à cette buvette</small></div></div>`; }
+  return panier.offert
+    ? `<div class="boisson-billet ok"><span class="i">🥤</span><div><b>Boisson ${g} offerte : ${esc(prod(panier.offert).nom)}</b><small>gobelet consigné payant (1 €) si le client n'en a pas</small></div></div>`
+    : `<div class="boisson-billet ok"><span class="i">🥤</span><div><b>1 boisson offerte (${g})</b><small>touche la boisson choisie : elle passe à 0 €</small></div></div>`;
 }
 
 function renderAlerts() {
@@ -1079,6 +1133,7 @@ function ajouter(ref) {
     if (!confirm(msg + `\n\nS'il en reste vraiment, touche OK pour le vendre quand même.`)) return;
     state.forcer = state.forcer || {}; state.forcer[ref] = true; save();
   }
+  if (boissonDispo() && !panier.offert) { panier.offert = ref; vibre(); renderTiles(); renderPanier(); renderAlerts(); return; }
   panier.lignes[ref] = (panier.lignes[ref] || 0) + 1;
   vibre();
   renderTiles(); renderPanier(); renderAlerts();
@@ -1086,7 +1141,7 @@ function ajouter(ref) {
 }
 function retirer(ref) {
   const q = panier.lignes[ref] || 0;
-  if (!q) return;
+  if (!q) { if (panier.offert === ref) { panier.offert = null; vibre(); renderTiles(); renderPanier(); renderAlerts(); } return; }
   panier.lignes[ref] = q - 1;
   if (!panier.lignes[ref]) delete panier.lignes[ref];
   vibre();
@@ -1364,12 +1419,14 @@ function encaisser(mode) {
     paiement: mode,
     prix: benev ? Object.fromEntries(Object.keys(lignes).map(r => [r, 0])) : prixEncaisses(lignes),   // prix réellement encaissés (formules et remise billet incluses)
     ticket: billet ? { ticket_id: billet.ticket_id || '', barcode: billet.barcode || '', tarif: billet.tarif || '' } : null,
+    offert: panier.offert && boissonDispo() && !benev && !nonRemb ? { ref: panier.offert, barcode: billet.barcode, ticket_id: billet.ticket_id || '', groupe: billet.droit.nom } : null,
   };
+  if (vente.offert) state.boissons[vente.offert.barcode] = { ts: vente.ts, ref: vente.offert.ref, buvette: state.tab, vente: vente.id };
   appliquerCumul(vente, 1);
   state.outbox.push(vente);
   if ((mode === 'CB' || mode === 'ESP') && Object.keys(lignes).length)
     derniereCmd = { tab: state.tab, lignes: Object.assign({}, lignes), s33: panier.gob.s33, s50: panier.gob.s50 };
-  state.historique.unshift({ id: vente.id, ts: vente.ts, total, remise, prix: vente.prix, paiement: mode, lignes, consigne: vente.consigne, rendue: vente.rendue, gob: vente.gob, billet: !!vente.ticket, buvette: state.tab });
+  state.historique.unshift({ id: vente.id, ts: vente.ts, total, remise, prix: vente.prix, paiement: mode, lignes, consigne: vente.consigne, rendue: vente.rendue, gob: vente.gob, billet: !!vente.ticket, buvette: state.tab, offert: vente.offert });
   state.historique = state.historique.slice(0, 40);
   panier = nouveauPanier(); billet = null;
   save(); renderAll();
@@ -1377,6 +1434,7 @@ function encaisser(mode) {
   const side = document.getElementById('side'); side.classList.remove('flash'); void side.offsetWidth; side.classList.add('flash');
   derniere = vente.id;
   const nbNonRemb = (vente.gob.n33 || 0) + (vente.gob.n50 || 0);
+  if (vente.offert && !total) { snack(`🥤 Boisson ${vente.offert.groupe} offerte enregistrée : ${prod(vente.offert.ref).nom}`, true); setTimeout(envoyerVentes, DELAI_ANNUL + 500); defiVerifier(vente); return; }
   snack(nonRemb ? `🚫 ${nbNonRemb} gobelet${nbNonRemb > 1 ? 's' : ''} non remboursé${nbNonRemb > 1 ? 's' : ''} (plus d'espèces) · noté` : benev ? `🙋 Boisson bénévole enregistrée (0 €)` : `✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${vente.remise ? ' · 🎫 −' + Math.round(taux * 100) + ' %' : ''}`, true);
   setTimeout(envoyerVentes, DELAI_ANNUL + 500);
   defiVerifier(vente);
@@ -1393,6 +1451,7 @@ function appliquerCumul(v, sens) {
     ['n33', 'n50', 'l33', 'l50'].forEach(k => { c.gob[k] += sens * (Number(g[k]) || 0); });
     return;
   }
+  if (v.offert) { const r = v.offert.ref; c.offert[r] = (c.offert[r] || 0) + sens; if (!c.offert[r]) delete c.offert[r]; c.nbOffert += sens; }
   Object.entries(v.lignes).forEach(([r, q]) => { c.lignes[r] = (c.lignes[r] || 0) + sens * q; if (!c.lignes[r]) delete c.lignes[r]; });
   c.consigne += sens * v.consigne; c.rendue += sens * v.rendue; c.ventes += sens;
   // Ancienne vente sans détail de taille : comptée en petit format (clé s33 = écocup 30 cl)
@@ -1418,9 +1477,10 @@ function annulerVente(id) {
     const neg = o => Object.fromEntries(Object.entries(o).map(([r, q]) => [r, -q]));
     state.outbox.push({ id: id + '-ANN', ts: new Date().toISOString(), matchId: state.match ? state.match.idMatch : '', buvette: h.buvette,
       lignes: neg(h.lignes), consigne: -h.consigne, rendue: -h.rendue, gob: h.gob ? neg(h.gob) : undefined, total: -h.total, remise: -(h.remise || 0), paiement: h.paiement, annule: id,
-      prix: h.prix || Object.fromEntries(Object.keys(h.lignes).map(r => [r, priceOf(prod(r))])), ticket: null });
+      prix: h.prix || Object.fromEntries(Object.keys(h.lignes).map(r => [r, priceOf(prod(r))])), ticket: null, offert: h.offert || null });
   }
-  appliquerCumul({ buvette: h.buvette, lignes: h.lignes, consigne: h.consigne, rendue: h.rendue, gob: h.gob, total: h.total, remise: h.remise || 0, paiement: h.paiement }, -1);
+  appliquerCumul({ buvette: h.buvette, lignes: h.lignes, consigne: h.consigne, rendue: h.rendue, gob: h.gob, total: h.total, remise: h.remise || 0, paiement: h.paiement, offert: h.offert || null }, -1);
+  if (h.offert && (state.boissons[h.offert.barcode] || {}).vente === id) delete state.boissons[h.offert.barcode];   // boisson incluse de nouveau disponible
   h.annulee = true;
   if (derniere === id) derniere = null;
   defiVerifier({ annulation: true });
@@ -1592,7 +1652,7 @@ async function chercherBillet(barcode) {
   if (essayerConfigQr(barcode)) return;
   barcode = normaliserCode(barcode);
   const local = state.billets[barcode];
-  if (local) { relierBillet({ ticket_id: local[0], tarif: local[1], name: local[2], profil: local[3] != null ? local[3] : profilBillet({}, local[1]) }, barcode); return; }
+  if (local) { relierBillet({ ticket_id: local[0], tarif: local[1], name: local[2], profil: local[3] != null ? local[3] : profilBillet({}, local[1]), ticketTypeId: local[4] || '' }, barcode); return; }
   const codeTickie = /^[a-z0-9]{8,14}$/i.test(barcode);
   if (navigator.onLine === false) { if (codeTickie) relierBillet({ nonVerifie: true }, barcode); else refuserBillet('Code non reconnu'); return; }
   setScanStatus('⏳ Vérification du billet…');
@@ -1613,11 +1673,18 @@ function relierBillet(t, barcode) {
   const nom = String(t.name || t.nom_complet || [t.firstname || t.prenom, t.lastname || t.nom].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
   const tarif = t.tarif || t.ticketName || '';
   billet = { ticket_id: t.ticket_id || t._id || '', barcode: t.barcode || barcode, tarif, nom, nonVerifie: !!t.nonVerifie,
-    profil: t.nonVerifie ? '' : (t.profil != null ? t.profil : profilBillet(t, tarif)) };
+    profil: t.nonVerifie ? '' : (t.profil != null ? t.profil : profilBillet(t, tarif)),
+    droit: t.nonVerifie ? null : droitBoisson(t.ticketTypeId || t.type_id || '') };
+  if (panier.offert) { panier.lignes[panier.offert] = (panier.lignes[panier.offert] || 0) + 1; panier.offert = null; }   // autre billet : l'ancienne boisson offerte redevient payante
+  appliquerBoissonOfferte();
   fermerScanner();
   vibre(30);
   renderPanier();
   if (paiementEnAttente) setTimeout(reprendrePaiement, 600);   // question « billet ? » → on enchaîne sur le paiement, remise incluse
+  const eb = etatBoisson(billet);
+  if (eb && eb.etat === 'PRISE') { vibre([80, 60, 80]); info(`⛔ Boisson ${billet.droit.nom} déjà retirée à ${heureFr(eb.r.ts)} (${prod(eb.r.ref).nom || eb.r.ref}, ${eb.r.buvette})`); return; }
+  if (eb && eb.etat === 'AILLEURS') { info(`➡️ Boisson ${billet.droit.nom} à retirer à la ${billet.droit.buvette} (${lieuDe(billet.droit.buvette).lieu})`); return; }
+  if (eb) { info(`🥤 1 boisson offerte (${billet.droit.nom})` + (panier.offert ? ' : ' + prod(panier.offert).nom + ' à 0 €' : ' : touche la boisson choisie')); return; }
   info((t.nonVerifie ? '🎫 Billet enregistré (vérifié plus tard)' : `🎫 ${nom || 'Billet'} relié`) + ' · ' + libelleRemise() + ' appliquée');
 }
 function refuserBillet(msg) {
@@ -1630,7 +1697,7 @@ function refuserBillet(msg) {
 function relancerScan() { arreterCamera(); ouvrirScanner(); }
 function fermerScanner() { arreterCamera(); fermer('m-scan'); }
 function annulerScanner() { paiementEnAttente = null; fermerScanner(); }
-function retirerBillet() { billet = null; renderPanier(); }
+function retirerBillet() { if (panier.offert) { panier.lignes[panier.offert] = (panier.lignes[panier.offert] || 0) + 1; panier.offert = null; } billet = null; renderTiles(); renderPanier(); }
 
 // Douchette USB/Bluetooth : elle « tape » le code très vite puis Entrée
 let kbBuf = '', kbLast = 0;
@@ -1660,6 +1727,7 @@ function afficherRapport() {
     <div class="k"><span>Total encaissé</span><b>${fmt(c.ca)}</b><small>boissons + consignes = CB + espèces</small></div>
     <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · à comparer au ticket TPE</small></div>
     <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div>
+    ${c.nbOffert ? `<div class="k"><span>🥤 Incluses au billet</span><b>${c.nbOffert}</b><small>boisson${c.nbOffert > 1 ? 's' : ''} servie${c.nbOffert > 1 ? 's' : ''} sur scan (AISC…) · hors CA</small></div>` : ''}
     ${c.nbBenev ? `<div class="k"><span>🙋 Bénévoles</span><b>${Object.values(c.benev).reduce((a, q) => a + q, 0)}</b><small>boisson${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} offerte${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} · hors CA</small></div>` : ''}</div>`;
   h += (sansCaisse() ? `<div hidden><input id="cl-fond" value="0"><input id="cl-compte" value="0"><b id="cl-attendu"></b><div id="cl-ecart-box"><b id="cl-ecart"></b><small id="cl-ecart-s"></small></div></div>`
     : `<div class="sec">Clôture de la caisse espèces</div>
@@ -1856,7 +1924,7 @@ function cloturerCaisse() {
     gobeletsSortis: c.consigne, gobeletsRendus: c.rendue, gob: Object.assign({}, c.gob), lignes: Object.assign({}, c.lignes),
     tpe: tpe == null || isNaN(tpe) ? null : tpe, ecartCb: tpe == null || isNaN(tpe) ? null : Math.round((tpe - c.cb) * 100) / 100,
     stock: stockSuivi() ? stockSnapshot() : {}, inventaire: inv, nonCompte: !!nonCompte, tpeId,
-    benev: Object.assign({}, c.benev), nbBenev: c.nbBenev, mouvCaisse: totalMouv(), envoyee: false };
+    benev: Object.assign({}, c.benev), nbBenev: c.nbBenev, offert: Object.assign({}, c.offert), nbOffert: c.nbOffert, mouvCaisse: totalMouv(), envoyee: false };
   invNonCompte = false; ecartConfirme = '';
   if (state.brouillons) delete state.brouillons[state.tab];
   save();
@@ -2017,7 +2085,8 @@ async function chargerMatch(auto) {
     }
     if (d.produits && Object.keys(d.produits).length && panierVide()) { state.prix = d.produits; appliquerPrix(); renderTiles(); }
     if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {
-      if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; save(); }
+      if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil, type]) => { m[code] = [id, tarif, nom || '', profil || '', type || '']; }); state.billets = m; }
+      fusionnerBoissons(d.boissons); save();
       return;
     }
     appliquerChargement(d, nouveau);
@@ -2033,6 +2102,12 @@ function appliquerPrix() {
     // Offre « 2 verres » réglée dans 📦 PRODUITS (colonne OFFRE 2 VERRES €) : 0 = offre coupée
     if (FORMULES[p.ref] && x.offre != null) FORMULES[p.ref].prix = x.offre > 0 ? x.offre : FORMULES[p.ref].n * p.pv; } });
 }
+// Registre du Sheet [code-barres, horodatage, réf., buvette, id vente] : on ajoute ce que la tablette ne connaît pas encore
+function fusionnerBoissons(liste) {
+  if (!Array.isArray(liste)) return;
+  state.boissons = state.boissons || {};
+  liste.forEach(([code, ts, ref, buvette, vente]) => { if (code && !state.boissons[code]) state.boissons[code] = { ts, ref, buvette, vente }; });
+}
 function appliquerChargement(d, nouveau) {
   if (d.produits && Object.keys(d.produits).length) { state.prix = d.produits; appliquerPrix(); }
   const reassort = !nouveau && state.match && state.match.prepa && state.match.prepa !== d.match.prepa;
@@ -2042,7 +2117,9 @@ function appliquerChargement(d, nouveau) {
   // Stock reçu en cours de match pas encore arrivé au Sheet : on le garde
   (state.reassorts || []).filter(r => !r.envoye && r.buvette === state.tab && r.matchId === d.match.idMatch)
     .forEach(r => Object.entries(r.ajout).forEach(([k, q]) => { state.stocks[state.tab][k] = (Number(state.stocks[state.tab][k]) || 0) + q; }));
-  if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
+  if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil, type]) => { m[code] = [id, tarif, nom || '', profil || '', type || '']; }); state.billets = m; }
+  if (nouveau) state.boissons = {};
+  fusionnerBoissons(d.boissons);
   if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.brouillons = {}; state.mouvCaisse = {}; state.releves = {}; state.modeFin = false; derniereCmd = null; state.forcer = {}; panier = nouveauPanier(); billet = null; }
   else if (reassort) state.forcer = {};   // nouveau stock reçu : on refait confiance au comptage
   save(); renderAll(); renderEtatMatch();
