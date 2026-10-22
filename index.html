@@ -244,6 +244,9 @@ input,select{font:inherit;color:inherit;user-select:text;-webkit-user-select:tex
 .inv label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;font-weight:800;color:var(--muted)}
 .inv .input{font-size:1.2rem;font-weight:700;text-align:right}
 .inv small{font-size:.75rem;font-weight:700;min-height:1em}
+.inv .inv-dep{color:var(--text);font-weight:800}
+.inv-ent{display:flex;flex-direction:column;gap:6px;font-size:.78rem;font-weight:800;color:var(--muted)}
+#inv-entames{display:flex;flex-direction:column;gap:6px}
 .k.juste{background:var(--ok-bg)}.k.juste b{color:var(--ok)}
 .k.leger{background:var(--warn-bg)}.k.leger b{color:var(--warn)}
 .k.fort{background:var(--err-bg)}.k.fort b{color:var(--err)}
@@ -578,7 +581,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.22-benevoles</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.22-inventaire</p>
     </div>
   </div>
 </div>
@@ -1666,14 +1669,14 @@ function afficherRapport() {
     <div class="caisse">
       <label>Fond de caisse<input class="input" id="cl-fond" inputmode="decimal" value="${fond}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k"><span>Espèces attendues</span><b id="cl-attendu">—</b><small>fond + ventes espèces${totalMouv() ? ' ' + (totalMouv() > 0 ? '+ apports ' : '− retraits ') + fmt(Math.abs(totalMouv())) : ''}</small></div>
-      <label>Espèces comptées<input class="input" id="cl-compte" inputmode="decimal" placeholder="compter le tiroir" value="${esc(String(compte))}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
+      <label>Espèces comptées (fond compris)<input class="input" id="cl-compte" inputmode="decimal" placeholder="total tiroir" value="${esc(String(compte))}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecart-box"><span>Écart</span><b id="cl-ecart">—</b><small id="cl-ecart-s"></small></div>
     </div>`) + `
     <div class="sec">Contrôle CB</div>
     <div class="caisse">
       <div class="k"><span>CB enregistrée</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} sur la tablette</small></div>
       <label>TPE utilisé à cette buvette<select class="input" id="cl-tpe-id" ${cl ? 'disabled' : ''} onchange="memoBrouillon()">
-        <option value="">choisir le TPE</option>${TPES.map(t => `<option value="${t.id}" ${tpeId === t.id ? 'selected' : ''}>${esc(t.nom)}</option>`).join('')}</select></label>
+        <option value="">choisir</option>${TPES.map(t => `<option value="${t.id}" ${tpeId === t.id ? 'selected' : ''}>${esc(t.nom)}</option>`).join('')}</select></label>
       <label>Total du ticket TPE<input class="input" id="cl-tpe" inputmode="decimal" placeholder="ticket de fin" value="${esc(String(tpeVal))}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecb-box"><span>Écart CB</span><b id="cl-ecb">—</b><small id="cl-ecb-s"></small></div>
     </div>
@@ -1725,19 +1728,31 @@ function inventaireHtml(cl) {
       Le stock est déjà rangé / mélangé : je ne peux pas compter <small>(on gardera le stock théorique, à corriger au tableau de bord)</small></label>
     <div class="inv">`;
   if (stockInit('FUT') > 0) {
-    const theo = litresRestants(false), pleins = inv.FUT_PLEINS ?? '', frac = inv.FUT_ENTAME ?? '';
+    const theo = litresRestants(false), pleins = inv.FUT_PLEINS ?? '', L = state.futLitres || 30;
+    const ent = Array.isArray(inv.FUT_ENTAMES) && inv.FUT_ENTAMES.length ? inv.FUT_ENTAMES : [inv.FUT_ENTAME ?? ''];
     h += `<label class="inv-biere">🍺 Fûts pleins (non entamés)<input class="input" id="inv-fut" inputmode="numeric" placeholder="0" value="${pleins}" ${dis} oninput="majInventaire()"></label>
-      <label class="inv-biere">Fût entamé, il reste…<select class="input" id="inv-entame" ${dis} onchange="majInventaire()">
-        ${[['', 'choisir'], ['0', 'aucun / vide'], ['0.25', '¼ de fût'], ['0.5', '½ fût'], ['0.75', '¾ de fût']].map(([v, t]) => `<option value="${v}" ${String(frac) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-      <div class="k inv-biere"><span>Bière : théorique</span><b>${theo.toLocaleString('fr-FR')} L</b><small id="inv-fut-s">compté : —</small></div>`;
+      <div class="inv-biere inv-ent"><span>Fûts entamés : il reste…</span><div id="inv-entames">${ent.map((v, i) => selectEntame(v, i, dis)).join('')}</div>
+        ${dis ? '' : `<button type="button" class="btn small" onclick="ajouterEntame()">＋ un autre fût entamé</button>`}</div>
+      <div class="k inv-biere"><span>Bière</span><small>départ : ${fmtFuts(stockInit('FUT'))} (${(stockInit('FUT') * L).toLocaleString('fr-FR')} L)</small><small>théorique : <b style="font-size:1.1rem">${theo.toLocaleString('fr-FR')} L</b></small><small id="inv-fut-s">compté : —</small></div>`;
   }
   produitsInventaire().forEach(p => {
     const theo = stockCompte(p.ref), v = inv[p.ref] ?? '', bt = BOUTEILLE_L[p.ref];
-    h += `<label>${esc(p.nom)}${bt ? ' — bouteilles (½ = 0,5)' : ''}<input class="input inv-n" data-ref="${p.ref}" inputmode="decimal" placeholder="théorique ${theo.toLocaleString('fr-FR')}" value="${v}" ${dis} oninput="majInventaire()"><small class="inv-e" id="inv-e-${p.ref}"></small></label>`;
+    h += `<label>${esc(p.nom)}${bt ? ' — bouteilles (une demie = 0,5)' : ''}<small class="inv-dep">départ ${stockInit(p.ref).toLocaleString('fr-FR')} · théorique ${theo.toLocaleString('fr-FR')}</small><input class="input inv-n" data-ref="${p.ref}" inputmode="decimal" placeholder="théorique ${theo.toLocaleString('fr-FR')}" value="${v}" ${dis} oninput="majInventaire()"><small class="inv-e" id="inv-e-${p.ref}"></small></label>`;
   });
   return h + `</div>`;
 }
 let invNonCompte = false;
+// Fûts entamés : un menu par fût (½ + ¼ = ¾ de fût de bière restante)
+const ENTAMES = [['', 'choisir'], ['0', 'aucun / vide'], ['0.25', '1/4 de fût'], ['0.5', '1/2 fût'], ['0.75', '3/4 de fût']];   // pas de ¼ : la police l'affiche comme ⅓
+function selectEntame(v, i, dis) {
+  return `<select class="input inv-entame-s" aria-label="Fût entamé n°${i + 1}" ${dis || ''} onchange="majInventaire()">${ENTAMES.map(([val, t]) => `<option value="${val}" ${String(v) === val ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+}
+function ajouterEntame() {
+  const box = document.getElementById('inv-entames'); if (!box || box.children.length >= 6) return;
+  box.insertAdjacentHTML('beforeend', selectEntame('', box.children.length));
+  memoBrouillon(); majInventaire();
+}
+function fmtFuts(n) { return n.toLocaleString('fr-FR') + ' fût' + (n > 1 ? 's' : ''); }
 function basculerNonCompte(v) { invNonCompte = !!v; memoBrouillon(); afficherRapport(); }
 // ── Saisies de fin de match enregistrées sans clôturer ──
 // La caisse/TPE et l'inventaire ne se font pas au même endroit : chaque saisie est gardée dans la tablette
@@ -1751,7 +1766,7 @@ function memoBrouillon(partie) {
   b.tpe = val('cl-tpe'); b.tpeId = val('cl-tpe-id');
   if (document.getElementById('inv-nc')) {
     const inv = {};
-    if (document.getElementById('inv-fut')) { inv.FUT_PLEINS = val('inv-fut'); inv.FUT_ENTAME = val('inv-entame'); }
+    if (document.getElementById('inv-fut')) { inv.FUT_PLEINS = val('inv-fut'); inv.FUT_ENTAMES = [...document.querySelectorAll('.inv-entame-s')].map(e => e.value); }
     document.querySelectorAll('.inv-n').forEach(i => { inv[i.dataset.ref] = String(i.value).trim(); });
     b.inv = inv; b.nc = invNonCompte;
   }
@@ -1787,9 +1802,10 @@ function lireInventaire() {
   const out = {}, manque = [];
   if (invNonCompte) return { inv: inventaireTheorique(), manque, nonCompte: true };
   if (stockInit('FUT') > 0) {
-    const f = document.getElementById('inv-fut'), e = document.getElementById('inv-entame');
-    if (!f || f.value.trim() === '' || !e || e.value === '') manque.push('bière'); else {
-      out.FUT_PLEINS = Number(f.value) || 0; out.FUT_ENTAME = Number(e.value) || 0;
+    const f = document.getElementById('inv-fut'), es = [...document.querySelectorAll('.inv-entame-s')];
+    if (!f || f.value.trim() === '' || !es.length || es.some(e => e.value === '')) manque.push('bière'); else {
+      out.FUT_PLEINS = Number(f.value) || 0;
+      out.FUT_ENTAME = es.reduce((a, e) => a + (Number(e.value) || 0), 0);   // somme des fûts entamés (½ + ¼ = 0,75)
       out.FUT_L = Math.round((out.FUT_PLEINS + out.FUT_ENTAME) * (state.futLitres || 30) * 100) / 100;
     }
   }
