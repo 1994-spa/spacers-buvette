@@ -34,7 +34,7 @@ const PIL = {
   // Tarifs Tickie avec une boisson incluse (toutes boissons ; la consigne écocup reste payante) : type de billet → groupe + seule buvette de retrait.
   // Même liste que BOISSONS_BILLET dans index.html. Retraits tracés dans l'onglet 🥤 BOISSONS BILLET.
   BOISSONS_BILLET: {
-    '6ada071ec4a71b3c0a3d34d4': { nom: 'AISC', buvette: 'Buvette 1' },   // AISC – Place + boisson (10 €), match du 21/11/2026
+    '6ada071ec4a71b3c0a3d34d4': { nom: 'AISC', buvette: 'Buvette 2' },   // AISC – Place + boisson (10 €), match du 21/11/2026
   },
   // Onglets : feuille_('VENTES') = 🧾 VENTES, feuille_('DETAIL') = ⚙️ détail ventes, feuille_('MATCHS') = 📅 MATCHS
   // (anciens noms 51_VENTES_LIVE / 50_VENTES_DIRECTES / 10_MATCHS acceptés). Stock de départ, stock restant

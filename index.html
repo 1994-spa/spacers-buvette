@@ -943,7 +943,7 @@ const ABONNEMENT_EVENT_ID = '69fc9d2b69a5578199f9d5e9';
 const CLIENTS_REMISE = { '6a300038606cb61d33ae0f79': 'CROUS' };
 // Tarifs Tickie qui comprennent une boisson (toutes boissons, consigne écocup payante) : type de billet → { groupe, seule buvette où la retirer }
 // Même liste que PIL.BOISSONS_BILLET dans Pilotage.gs. Une seule buvette par groupe : le contrôle « déjà retirée » marche même sans wifi.
-const BOISSONS_BILLET = { '6ada071ec4a71b3c0a3d34d4': { nom:'AISC', buvette:'Buvette 1' } };
+const BOISSONS_BILLET = { '6ada071ec4a71b3c0a3d34d4': { nom:'AISC', buvette:'Buvette 2' } };
 function droitBoisson(typeId) { return (typeId && BOISSONS_BILLET[typeId]) || null; }   // client Tickie → partenaire (même liste que Pilotage.gs)
 function profilBillet(t, tarif) {   // réponse du proxy Tickie (billet absent de la liste chargée)
   if (t.eventId === ABONNEMENT_EVENT_ID || t.event === ABONNEMENT_EVENT_ID) return 'ABO';
