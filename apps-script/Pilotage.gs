@@ -31,6 +31,11 @@ const PIL = {
   CLIENTS_REMISE: {
     '6a300038606cb61d33ae0f79': 'CROUS',              // lot partenaire CROUS (billets attribués via « Gestion des partenaires »)
   },
+  // Tarifs Tickie avec une boisson incluse (toutes boissons ; la consigne écocup reste payante) : type de billet → groupe + seule buvette de retrait.
+  // Même liste que BOISSONS_BILLET dans index.html. Retraits tracés dans l'onglet 🥤 BOISSONS BILLET.
+  BOISSONS_BILLET: {
+    '6ada071ec4a71b3c0a3d34d4': { nom: 'AISC', buvette: 'Buvette 2' },   // AISC – Place + boisson (10 €), match du 21/11/2026
+  },
   // Onglets : feuille_('VENTES') = 🧾 VENTES, feuille_('DETAIL') = ⚙️ détail ventes, feuille_('MATCHS') = 📅 MATCHS
   // (anciens noms 51_VENTES_LIVE / 50_VENTES_DIRECTES / 10_MATCHS acceptés). Stock de départ, stock restant
   // et suivi des tablettes sont gardés dans les propriétés du script.
@@ -72,6 +77,9 @@ const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_
 // motif PLUS_ESPECES) ou posés sur le comptoir / ramassés sans que personne demande l'euro (bouton 🫙 Récupéré, motif RECUPERE).
 // Onglet technique à part : ni 🧾 VENTES ni ⚙️ détail ventes, pour ne pas fausser NB VENTES, panier et consignes de Code.gs.
 const PIL_NR_TAB = '⚙️ écocups non remboursés';
+// Registre des boissons incluses au billet : qui l'a retirée, quand, quoi, où (une ligne par retrait ; annulation = ligne ANNULÉE)
+const PIL_BB_TAB = '🥤 BOISSONS BILLET';
+const PIL_BB_HDR = ['Reçu le', 'Retirée le', 'ID_MATCH', 'Buvette', 'Groupe', 'Code-barres', 'ID billet', 'Boisson', 'Réf.', 'ID vente', 'Statut'];
 const PIL_NR_HDR = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Écocups 30cl', 'Écocups 50cl', 'Annulation de', 'Motif'];
 const PIL_DETAIL_TAB = '🥤 DÉTAIL BUVETTE';
 const PIL_DETAIL_ARCH_TAB = '⚙️ détail buvette archive';   // lignes figées, une fois le match terminé
@@ -261,12 +269,12 @@ function pilProfilRemise_(t, eventId) {
   if ((eventId || t.eventId) === PIL.ABONNEMENT_EVENT_ID) return 'ABO';
   return PIL.CLIENTS_REMISE[t.customerId] || '';
 }
-function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom du titulaire, profil remise] — pas d'email ni d'adresse
+function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom du titulaire, profil remise, type de billet] — pas d'email ni d'adresse
   const out = [];
   const ajouter = function (t) {
     if (!t.barcode) return;
     const nom = String(t.name || [t.firstname, t.lastname].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
-    out.push([t.barcode, t._id, t.ticketName || '', nom, pilProfilRemise_(t, eventId)]);
+    out.push([t.barcode, t._id, t.ticketName || '', nom, pilProfilRemise_(t, eventId), t.ticketTypeId || '']);
   };
   pilParcourirBillets_(eventId, ajouter);
   // Billets payés mais pas encore nominatifs (« détails à compléter ») : ils restent des billets du club
@@ -421,7 +429,7 @@ function pilChargerTablette_(buvette) {
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
     buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
-    billets: billets, billetsOk: billetsOk, charge: new Date().toISOString() };
+    billets: billets, billetsOk: billetsOk, boissons: pilBoissonsRetirees_(actif.idMatch), charge: new Date().toISOString() };
 }
 
 // Prix de vente et seuils de 📦 PRODUITS envoyés aux tablettes (réf → {prix, seuil})
@@ -443,7 +451,7 @@ function pilEnregistrerVentes_(ventes) {
   if (last > 1) sh.getRange(2, PIL_I['ID vente'] + 1, last - 1, 1).getValues().forEach(function (r) { deja[String(r[0])] = 1; });
   const nr = pilNrSheet_(), nrDeja = {}, nrRows = [];
   if (nr.getLastRow() > 1) nr.getRange(2, 3, nr.getLastRow() - 1, 1).getValues().forEach(function (r) { nrDeja[String(r[0])] = 1; });
-  const rows = [], vdRows = [], recus = [], now = new Date();
+  const rows = [], vdRows = [], bbRows = [], recus = [], now = new Date();
   ventes.forEach(function (v) {
     if (!v || !v.id) return;
     recus.push(v.id);                       // déjà reçue : accusé quand même (idempotence)
@@ -461,13 +469,21 @@ function pilEnregistrerVentes_(ventes) {
     const row = [now, ts, v.id, idm, b, Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
       t.ticket_id || '', t.barcode || '', t.tarif || '', '',
       (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')];
-    PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
+    const of = v.offert && v.offert.ref ? v.offert : null, sOf = v.annule ? -1 : 1;
+    if (of) row[12] = (row[12] ? row[12] + ' · ' : '') + 'boisson incluse ' + (of.groupe || 'billet') + (v.annule ? ' annulée' : '');
+    // Colonnes produits = stock sorti : la boisson incluse y compte (0 € dans Total €)
+    PIL.PRODUITS.forEach(function (p) { row.push((Number((v.lignes || {})[p[0]]) || 0) + (of && of.ref === p[0] ? sOf : 0)); });
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : v.paiement === 'BENEVOLE' ? 'BENEVOLE' : '');
     rows.push(row);
     Object.keys(v.lignes || {}).forEach(function (ref) {
       const q = Number(v.lignes[ref]) || 0, p = pilProduit_(ref), pu = Number((v.prix || {})[ref]) || p[2];
       if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, v.paiement === 'BENEVOLE' ? (v.annule ? 'ANNULATION_BENEVOLE' : 'BENEVOLE') : v.annule ? 'ANNULATION' : 'VENTE']);
     });
+    if (of) {
+      const po = pilProduit_(of.ref);
+      vdRows.push([idm, day, b, of.ref, po[1], sOf, 0, 0, 0, 0, v.annule ? 'ANNULATION_OFFERT_BILLET' : 'OFFERT_BILLET']);
+      bbRows.push([now, ts, idm, b, of.groupe || '', of.barcode || '', of.ticket_id || '', po[1], of.ref, v.annule || v.id, v.annule ? 'ANNULÉE' : 'RETIRÉE']);
+    }
     // Écocups par taille (E33 / E50) ; tablette ancienne version sans détail → E01
     const g = v.gob || null, typ = v.annule ? 'ANNULATION' : 'VENTE';
     if (g) {
@@ -484,7 +500,35 @@ function pilEnregistrerVentes_(ventes) {
   if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   if (vdRows.length) vd.getRange(vd.getLastRow() + 1, 1, vdRows.length, vdRows[0].length).setValues(vdRows);
   if (nrRows.length) nr.getRange(nr.getLastRow() + 1, 1, nrRows.length, PIL_NR_HDR.length).setValues(nrRows);
+  if (bbRows.length) { const bb = pilBbSheet_(); bb.getRange(bb.getLastRow() + 1, 1, bbRows.length, PIL_BB_HDR.length).setValues(bbRows); }
   return recus;
+}
+
+// ── 🥤 BOISSONS BILLET : registre des boissons incluses retirées ─────────
+function pilBbSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(PIL_BB_TAB);
+  if (!sh) {
+    sh = ss.insertSheet(PIL_BB_TAB);
+    const h = sh.getRange(1, 1, 1, PIL_BB_HDR.length).setValues([PIL_BB_HDR]).setFontWeight('bold');
+    if (typeof NAVY !== 'undefined') h.setBackground(NAVY).setFontColor(typeof YELLOW !== 'undefined' ? YELLOW : '#ffffff');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+// Boissons déjà retirées pour ce match (annulations déduites) : [code-barres, retirée le, réf., buvette, id vente] pour les tablettes
+function pilBoissonsRetirees_(idm) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PIL_BB_TAB);
+  if (!idm || !sh || sh.getLastRow() < 2) return [];
+  const par = {};
+  sh.getRange(2, 1, sh.getLastRow() - 1, PIL_BB_HDR.length).getValues().forEach(function (r) {
+    if (String(r[2]) !== String(idm) || !r[5]) return;
+    const code = String(r[5]), vente = String(r[9]);
+    if (r[10] === 'ANNULÉE') { if (par[code] && par[code][4] === vente) delete par[code]; return; }
+    const ts = r[1] instanceof Date ? r[1].toISOString() : String(r[1]);
+    if (!par[code]) par[code] = [code, ts, String(r[8]), String(r[3]), vente];
+  });
+  return Object.keys(par).map(function (k) { return par[k]; });
 }
 
 function pilDetailArchive_() {
