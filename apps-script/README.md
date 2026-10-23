@@ -41,6 +41,15 @@ Projet Apps Script **« Buvette »** du Google Sheet *Matchday Business Spacers*
   achats + stock de début − consommé − bénévoles − stock restant = écart non expliqué.
 - Clôture de caisse : écart espèces et écart CB (ticket TPE − CB enregistrée) par match dans 📅 MATCHS.
 
+## Stock du club (tableau de bord, V15)
+- **Une seule réserve** pour tout ce que le club possède en boissons buvette : local + les 3 buvettes (fûts, bouteilles de softs, eaux à l'unité).
+- Stock = **dernier comptage** + **livraisons reçues** après − pour chaque match préparé après le comptage :
+  stock de départ du match (bénévoles compris) − inventaire de fin (ou stock théorique de la clôture). Un match préparé mais pas joué compte comme sorti en entier.
+- Tableau de bord → **📥 Livraison reçue** (date, fournisseur, n° BL/facture, quantités) et **🔢 Recompter tout le stock du club**. Propriété du script `PIL_RESERVE`.
+- La **commande conseillée** compare le besoin au stock du club (fûts entiers seulement) ; « Reporter dans le stock des buvettes » n'envoie en buvette
+  que le besoin avec marge, sans descendre sous ce qui est déjà dans chaque buvette (invendus du dernier match).
+- L'épicerie du salon Club (factures DDS) ne se saisit pas : ce n'est pas du stock buvette.
+
 ## Détail buvette (onglet 🥤 DÉTAIL BUVETTE)
 - Une ligne par saison, par match et par buvette : CA alcoolisé / sans alcool (TTC et HT, famille et TVA de 📦 PRODUITS),
   écocups vendus / rendus et remboursés / non remboursés (gardés par le spectateur ou rapportés sans remboursement faute d'espèces),

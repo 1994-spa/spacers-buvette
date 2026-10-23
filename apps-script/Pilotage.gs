@@ -184,6 +184,7 @@ function pilotageGet_(e) {
     if (p.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilLirePrepa_(p.eventId)));
     if (p.action === 'tablette') return pilJson_(Object.assign({ status: 'ok' }, pilChargerTablette_(p.buvette)));
     if (p.action === 'commande') return pilJson_(Object.assign({ status: 'ok' }, pilDonneesCommande_(p.eventId)));
+    if (p.action === 'stockclub') return pilJson_(Object.assign({ status: 'ok' }, pilLireStockClub_(p.eventId)));
     return pilJson_({ status: 'error', message: 'Action inconnue' });
   } catch (err) { return pilJson_({ status: 'error', message: String(err && err.message || err) }); }
 }
@@ -203,6 +204,9 @@ function pilotagePost_(body) {
     if (body.action === 'cloture') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerCloture_(body.cloture || {})));
     if (body.action === 'reassort') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerReassort_(body.reassort || {})));
     if (body.action === 'prepa') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerPrepa_(body.eventId, body.stocks || {})));
+    if (body.action === 'livraison') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerLivraison_(body.livraison || {})));
+    if (body.action === 'livraisonSuppr') return pilJson_(Object.assign({ status: 'ok' }, pilSupprimerLivraison_(body.id)));
+    if (body.action === 'stockcompte') return pilJson_(Object.assign({ status: 'ok' }, pilEnregistrerComptageClub_(body.comptage || {})));
     return pilJson_({ status: 'error', message: 'Action inconnue' });
   } catch (err) { return pilJson_({ status: 'error', message: String(err && err.message || err) });
   } finally { lock.releaseLock(); }
@@ -875,21 +879,134 @@ function pilDonneesCommande_(eventId) {
     } catch (err) {}
   });
 
-  // Stock restant en fin de dernier match (remonté par les tablettes)
-  const st = pilProp_('PIL_STOCK', {}), reste = { FUT: 0 };
-  Object.keys(st).forEach(function (bv) {
-    Object.keys(st[bv]).forEach(function (ref) {
-      const r = Number(st[bv][ref].restant) || 0;
-      if (ref === 'FUT_L') reste.FUT += Math.floor(r / PIL.FUT_LITRES + 1e-9);   // seuls les fûts non entamés se gardent
-      else if (ref !== 'P01_25' && ref !== 'P01_50') reste[ref] = (reste[ref] || 0) + r;
+  // Stock du club disponible pour ce match (réserve + invendus des buvettes, hors stock déjà engagé pour ce match).
+  // Sans comptage enregistré : ancien calcul, invendus remontés par les tablettes au dernier match.
+  let reste = { FUT: 0 }, stockClub = null;
+  // Ce qui est déjà physiquement dans chaque buvette (invendus du dernier match) : la répartition ne descend pas en dessous
+  const enBuvette = {}, stB = pilProp_('PIL_STOCK', {});
+  PIL.BUVETTES.forEach(function (bv) {
+    enBuvette[bv] = {};
+    Object.keys(stB[bv] || {}).forEach(function (ref) {
+      const r = Number(stB[bv][ref].restant) || 0;
+      if (ref === 'FUT_L') enBuvette[bv].FUT = Math.round(r / PIL.FUT_LITRES * 100) / 100;
+      else if (ref !== 'P01_25' && ref !== 'P01_50') enBuvette[bv][ref] = r;
     });
   });
+  if (pilReserve_().base) {
+    stockClub = pilStockClub_(idm);
+    reste = {}; Object.keys(stockClub.stock).forEach(function (ref) { reste[ref] = Math.max(0, stockClub.stock[ref]); });
+    reste.FUT = Math.floor(reste.FUT + 1e-9);   // fûts entiers : un fût entamé sert de marge
+  } else {
+    const st = pilProp_('PIL_STOCK', {});
+    Object.keys(st).forEach(function (bv) {
+      Object.keys(st[bv]).forEach(function (ref) {
+        const r = Number(st[bv][ref].restant) || 0;
+        if (ref === 'FUT_L') reste.FUT += Math.floor(r / PIL.FUT_LITRES + 1e-9);   // seuls les fûts non entamés se gardent
+        else if (ref !== 'P01_25' && ref !== 'P01_50') reste[ref] = (reste[ref] || 0) + r;
+      });
+    });
+  }
 
   return { event: ev, idMatch: idm,
     billetterie: { billets: b.total, payants: b.payants, invitations: b.invitations, abonnes: abonnes, jauge: ev.jauge },
     presence: taux.length ? taux.reduce(function (a, x) { return a + x; }, 0) / taux.length : null, presenceN: taux.length,
-    observes: observes, reste: reste, futLitres: PIL.FUT_LITRES, buvettes: PIL.BUVETTES,
+    observes: observes, reste: reste, stockClub: !!stockClub, enBuvette: enBuvette, futLitres: PIL.FUT_LITRES, buvettes: PIL.BUVETTES,
     colisage: (function () { const c = {}, cat = produitsCatalogue_(); Object.keys(cat).forEach(function (r) { if (cat[r].colisage && r !== 'FUT') c[r] = cat[r].colisage; }); return c; })() };
+}
+
+// ── Stock du club : une seule réserve (local + buvettes) ─────────────────
+// Unités de préparation : fûts (décimales = fût entamé), bouteilles de softs, eaux à l'unité.
+// Stock = dernier comptage + livraisons reçues après − pour chaque match préparé après le comptage :
+// (stock de départ du match, bénévoles compris) − (inventaire de fin, ou stock théorique de la clôture).
+// Un match préparé mais pas encore joué compte comme sorti en entier.
+function pilReserve_() {
+  const r = pilProp_('PIL_RESERVE', null) || {};
+  return { base: r.base || null, livraisons: Array.isArray(r.livraisons) ? r.livraisons : [] };
+}
+function pilRefsPrepa_() { return PIL.PREPA.map(function (p) { return p[0]; }); }
+function pilQtesPrepa_(o) {
+  const out = {};
+  pilRefsPrepa_().forEach(function (ref) { out[ref] = Math.round((Number((o || {})[ref]) || 0) * 100) / 100; });
+  return out;
+}
+function pilDatesMatchs_() {
+  const sh = feuille_('MATCHS'), out = {};
+  if (!sh) return out;
+  const d = sh.getDataRange().getValues(), h = d[0].map(String), cId = h.indexOf('ID_MATCH'), cDate = h.indexOf('DATE');
+  for (let r = 1; r < d.length; r++) if (d[r][cId] && d[r][cDate]) { try { out[String(d[r][cId])] = pilDate_(d[r][cDate]); } catch (e) {} }
+  return out;
+}
+function pilStockClub_(idmExclu) {
+  const R = pilReserve_(), refs = pilRefsPrepa_();
+  const stock = pilQtesPrepa_(R.base ? R.base.stock : {});
+  const baseDate = R.base ? R.base.date : '', baseTs = R.base ? R.base.ts : '';
+  const apres = function (date, ts) { return !R.base || date > baseDate || (date === baseDate && String(ts || '') > baseTs); };
+  const livraisons = R.livraisons.filter(function (l) { return apres(l.date, l.ts); });
+  const livre = pilQtesPrepa_({});
+  livraisons.forEach(function (l) { refs.forEach(function (ref) { livre[ref] += Number((l.qte || {})[ref]) || 0; }); });
+  const dates = pilDatesMatchs_(), matchs = [];
+  PropertiesService.getScriptProperties().getKeys().filter(function (k) { return k.indexOf('PIL_PREPA_') === 0; }).forEach(function (k) {
+    const idm = k.slice('PIL_PREPA_'.length), date = dates[idm];
+    if (!date || idm === idmExclu || (R.base && date <= baseDate)) return;
+    const prepa = pilStocksPrepa_(idm), inv = pilProp_('PIL_INVENTAIRE_' + idm, {}), clot = pilProp_('PIL_CLOTURE_' + idm, {});
+    const sorti = pilQtesPrepa_({}), revenu = pilQtesPrepa_({});
+    let fini = 0;
+    PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) {
+      refs.forEach(function (ref) { sorti[ref] += Number((prepa[b] || {})[ref]) || 0; });
+      const fin = inv[b] || ((clot[b] || {}).stock && Object.keys(clot[b].stock).length ? clot[b].stock : null);
+      if (!fin) return;
+      fini++;
+      refs.forEach(function (ref) { revenu[ref] += ref === 'FUT' ? (Number(fin.FUT_L) || 0) / PIL.FUT_LITRES : Number(fin[ref]) || 0; });
+    });
+    if (!refs.some(function (ref) { return sorti[ref] > 0; })) return;
+    matchs.push({ idMatch: idm, date: date, sorti: pilQtesPrepa_(sorti), revenu: pilQtesPrepa_(revenu), joue: fini > 0 });
+  });
+  matchs.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  refs.forEach(function (ref) {
+    stock[ref] += livre[ref];
+    matchs.forEach(function (m) { stock[ref] -= m.sorti[ref] - m.revenu[ref]; });
+  });
+  return { stock: pilQtesPrepa_(stock), base: R.base, livre: pilQtesPrepa_(livre), livraisons: livraisons, matchs: matchs };
+}
+function pilLireStockClub_(eventId) {
+  let idm = '';
+  if (eventId) { const ev = pilEvent_(eventId); if (ev) idm = pilIdMatch_(ev, false); }
+  const R = pilReserve_();
+  return { idMatch: idm, lignes: PIL.PREPA, futLitres: PIL.FUT_LITRES, base: R.base,
+    avant: R.base ? pilStockClub_(idm) : null,                // disponible pour ce match
+    total: R.base ? pilStockClub_(null) : null,               // après tous les matchs préparés
+    livraisons: R.livraisons.slice(-30).reverse() };
+}
+function pilEnregistrerLivraison_(l) {
+  const date = String(l.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Date de livraison invalide');
+  const qte = {}; let n = 0;
+  pilRefsPrepa_().forEach(function (ref) { const q = Math.round((Number((l.qte || {})[ref]) || 0) * 100) / 100; if (q) { qte[ref] = q; n++; } });
+  if (!n) throw new Error('Aucune quantité saisie');
+  const R = pilReserve_(), piece = String(l.piece || '').trim().slice(0, 60);
+  if (piece && R.livraisons.some(function (x) { return x.piece === piece; })) throw new Error('Livraison ' + piece + ' déjà enregistrée');
+  const liv = { id: Utilities.getUuid().slice(0, 8), ts: new Date().toISOString(), date: date,
+    fournisseur: String(l.fournisseur || '').trim().slice(0, 40), piece: piece, qte: qte };
+  R.livraisons.push(liv);
+  pilSetProp_('PIL_RESERVE', R);
+  return { livraison: liv };
+}
+function pilSupprimerLivraison_(id) {
+  const R = pilReserve_(), avant = R.livraisons.length;
+  R.livraisons = R.livraisons.filter(function (x) { return x.id !== id; });
+  if (R.livraisons.length === avant) throw new Error('Livraison introuvable');
+  pilSetProp_('PIL_RESERVE', R);
+  return { supprime: id };
+}
+// Comptage de tout ce que le club a physiquement (local + buvettes), en dehors d'un jour de match.
+// Les matchs datés après le comptage et déjà préparés en sont ensuite déduits.
+function pilEnregistrerComptageClub_(c) {
+  const date = String(c.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Date de comptage invalide');
+  const R = pilReserve_();
+  R.base = { date: date, ts: new Date().toISOString(), stock: pilQtesPrepa_(c.stock), par: String(c.par || '').slice(0, 40), note: String(c.note || '').slice(0, 200) };
+  pilSetProp_('PIL_RESERVE', R);
+  return { base: R.base };
 }
 
 // ── Accès sans saisie : tableau de bord et tablettes configurés par lien / QR ──
