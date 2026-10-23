@@ -121,6 +121,18 @@ th:first-child,td:first-child{text-align:left}
 .cmd-tbl td.zero{color:var(--faint)}
 .cmd-tbl input{width:64px;text-align:right;padding:5px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2)}
 .cmd-tbl .big{font-size:1.05rem}
+.club-tbl td.neg{color:var(--bad);font-weight:800}
+.club-tbl td.tot{font-weight:800}
+.club-forms{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.club-forms summary{cursor:pointer;font-weight:800;padding:8px 0}
+.club-form{padding:6px 0 4px}
+.club-meta{display:flex;flex-wrap:wrap;gap:12px 18px;margin-bottom:10px}
+.club-meta input{width:180px;text-align:left}
+.club-qtes{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.club-qtes label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:700;color:var(--muted)}
+.club-qtes input{text-align:right;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);font-size:1rem;font-weight:700}
+#club-livs .rows{display:flex;flex-direction:column;gap:4px;margin-top:10px;font-size:.85rem}
+#club-livs .rows div{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--divider);padding-top:4px}
 .btn.btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
 .err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:12px 14px;font-weight:700}
 .setup{max-width:560px;margin:40px auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
@@ -214,6 +226,38 @@ th:first-child,td:first-child{text-align:left}
     </div>
     <p class="note" id="cmd-note"></p>
   </section>
+  <section class="panel club" aria-label="Stock du club">
+    <h2>Stock du club <span id="club-sub">une seule réserve : local + buvettes</span></h2>
+    <div class="tbl"><table class="prepa-tbl club-tbl" id="club-tbl"></table></div>
+    <p class="note" id="club-note"></p>
+    <div class="club-forms">
+      <details id="liv-box"><summary>📥 Livraison reçue</summary>
+        <form id="liv-form" class="club-form">
+          <div class="club-meta">
+            <label class="cmd-field">Date de livraison<input type="date" id="liv-date" required></label>
+            <label class="cmd-field">Fournisseur<input type="text" id="liv-four" list="liv-fours" placeholder="DDS, Crouzil…"></label>
+            <label class="cmd-field">N° BL / facture<input type="text" id="liv-piece" placeholder="BL…"></label>
+          </div>
+          <datalist id="liv-fours"><option value="DDS Distribution"><option value="Crouzil Frères"></datalist>
+          <div class="club-qtes" id="liv-qtes"></div>
+          <div class="prepa-foot"><button class="btn" type="submit" id="liv-save">Ajouter au stock du club</button><span class="note" id="liv-status" role="status"></span></div>
+          <p class="note">Boissons de la buvette seulement, en fûts et en bouteilles / unités (pas en colis). L'épicerie du salon Club ne se saisit pas ici.</p>
+        </form>
+      </details>
+      <details id="cpt-box"><summary>🔢 Recompter tout le stock du club</summary>
+        <form id="cpt-form" class="club-form">
+          <div class="club-meta">
+            <label class="cmd-field">Compté le<input type="date" id="cpt-date" required></label>
+            <label class="cmd-field">Par<input type="text" id="cpt-par" placeholder="Prénom"></label>
+          </div>
+          <div class="club-qtes" id="cpt-qtes"></div>
+          <div class="prepa-foot"><button class="btn" type="submit" id="cpt-save">Enregistrer le comptage</button><span class="note" id="cpt-status" role="status"></span></div>
+          <p class="note">Compter <b>tout</b> ce qui est physiquement là : local + les 3 buvettes, hors jour de match. Fûts : 1,5 = un plein + un demi. Le comptage remplace le calcul ; les matchs préparés pour une date ultérieure en sont ensuite déduits.</p>
+        </form>
+      </details>
+    </div>
+    <div id="club-livs"></div>
+  </section>
   <section class="panel prepa" aria-label="Préparation du match">
     <h2>Préparation du match <span>stock de départ envoyé aux tablettes</span></h2>
     <form id="prepa-form">
@@ -303,7 +347,7 @@ function showSetup(){ $('setup').hidden = false; $('dash').hidden = true; $('cfg
 $('setup').addEventListener('submit', e => { e.preventDefault(); cfg = { url: $('cfg-url').value.trim(), token: nettoyerJeton($('cfg-token').value) }; saveCfg(); renderLinks(); start(); });
 $('btn-config').onclick = showSetup;
 $('btn-refresh').onclick = () => { refresh(); refreshTabState(); };
-$('ev-select').onchange = e => { current = e.target.value; loadPrepa(); loadCommande(); refresh(); };
+$('ev-select').onchange = e => { current = e.target.value; loadPrepa(); loadCommande(); loadClub(); refresh(); };
 
 async function start(){
   if (!cfg.url || !cfg.token) return showSetup();
@@ -320,6 +364,7 @@ async function start(){
   }
   loadPrepa();
   loadCommande();
+  loadClub();
   refresh();
   clearInterval(timer); timer = setInterval(() => { refresh(); refreshTabState(); }, 30000);
 }
@@ -487,7 +532,7 @@ function calculerCommande(){
     lignes.push({ ref, nom, prevu: Math.round(prevu), marge: m, reste: r, cmd: nb, unites: nb * k, colis: k, dispo: r + nb * k });
   });
   cmdCalc = { lignes, parts: t.parts, presents: P };
-  $('cmd-tbl').innerHTML = `<thead><tr><th>Produit</th><th>Conso prévue</th><th>Avec marge</th><th>Déjà en stock</th><th>À commander</th><th>Colisage</th></tr></thead><tbody>${
+  $('cmd-tbl').innerHTML = `<thead><tr><th>Produit</th><th>Conso prévue</th><th>Avec marge</th><th>${cmdData.stockClub ? 'Stock du club' : 'Déjà en stock'}</th><th>À commander</th><th>Colisage</th></tr></thead><tbody>${
     lignes.map(l => `<tr><td>${esc(l.nom)}</td><td>${l.prevu}</td><td>${l.marge}</td><td>${l.reste}</td>
       <td class="${l.cmd ? 'go big' : 'zero'}">${l.ref === 'FUT' ? l.cmd + ' fût' + (l.cmd > 1 ? 's' : '') : l.cmd + ' colis (' + l.unites + ')'}</td>
       <td>${l.colis == null ? '30 L' : `<input type="number" min="1" step="1" value="${l.colis}" data-ref="${l.ref}" aria-label="Colisage ${esc(l.nom)}">`}</td></tr>`).join('')
@@ -496,7 +541,8 @@ function calculerCommande(){
   $('cmd-base').textContent = `${int(P)} présents prévus`;
   autoRepartir();
   $('cmd-note').textContent = (t.n ? `Consommation calée sur l'historique et affinée par ${t.n} match(s) 26-27.` : `Consommation calée sur les reportings 24-25 et 25-26 ; elle s'affinera après chaque match 26-27.`) +
-    ' « Déjà en stock » = invendus remontés par les tablettes au dernier match (fûts non entamés seulement). À lancer idéalement à J-3, quand la billetterie est presque définitive.';
+    (cmdData.stockClub ? ' « Stock du club » = réserve + buvettes, hors stock déjà prévu pour d\'autres matchs (fûts entiers seulement).' : ' « Déjà en stock » = invendus remontés par les tablettes au dernier match (fûts non entamés seulement).') +
+    ' À lancer idéalement à J-3, quand la billetterie est presque définitive.';
 }
 // Répartit le stock disponible (en stock + commande) entre les buvettes, selon leur part de ventes
 let autoRepartiFait = '';
@@ -525,8 +571,11 @@ function repartir(auto){
     return base;
   };
   cmdCalc.lignes.forEach(l => {
-    const tot = l.ref === 'FUT' ? (l.reste + l.cmd) : (l.reste + l.unites);
-    split(tot).forEach((q, i) => { const el = $('pp-' + bk(B[i]) + '-' + l.ref); if (el) el.value = q; });
+    const dispo = l.ref === 'FUT' ? (l.reste + l.cmd) : (l.reste + l.unites);
+    // Stock du club : on n'envoie en buvette que le besoin avec marge, le reste reste en réserve
+    const tot = cmdData.stockClub ? Math.min(dispo, l.marge) : dispo;
+    const deja = b => { const v = Number(((cmdData.stockClub && cmdData.enBuvette || {})[b] || {})[l.ref]) || 0; return l.ref === 'FUT' ? Math.round(v * 4) / 4 : Math.round(v); };
+    split(tot).forEach((q, i) => { const el = $('pp-' + bk(B[i]) + '-' + l.ref); if (el) el.value = Math.max(q, deja(B[i])); });   // jamais moins que ce qui y est déjà
   });
   totaux();
   $('prepa-status').textContent = (auto === true ? 'Stock proposé automatiquement à partir de la commande conseillée' : 'Stock réparti à partir de la commande') + ' : vérifie puis « Enregistrer le stock ».';
@@ -543,13 +592,97 @@ $('cmd-copier').onclick = () => {
   navigator.clipboard.writeText(txt).then(() => $('cmd-status').textContent = 'Commande copiée ✓').catch(() => $('cmd-status').textContent = txt);
 };
 
+// ── Stock du club (une seule réserve : local + buvettes) ──
+let club = null;
+const nbFr = (n, ref) => { const v = Math.round((Number(n)||0) * 100) / 100; return ref === 'FUT' ? v.toLocaleString('fr-FR') + ' fût' + (Math.abs(v) > 1 ? 's' : '') : v.toLocaleString('fr-FR'); };
+const dateFr = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' }) : '—';
+const aujourdhui = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); };
+async function loadClub(){
+  try { club = await api({ action:'stockclub', eventId: current }); renderClub(); }
+  catch(e) {
+    $('club-tbl').innerHTML = '';
+    $('club-note').textContent = /inconnue/i.test(e.message) ? 'Stock du club indisponible : coller la nouvelle version de Pilotage.gs dans le Sheet puis redéployer (Gérer les déploiements → Nouvelle version).' : 'Lecture impossible : ' + e.message;
+  }
+}
+function engagePourCeMatch(ref){
+  if (!prepa || prepa.eventId !== current || !prepa.stocks) return 0;
+  return colonnes().reduce((t, b) => t + (Number((prepa.stocks[b] || {})[ref]) || 0), 0);
+}
+function champsQtes(prefixe, valeurs){
+  return club.lignes.map(([ref, nom]) => `<label>${esc(nom)}<input type="number" min="0" step="${ref === 'FUT' ? '0.25' : '1'}" inputmode="decimal" id="${prefixe}-${ref}" value="${valeurs && valeurs[ref] != null ? Math.round(valeurs[ref]*100)/100 : ''}" placeholder="0"></label>`).join('');
+}
+function renderClub(){
+  if (!club) return;
+  const L = club.lignes, b = club.base, av = club.avant;
+  if (!$('liv-date').value) $('liv-date').value = aujourdhui();
+  if (!$('cpt-date').value) $('cpt-date').value = aujourdhui();
+  if (!$('liv-qtes').children.length) $('liv-qtes').innerHTML = champsQtes('lv', null);
+  $('cpt-qtes').innerHTML = champsQtes('ct', club.total ? club.total.stock : null);
+  if (!b) {
+    $('club-tbl').innerHTML = '';
+    $('club-note').innerHTML = 'Pas encore de comptage : ouvre <b>🔢 Recompter tout le stock du club</b> pour démarrer.';
+    $('cpt-box').open = true; $('club-livs').innerHTML = ''; return;
+  }
+  const ev = events.find(e => e.id === current), nomMatch = ev ? (ev.nom.match(/vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/gi) || [ev.nom]).pop().replace(/^vs\.?\s+/i,'').replace(/\s*[-&]\s*$/,'') : 'ce match';
+  const mvt = ref => Math.round(((b.stock[ref]||0) + (av.livre[ref]||0) - (av.stock[ref]||0)) * 100) / 100;
+  let h = `<thead><tr><th>Produit</th><th>Compté le ${dateFr(b.date)}</th><th>+ Livré depuis</th><th>− Matchs depuis</th><th>Disponible pour ${esc(nomMatch)}</th><th>Prévu pour ${esc(nomMatch)}</th><th>Reste en réserve</th></tr></thead><tbody>`;
+  L.forEach(([ref, nom]) => {
+    const dispo = av.stock[ref] || 0, eng = engagePourCeMatch(ref), reste = Math.round((dispo - eng) * 100) / 100;
+    h += `<tr><td>${esc(nom)}</td><td>${nbFr(b.stock[ref], ref)}</td><td>${av.livre[ref] ? '+ ' + nbFr(av.livre[ref], ref) : '—'}</td><td>${mvt(ref) ? '− ' + nbFr(mvt(ref), ref) : '—'}</td>
+      <td class="${dispo < 0 ? 'neg' : 'tot'}">${nbFr(dispo, ref)}</td><td>${eng ? nbFr(eng, ref) : '—'}</td><td class="${reste < 0 ? 'neg' : ''}">${nbFr(reste, ref)}</td></tr>`;
+  });
+  $('club-tbl').innerHTML = h + '</tbody>';
+  const ms = av.matchs.map(m => `${m.idMatch} (${m.joue ? 'joué : départ − inventaire de fin' : 'à venir : stock de départ'})`);
+  $('club-note').textContent = `Dernier comptage le ${dateFr(b.date)}${b.par ? ' par ' + b.par : ''}${b.note ? ' (' + b.note + ')' : ''}. ` + (ms.length ? 'Matchs déduits : ' + ms.join(', ') + '. ' : '') +
+    'Rouge = il manque du stock : livraison à enregistrer ou comptage à refaire.';
+  const livs = club.livraisons || [];
+  $('club-livs').innerHTML = livs.length ? `<div class="rows">${livs.slice(0, 8).map(l => `<div><span>📥 ${dateFr(l.date)} · ${esc(l.fournisseur || '')} ${esc(l.piece || '')} : ${Object.entries(l.qte).map(([r, q]) => nbFr(q, r) + ' ' + esc((L.find(x => x[0] === r) || [r, r])[1].replace(/\s*\(.*\)$/, ''))).join(', ')}${l.date <= b.date ? ' <i>(déjà comprise dans le comptage du ' + dateFr(b.date) + ')</i>' : ''}</span><button type="button" class="btn small btn-ghost" onclick="supprimerLivraison('${esc(l.id)}')">Supprimer</button></div>`).join('')}</div>` : '';
+}
+async function postClub(body){
+  const r = await fetch(cfg.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(Object.assign({ token: cfg.token }, body)) });
+  const j = await r.json();
+  if (j.status !== 'ok') throw new Error(j.message || 'refus');
+  return j;
+}
+const lireQtes = prefixe => { const o = {}; club.lignes.forEach(([ref]) => { const v = Number(String($(prefixe + '-' + ref).value).replace(',', '.')); if (v) o[ref] = v; }); return o; };
+$('liv-form').addEventListener('submit', async e => {
+  e.preventDefault(); if (!club) return;
+  const qte = lireQtes('lv');
+  if (!Object.keys(qte).length) { $('liv-status').textContent = 'Saisis au moins une quantité.'; return; }
+  $('liv-save').disabled = true; $('liv-status').textContent = 'Enregistrement…';
+  try {
+    await postClub({ action:'livraison', livraison: { date: $('liv-date').value, fournisseur: $('liv-four').value, piece: $('liv-piece').value, qte } });
+    $('liv-qtes').innerHTML = ''; $('liv-piece').value = '';
+    await loadClub(); loadCommande();
+    $('liv-status').textContent = '✅ Livraison ajoutée au stock du club.';
+  } catch(err) { $('liv-status').textContent = '❌ ' + err.message; }
+  $('liv-save').disabled = false;
+});
+$('cpt-form').addEventListener('submit', async e => {
+  e.preventDefault(); if (!club) return;
+  if (!confirm('Remplacer le stock du club par ce comptage ?')) return;
+  const stock = {}; club.lignes.forEach(([ref]) => stock[ref] = Number(String($('ct-' + ref).value).replace(',', '.')) || 0);
+  $('cpt-save').disabled = true; $('cpt-status').textContent = 'Enregistrement…';
+  try {
+    await postClub({ action:'stockcompte', comptage: { date: $('cpt-date').value, par: $('cpt-par').value, stock } });
+    await loadClub(); loadCommande();
+    $('cpt-status').textContent = '✅ Comptage enregistré.'; $('cpt-box').open = false;
+  } catch(err) { $('cpt-status').textContent = '❌ ' + err.message; }
+  $('cpt-save').disabled = false;
+});
+async function supprimerLivraison(id){
+  if (!confirm('Supprimer cette livraison du stock du club ?')) return;
+  try { await postClub({ action:'livraisonSuppr', id }); await loadClub(); loadCommande(); }
+  catch(err) { $('liv-status').textContent = '❌ ' + err.message; }
+}
+
 // ── Préparation du match ──
 let prepa = null;
 const bk = b => (String(b).match(/\d+/) || ['BEN'])[0];          // Buvette 2 → 2, Bénévoles → BEN
 const colonnes = () => prepa.buvettes.concat(prepa.reserves || []);
 async function loadPrepa(){
   if (!current) return;
-  try { prepa = await api({ action:'prepa', eventId: current }); renderPrepa(); }
+  try { prepa = await api({ action:'prepa', eventId: current }); renderPrepa(); if (club) renderClub(); }
   catch(e) { $('prepa-status').textContent = 'Lecture impossible : ' + e.message; }
 }
 async function refreshTabState(){
@@ -651,7 +784,7 @@ async function enregistrerPrepa(auto){
     const r = await fetch(cfg.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action:'prepa', token: cfg.token, eventId: current, stocks }) });
     const j = await r.json();
     if (j.status !== 'ok') throw new Error(j.message || 'refus');
-    await loadPrepa();
+    await loadPrepa(); loadClub();
     $('prepa-status').textContent = auto
       ? `✅ Stock proposé enregistré automatiquement pour ${j.idMatch} : les tablettes le chargent seules. Tu peux le modifier puis réenregistrer.`
       : `✅ Stock enregistré pour ${j.idMatch} (match actif). Les tablettes le prennent en compte dans les 5 minutes.`;
