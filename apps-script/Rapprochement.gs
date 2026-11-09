@@ -22,6 +22,8 @@ const RAP = {
   BILLETTERIE: '706120000',
   JOURS_APRES: 7,
   TOLERANCE: 0.05,   // écart CB considéré comme nul en dessous de 5 centimes
+  ECART_MINEUR: 20,  // 09/11/2026 — jusqu'à 20 € (ou 1 % de la CB si plus grand) : erreur de saisie au comptoir, pas d'alerte
+  ECART_MINEUR_PCT: 0.01,
 };
 const RAP_COLS = [
   ['match', 'MATCH'], ['date', 'DATE'], ['adv', 'ADVERSAIRE'], ['ligne', 'LIGNE'],
@@ -176,6 +178,7 @@ function rapprochementCB(silencieux) {
     if (remise === '') return '⏳ remise pas encore comptabilisée';
     const e = r2(remise - cb);
     if (Math.abs(e) < RAP.TOLERANCE) return '✅ rapproché';
+    if (Math.abs(e) <= Math.max(RAP.ECART_MINEUR, Math.abs(cb) * RAP.ECART_MINEUR_PCT)) return '✅ écart mineur (saisie au comptoir)';
     return e > 0 ? '⚠️ CB sur TPE sans saisie tablette' : '⚠️ CB tablette non retrouvée en banque';
   };
 
@@ -224,7 +227,7 @@ function rapprochementCB(silencieux) {
   sh.getRange(1, 1).setValue('💳 RAPPROCHEMENT CB — remises TPE (Pennylane) ↔ ventes des tablettes').setFontSize(16).setFontWeight('bold').setFontColor(navy);
   sh.getRange(2, 1).setValue((erreurPl ? '⚠️ ' + erreurPl + ' — ' : lus + ' ') +
     'Automatique : recalculé après chaque import Pennylane (toutes les 6 h) ou menu 📡 Pilotage live → 💳 Rapprochement CB. ' +
-    'CB enregistrée = CA boissons payé CB + consignes nettes payées CB. Écart CB > 0 : paiements passés sur le TPE sans saisie sur la tablette (vente non ventilée par produit). ' +
+    'CB enregistrée = CA boissons payé CB + consignes nettes payées CB. Remise Pennylane ramenée en TTC (TVA de l\'écriture). Écart jusqu\'à 20 € (ou 1 %) = écart mineur, sans alerte. Écart CB > 0 : paiements passés sur le TPE sans saisie sur la tablette (vente non ventilée par produit). ' +
     'Boutique et billetterie : montants HT tels que comptabilisés, affichés pour retrouver le total crédité en banque ce jour-là.')
     .setFontStyle('italic').setFontColor('#666666').setWrap(false);
   sh.getRange(3, 1, 1, nc).setValues([RAP_COLS.map(function (c) { return c[1]; })])
