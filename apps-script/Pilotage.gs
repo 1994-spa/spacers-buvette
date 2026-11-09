@@ -425,7 +425,21 @@ function pilChargerTablette_(buvette) {
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
     buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
-    billets: billets, billetsOk: billetsOk, charge: new Date().toISOString() };
+    billets: billets, billetsOk: billetsOk, aiscOfferts: pilAiscOfferts_(actif.idMatch), charge: new Date().toISOString() };
+}
+// 09/11/2026 — billets « AISC – Place + boisson » dont la boisson a déjà été offerte (ventes non annulées du match)
+function pilAiscOfferts_(idm) {
+  try {
+    const sh = feuille_('VENTES'); if (!sh || sh.getLastRow() < 2) return [];
+    const d = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB).getValues(), annulees = {}, out = {};
+    d.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
+    d.forEach(function (r) {
+      if (String(r[PIL_I['ID_MATCH']]) !== idm || annulees[String(r[PIL_I['ID vente']])]) return;
+      if (!/boisson offerte AISC/.test(String(r[PIL_I['Fidélité']]))) return;
+      [r[PIL_I['ID billet']], r[PIL_I['Code-barres']]].forEach(function (k) { if (k) out[String(k)] = 1; });
+    });
+    return Object.keys(out);
+  } catch (e) { return []; }
 }
 
 // Prix de vente et seuils de 📦 PRODUITS envoyés aux tablettes (réf → {prix, seuil})
@@ -464,7 +478,8 @@ function pilEnregistrerVentes_(ventes) {
     const t = v.ticket || {}, ts = new Date(v.ts || Date.now()), idm = v.matchId || '', b = v.buvette || '', day = pilDate_(ts);
     const row = [now, ts, v.id, idm, b, Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
       t.ticket_id || '', t.barcode || '', t.tarif || '', '',
-      (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')];
+      (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')
+        + (v.offert ? ((v.annule || Number(v.remise)) ? ' · ' : '') + 'boisson offerte AISC (' + v.offert + ')' : '')];
     PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : v.paiement === 'BENEVOLE' ? 'BENEVOLE' : '');
     rows.push(row);
