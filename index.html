@@ -581,7 +581,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.09-envoi</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.09-cloture</p>
     </div>
   </div>
 </div>
@@ -2082,8 +2082,17 @@ function appliquerChargement(d, nouveau) {
   save(); renderAll(); renderEtatMatch();
   info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
 }
+let sansClotureConfirme = false;
 function confirmerNouveauMatch() {
   if (Object.values(state.clotures || {}).some(x => !x.envoyee)) { info('⏳ Le rapport de fin de match n\'est pas encore arrivé au Sheet : attends le wifi avant de changer de match'); return; }
+  // 09/11/2026 — Cannes B1 : tablette passée au match suivant sans clôture de caisse (ni TPE, ni espèces, ni inventaire).
+  const ventes = (cumulTab().ventes || 0);
+  if (ventes > 0 && !state.clotures[state.tab] && !sansClotureConfirme) {
+    sansClotureConfirme = true;
+    info(`⚠️ La caisse de ${state.match ? state.match.nom : 'ce match'} n'a pas été clôturée (${ventes} ventes). Ouvre le Rapport → Clôturer d'abord, ou touche encore pour continuer sans clôture.`);
+    return;
+  }
+  sansClotureConfirme = false;
   document.getElementById('reset-confirm').hidden = true;
   if (chargementEnAttente) { const d = chargementEnAttente; chargementEnAttente = null; appliquerChargement(d, true); }
 }
