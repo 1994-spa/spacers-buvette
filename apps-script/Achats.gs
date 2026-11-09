@@ -32,8 +32,23 @@ function plItems_(res) { return res.items || res.data || res.ledger_entry_lines 
 function plCompteId_(numero) {
   const p = PropertiesService.getScriptProperties(), k = 'PL_COMPTE_' + numero, memo = p.getProperty(k);
   if (memo) return memo;
-  const res = plApi_('/ledger_accounts', { filter: JSON.stringify([{ field: 'number', operator: 'eq', value: numero }]), limit: 20 });
-  const a = plItems_(res).filter(function (x) { return String(x.number) === numero; })[0];
+  // 09/11/2026 — le filtre exact « number = 607100000 » ne trouvait rien alors que le compte existe :
+  // Pennylane peut stocker le numéro court (6071) ou le filtre peut être ignoré. On compare donc les numéros
+  // sans les zéros de fin, d'abord via le filtre, puis en parcourant tout le plan de comptes.
+  const court = String(numero).replace(/0+$/, '');
+  const memeCompte = function (x) { const n = String(x.number || ''); return n === numero || n.replace(/0+$/, '') === court; };
+  let a = null;
+  try { a = plItems_(plApi_('/ledger_accounts', { filter: JSON.stringify([{ field: 'number', operator: 'eq', value: numero }]), limit: 20 })).filter(memeCompte)[0]; }
+  catch (e) { if (!/400/.test(e.message)) throw e; }
+  if (!a) try { a = plItems_(plApi_('/ledger_accounts', { filter: JSON.stringify([{ field: 'number', operator: 'eq', value: court }]), limit: 20 })).filter(memeCompte)[0]; }
+  catch (e) { if (!/400/.test(e.message)) throw e; }
+  let cursor = null, tour = 0;
+  while (!a && tour++ < 60) {                       // plan de comptes complet (pagination par curseur)
+    const res = plApi_('/ledger_accounts', { limit: 100, cursor: cursor });
+    a = plItems_(res).filter(memeCompte)[0] || null;
+    if (!res.has_more || !res.next_cursor) break;
+    cursor = res.next_cursor;
+  }
   if (!a) return null;
   p.setProperty(k, String(a.id));
   return String(a.id);
