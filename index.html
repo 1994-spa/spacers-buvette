@@ -581,7 +581,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.22-inventaire</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.09-envoi</p>
     </div>
   </div>
 </div>
@@ -1059,12 +1059,26 @@ function renderAlerts() {
   z.innerHTML = out.slice(0, 3).map(([c, t]) => `<div class="alert ${c}">${esc(t)}</div>`).join('');
 }
 
+let refusEnvoi = '';   // le Sheet a répondu mais refuse les ventes (jeton, script) : à signaler, pas à taire
+// Ancienneté de la plus vieille vente gardée dans la tablette (ex. B1 Plessis envoyée 2 jours après le match)
+function plusVieilleAttente() {
+  const t = Math.min(...state.outbox.map(v => new Date(v.ts).getTime()).filter(x => x > 0));
+  return isFinite(t) ? Date.now() - t : 0;
+}
+function heureAttente() {
+  const d = new Date(Date.now() - plusVieilleAttente());
+  const h = d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+  return new Date().toDateString() === d.toDateString() ? h : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' }) + ' ' + h;
+}
 function renderNet() {
   const n = document.getElementById('net'), t = document.getElementById('net-txt');
   const off = navigator.onLine === false, att = state.outbox.length;
   if (entrainement) { n.className = 'net wait'; t.textContent = 'Entraînement · rien n\'est envoyé'; }
   else if (!state.url || !state.token) { n.className = 'net off'; t.textContent = 'Non configurée'; }
+  else if (off && att && plusVieilleAttente() > 10 * 60000) { n.className = 'net off'; t.textContent = `⚠️ Hors ligne · ${att} vente${att > 1 ? 's' : ''} pas envoyée${att > 1 ? 's' : ''} depuis ${heureAttente()}`; }
   else if (off) { n.className = 'net wait'; t.textContent = att ? `Hors ligne · ${att} vente${att > 1 ? 's' : ''} gardée${att > 1 ? 's' : ''}` : 'Hors ligne · tout est à jour'; }
+  else if (refusEnvoi && att) { n.className = 'net off'; t.textContent = `⚠️ Envoi refusé par le Sheet (${att}) : appelle le responsable`; }
+  else if (att && plusVieilleAttente() > 10 * 60000) { n.className = 'net off'; t.textContent = `⚠️ ${att} vente${att > 1 ? 's' : ''} pas envoyée${att > 1 ? 's' : ''} depuis ${heureAttente()}`; }
   else if (att) { n.className = 'net wait'; t.textContent = `Envoi en cours (${att})`; }
   else if (Object.values(state.clotures || {}).some(x => !x.envoyee)) { n.className = 'net wait'; t.textContent = 'Envoi du rapport…'; }
   else { n.className = 'net ok'; t.textContent = 'Connectée · tout est envoyé'; }
@@ -1450,7 +1464,8 @@ async function envoyerVentes() {
     const r = await fetchT(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
       body: JSON.stringify({ action:'ventes', token: state.token, buvette: state.tab, ventes: lot, stock: stockSnapshot() }) });
     const res = await r.json();
-    if (res.status !== 'ok') throw new Error(res.message || 'refus');
+    if (res.status !== 'ok') { refusEnvoi = res.message || 'refus'; throw new Error(refusEnvoi); }
+    refusEnvoi = '';
     const recus = new Set(res.recus || []);
     state.outbox = state.outbox.filter(v => !recus.has(v.id));
     state.envoyees += recus.size;
@@ -1711,7 +1726,10 @@ function afficherRapport() {
     }).join('') + '</div>';
   }
   h += state.outbox.length
-    ? `<div class="msg warn">📶 ${state.outbox.length} vente(s) gardée(s) dans la tablette : elles partiront toutes seules au retour du wifi.</div>`
+    ? (state.clotures[state.tab]
+      ? `<div class="msg err">⚠️ Ne range pas la tablette : ${state.outbox.length} vente(s) pas encore arrivée(s) dans le Sheet (depuis ${heureAttente()}). Reste sur le wifi jusqu'au message vert « Toutes les ventes sont arrivées ».</div>`
+      : `<div class="msg warn">📶 ${state.outbox.length} vente(s) gardée(s) dans la tablette : elles partiront toutes seules au retour du wifi.</div>`)
+      + (refusEnvoi ? `<div class="msg err">Le Sheet refuse l'envoi : « ${esc(refusEnvoi)} ». Appelle le responsable.</div>` : '')
     : `<div class="msg ok">✅ Toutes les ventes sont arrivées dans le Sheet.</div>`;
   if (state.outbox.length) h += `<button class="btn prim" style="width:100%;margin-top:10px" onclick="envoyerVentes()">📤 Réessayer l'envoi maintenant</button>`;
   document.getElementById('bilan').innerHTML = h;
