@@ -801,12 +801,22 @@ function pilotageTraiterBillets() {
   const data = rg.getValues(), memo = {}, debut = Date.now();
   let relies = 0, credites = 0;
   const annulees = {};                                      // ventes annulées depuis la tablette : pas de points
-  data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+)$/); if (m) annulees[m[1]] = 1; });
+  // 28/10/2026 — la ligne d'annulation peut porter une remise après « · » : l'ID vente s'arrête avant.
+  data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
   data.forEach(function (r) {
     if (Date.now() - debut > 270000) return;               // marge sous la limite d'exécution
     const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']];
-    if ((!id && !code) || r[PIL_I['Fidélité']]) return;
-    if (annulees[String(r[PIL_I['ID vente']])]) { r[PIL_I['Fidélité']] = 'vente annulée'; return; }
+    if (!id && !code) return;
+    // 28/10/2026 — CORRECTION. La réception des ventes inscrit la REMISE dans « Fidélité »
+    // (« remise abonné 10 % : 0,20 € »). L'ancien test « Fidélité non vide = déjà traité » sautait
+    // donc toute vente remisée : ni client Tickie, ni points, depuis Sète. Une ligne n'est traitée
+    // que si le client est déjà renseigné ou si « Fidélité » porte un résultat de ce traitement.
+    // Les ventes remisées en attente (Sète, Cannes…) sont rattrapées au prochain passage.
+    const fid = String(r[PIL_I['Fidélité']] || '').trim();
+    if (r[PIL_I['Client Tickie']] || /^annulation de /.test(fid) ||
+        /(^|·\s*)(\d+ pts|relié|billet introuvable|vente annulée)$/.test(fid)) return;
+    const pre = fid ? fid + ' · ' : '';                    // la remise reste lisible, le résultat s'ajoute
+    if (annulees[String(r[PIL_I['ID vente']])]) { r[PIL_I['Fidélité']] = pre + 'vente annulée'; return; }
     const key = id || ('bc:' + code);
     if (!(key in memo)) {
       try {
@@ -819,7 +829,7 @@ function pilotageTraiterBillets() {
     }
     const c = memo[key];
     if (c === undefined) return;                            // erreur réseau : on réessaiera
-    if (c === null) { r[PIL_I['Fidélité']] = 'billet introuvable'; return; }
+    if (c === null) { r[PIL_I['Fidélité']] = pre + 'billet introuvable'; return; }
     r[PIL_I['Client Tickie']] = c.customerId;
     if (!r[PIL_I['ID billet']]) r[PIL_I['ID billet']] = c.id;
     if (!r[PIL_I['Tarif billet']]) r[PIL_I['Tarif billet']] = c.tarif;
@@ -828,8 +838,8 @@ function pilotageTraiterBillets() {
     const montant = (Number(r[PIL_I['Total €']]) || 0) - (Number(r[PIL_I['Consignes +']]) || 0) + (Number(r[PIL_I['Consignes rendues']]) || 0);
     if (typeof _fidCreditOne_ === 'function' && c.email && montant > 0) {
       _fidCreditOne_({ carte: c.email, nom: c.nom, montant: montant }, r[PIL_I['ID_MATCH']], r[PIL_I['Buvette']], pilDate_(r[PIL_I['Horodatage']]));
-      r[PIL_I['Fidélité']] = Math.floor(montant) + ' pts'; credites++;
-    } else r[PIL_I['Fidélité']] = 'relié';
+      r[PIL_I['Fidélité']] = pre + Math.floor(montant) + ' pts'; credites++;
+    } else r[PIL_I['Fidélité']] = pre + 'relié';
   });
   rg.setValues(data);
   try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); } catch (e) {}   // achats Pennylane (toutes les 6 h)
