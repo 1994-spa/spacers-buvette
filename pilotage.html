@@ -428,7 +428,9 @@ function render(d){
         <div><span>🎫 Avec billet</span><b>${pct(x.reliees||0, x.ventes)}</b></div></div>
       ${prods ? `<p class="note" style="margin-top:6px">${prods}</p>` : ''}
       ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b>${cl.ecartCb != null ? ` · CB vs TPE <b>${cl.ecartCb > 0 ? '+' : ''}${eur(cl.ecartCb, 2)}</b>` : ''}</div>`
-           : `<div class="clot">⏳ Caisse pas encore clôturée sur la tablette</div>`}`;
+           : `<div class="clot">⏳ Caisse pas encore clôturée sur la tablette</div>`}
+      ${cl && Number(cl.ventes) > Number(x.ventes || 0) ? `<div class="clot bad">⚠️ La tablette a clôturé avec ${int(cl.ventes)} ventes, le Sheet n'en a reçu que ${int(x.ventes || 0)} : ${int(cl.ventes - (x.ventes || 0))} vente(s) encore dans la tablette. Rallume-la sur le wifi et ouvre l'appli.</div>`
+        : !Number(x.ventes) ? `<div class="clot warn">⚠️ Aucune vente reçue de cette buvette. Si elle a servi, rallume sa tablette sur le wifi et ouvre l'appli.</div>` : ''}`;
     return `<article class="panel"><div class="buv-h"><b>${esc(nom)}${BUV_LIEU[nom] ? ` <span class="note">· ${BUV_LIEU[nom]}</span>` : ''}</b><span class="ca">${eur(x.ca)}</span></div>
       <div class="buv-s">${int(x.ventes)} ventes · panier ${eur(x.ventes ? x.ca/x.ventes : null, 2)} · ${pct(x.ca, v.ca)} du CA</div>
       ${rapport}

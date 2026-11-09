@@ -22,12 +22,14 @@ const RAP = {
   BILLETTERIE: '706120000',
   JOURS_APRES: 7,
   TOLERANCE: 0.05,   // écart CB considéré comme nul en dessous de 5 centimes
+  ECART_MINEUR: 20,  // 09/11/2026 — jusqu'à 20 € (ou 1 % de la CB si plus grand) : erreur de saisie au comptoir, pas d'alerte
+  ECART_MINEUR_PCT: 0.01,
 };
 const RAP_COLS = [
   ['match', 'MATCH'], ['date', 'DATE'], ['adv', 'ADVERSAIRE'], ['ligne', 'LIGNE'],
   ['ca', 'CA BOISSONS TTC €', '€'], ['caCB', 'dont payé CB €', '€'], ['caESP', 'dont payé espèces €', '€'],
   ['consCB', 'CONSIGNES NETTES PAYÉES CB €', '€'], ['cbTab', 'CB ENREGISTRÉE TABLETTES €', '€'],
-  ['tpe', 'TICKET TPE (clôture) €', '€'], ['remise', 'REMISE CB PENNYLANE €', '€'], ['ecart', 'ÉCART CB € (Pennylane − tablettes)', '€'],
+  ['tpe', 'TICKET TPE (clôture) €', '€'], ['remise', 'REMISE CB PENNYLANE TTC €', '€'], ['ecart', 'ÉCART CB € (Pennylane − tablettes)', '€'],
   ['statut', 'STATUT'], ['compte', 'COMPTE'], ['libelle', 'ÉCRITURE PENNYLANE'],
 ];
 
@@ -56,6 +58,24 @@ function rapLignesFenetre_(depuis, jusqua) {
     cursor = res.next_cursor;
   }
   return { lignes: out, comptes: comptes };
+}
+// 09/11/2026 — Pennylane enregistre la remise buvette en HT sur 707100000 (ex. B1 Sète 1 017,33 € HT = 1 220,80 € TTC
+// encaissés sur le TPE) ; la TVA est sur une autre ligne de la même écriture (44571…). Pour comparer avec la CB
+// des tablettes (TTC), on ajoute à chaque ligne buvette sa part de la TVA collectée de son écriture.
+// Écriture sans ligne de TVA = montant déjà TTC, gardé tel quel.
+function rapTTC_(buv, toutes) {
+  const parEcr = {};
+  toutes.forEach(function (l) {
+    if (!l.entryId) return;
+    const e = parEcr[l.entryId] = parEcr[l.entryId] || { tva: 0, ht: 0 };
+    if (/^4457/.test(l.compte)) e.tva += l.montant;
+    else if (/^70/.test(l.compte)) e.ht += l.montant;
+  });
+  return buv.map(function (l) {
+    const e = l.entryId && parEcr[l.entryId];
+    if (!e || !e.tva || !e.ht) return l;
+    return Object.assign({}, l, { ht: l.montant, montant: Math.round(l.montant * (1 + e.tva / e.ht) * 100) / 100 });
+  });
 }
 function rapDuCompte_(lignes, numero) {
   const court = String(numero).replace(/0+$/, '');   // 707100000 ou 7071 selon le plan de comptes
@@ -142,7 +162,7 @@ function rapprochementCB(silencieux) {
   let pl = { buv: [], bou: [], bil: [] }, erreurPl = '', lus = '';
   try {
     const f = rapLignesFenetre_(depuis, jusqua);
-    pl.buv = rapDuCompte_(f.lignes, RAP.BUVETTE);
+    pl.buv = rapTTC_(rapDuCompte_(f.lignes, RAP.BUVETTE), f.lignes);
     pl.bou = rapDuCompte_(f.lignes, RAP.BOUTIQUE);
     pl.bil = rapDuCompte_(f.lignes, RAP.BILLETTERIE);
     const ms = matchs.map(function (m) { return infos[m]; });
@@ -158,6 +178,7 @@ function rapprochementCB(silencieux) {
     if (remise === '') return '⏳ remise pas encore comptabilisée';
     const e = r2(remise - cb);
     if (Math.abs(e) < RAP.TOLERANCE) return '✅ rapproché';
+    if (Math.abs(e) <= Math.max(RAP.ECART_MINEUR, Math.abs(cb) * RAP.ECART_MINEUR_PCT)) return '✅ écart mineur (saisie au comptoir)';
     return e > 0 ? '⚠️ CB sur TPE sans saisie tablette' : '⚠️ CB tablette non retrouvée en banque';
   };
 
@@ -206,7 +227,7 @@ function rapprochementCB(silencieux) {
   sh.getRange(1, 1).setValue('💳 RAPPROCHEMENT CB — remises TPE (Pennylane) ↔ ventes des tablettes').setFontSize(16).setFontWeight('bold').setFontColor(navy);
   sh.getRange(2, 1).setValue((erreurPl ? '⚠️ ' + erreurPl + ' — ' : lus + ' ') +
     'Automatique : recalculé après chaque import Pennylane (toutes les 6 h) ou menu 📡 Pilotage live → 💳 Rapprochement CB. ' +
-    'CB enregistrée = CA boissons payé CB + consignes nettes payées CB. Écart CB > 0 : paiements passés sur le TPE sans saisie sur la tablette (vente non ventilée par produit). ' +
+    'CB enregistrée = CA boissons payé CB + consignes nettes payées CB. Remise Pennylane ramenée en TTC (TVA de l\'écriture). Écart jusqu\'à 20 € (ou 1 %) = écart mineur, sans alerte. Écart CB > 0 : paiements passés sur le TPE sans saisie sur la tablette (vente non ventilée par produit). ' +
     'Boutique et billetterie : montants HT tels que comptabilisés, affichés pour retrouver le total crédité en banque ce jour-là.')
     .setFontStyle('italic').setFontColor('#666666').setWrap(false);
   sh.getRange(3, 1, 1, nc).setValues([RAP_COLS.map(function (c) { return c[1]; })])
