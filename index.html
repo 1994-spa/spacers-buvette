@@ -490,7 +490,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <ol>
       <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson.</span></li>
       <li><span><b>Gobelet : 🥤 + Gobelet 33 ou 50 si le client n'en a pas.</b>Une touche par gobelet donné, de la bonne taille = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Rendu 33 ou 50. Plus assez d'espèces pour le rembourser ? Touche 🚫 Plus d'espèces : le club garde la consigne, c'est compté à part. Gobelet posé sur le comptoir ou ramassé, et personne ne demande l'euro ? Touche 🫙 Récupéré 30 ou 50 : aucun argent ne bouge, mais le gobelet revient dans le stock d'écocups.</span></li>
-      <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Abonné ou partenaire CROUS : −10 % sur sa commande. Autre billet : −5 %. Pas de cumul avec les formules « 2 bières » : la tablette applique toute seule l'avantage le plus intéressant, et le client gagne des points. Pas de billet ? On continue.</span></li>
+      <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Abonné ou partenaire CROUS : −10 % sur sa commande. Autre billet : −5 %. Billet « place + boisson » (AISC, match de Tours) : la tablette offre toute seule la boisson la plus chère du panier, une seule fois par billet (la consigne du gobelet reste payée). Pas de cumul avec les formules « 2 bières » : la tablette applique toute seule l'avantage le plus intéressant, et le client gagne des points. Pas de billet ? On continue.</span></li>
       <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>CB : tape le montant affiché sur le TPE, puis touche « Paiement accepté ». Espèces : touche le billet donné, la tablette affiche la monnaie à rendre.</span></li>
     </ol>
     <p class="plus">Une erreur ? Le bouton <b>↶ Annuler</b> apparaît quelques secondes après chaque vente, ou retire une boisson avec <b>−</b>.<br>
@@ -581,7 +581,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.10.22-inventaire</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.18-aisc</p>
     </div>
   </div>
 </div>
@@ -659,6 +659,7 @@ const state = {
   prix:{},           // prix et seuils lus dans l'onglet 📦 PRODUITS du Sheet { réf: {prix, seuil} }
   forcer:{},         // produits que la tablette croit épuisés mais que le bénévole a confirmé avoir encore
   reassorts:[],      // stock reçu en cours de match, saisi sur la tablette, pas encore arrivé au Sheet
+  offertes:{},       // { code-barres: 1 } billets « place + boisson » dont la boisson a déjà été donnée (toutes buvettes, via le Sheet)
 };
 let panier = nouveauPanier();
 let billet = null;   // { ticket_id, barcode, tarif, nom, nonVerifie, profil }
@@ -679,7 +680,7 @@ function cumulTab(tab) {
   if (typeof c.nbBenev !== 'number') c.nbBenev = 0;
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','mouvCaisse','releves','modeFin'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','mouvCaisse','releves','modeFin','offertes'];
 let alerteMemoire = false;
 function save() {
   if (entrainement) return;
@@ -930,16 +931,42 @@ function renderTiles() {
 const REMISE_BILLET = 0.05, REMISE_ABONNE = 0.10;
 const ABONNEMENT_EVENT_ID = '69fc9d2b69a5578199f9d5e9';
 const CLIENTS_REMISE = { '6a300038606cb61d33ae0f79': 'CROUS' };   // client Tickie → partenaire (même liste que Pilotage.gs)
+// Billets « place + boisson » : une boisson offerte (la plus chère du panier, une seule par billet toutes buvettes
+// confondues), consigne payée, puis −5 % sur le reste comme tout billet. Registre transverse du 09/11.
+// Même liste que PIL.BILLETS_BOISSON dans Pilotage.gs.
+const BILLETS_BOISSON = {
+  AISC: { ticketTypes: ['6ada071ec4a71b3c0a3d34d4', '6af720c0c1465c450dbb4b4d', '6af720d3c1465c450dbb4b4e'],   // AISC – Place + boisson (plein, réduit, −8 ans), Tours 21/11
+          clients: ['6afda97d6ce0eb5d78f1244c'],   // client « AISC AISC » : 2 places émises en Plein Tarif (commande 448129)
+          tarif: /AISC/i },
+};
 function profilBillet(t, tarif) {   // réponse du proxy Tickie (billet absent de la liste chargée)
   if (t.eventId === ABONNEMENT_EVENT_ID || t.event === ABONNEMENT_EVENT_ID) return 'ABO';
+  for (const [k, b] of Object.entries(BILLETS_BOISSON))
+    if (b.ticketTypes.includes(t.ticketTypeId) || b.clients.includes(t.customerId) || b.tarif.test(tarif || '')) return k;
   if (CLIENTS_REMISE[t.customerId]) return CLIENTS_REMISE[t.customerId];
   return /abonn|commandant|pilote|spationaute/i.test(tarif || '') ? 'ABO' : '';
 }
-function tauxRemise() { return billet ? (billet.profil ? REMISE_ABONNE : REMISE_BILLET) : 0; }
+function billetBoisson() { return !!(billet && billet.profil && BILLETS_BOISSON[billet.profil]); }
+function boissonDejaPrise() { return billetBoisson() && !!(state.offertes || {})[billet.barcode]; }
+function tauxRemise() { return billet ? (billet.profil && !BILLETS_BOISSON[billet.profil] ? REMISE_ABONNE : REMISE_BILLET) : 0; }
 function libelleRemise() {
   if (!billet) return '';
   const pct = '−' + Math.round(tauxRemise() * 100) + ' %';
+  if (billetBoisson()) return (boissonDejaPrise() ? 'Boisson ' + billet.profil + ' déjà prise · ' : '1 boisson offerte + ') + 'remise billet ' + pct;
   return billet.profil === 'ABO' ? 'Remise abonné ' + pct : billet.profil ? 'Remise ' + billet.profil + ' ' + pct : 'Remise billet ' + pct;
+}
+// Boisson offerte du panier : la plus chère (prix unitaire), une seule, si le billet n'en a pas encore eu
+function boissonOfferte(lignes) {
+  if (!billetBoisson() || boissonDejaPrise()) return null;
+  let o = null;
+  Object.entries(lignes).forEach(([r, q]) => { if (q > 0) { const pu = priceOf(prod(r)); if (!o || pu > o.m) o = { ref: r, m: pu }; } });
+  return o && o.m > 0 ? o : null;
+}
+// Lignes payantes : la boisson offerte retirée (formules et remise billet portent sur le reste)
+function lignesPayantes(lignes) {
+  const o = boissonOfferte(lignes), l = Object.assign({}, lignes);
+  if (o) l[o.ref] = l[o.ref] - 1;
+  return l;
 }
 function remiseFormule(ref, q) {   // € retirés par les formules « 2 verres » pour cette référence
   const f = FORMULES[ref]; if (!f || q < f.n) return 0;
@@ -950,12 +977,12 @@ function remiseLigne(ref, q) {
   const f = remiseFormule(ref, q), b = billet ? q * priceOf(prod(ref)) * tauxRemise() : 0;
   return f > 0 && f >= b ? { type:'formule', m:f } : { type:'billet', m:b };
 }
-function remiseFormules() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { const l = remiseLigne(r, q); if (l.type === 'formule') t += l.m; }); return Math.round(t * 100) / 100; }
-function sousTotalProduits() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { t += q * priceOf(prod(r)); }); return t - remiseFormules(); }
+function remiseFormules() { let t = 0; Object.entries(lignesPayantes(panier.lignes)).forEach(([r, q]) => { if (q > 0) { const l = remiseLigne(r, q); if (l.type === 'formule') t += l.m; } }); return Math.round(t * 100) / 100; }
+function sousTotalProduits() { let t = 0; Object.entries(panier.lignes).forEach(([r, q]) => { t += q * priceOf(prod(r)); }); const o = boissonOfferte(panier.lignes); return t - remiseFormules() - (o ? o.m : 0); }
 // Remise billet brute (au centime près), avant arrondi
 function remiseBilletBrute(lignes) {
   if (!billet) return 0;
-  let t = 0; Object.entries(lignes).forEach(([r, q]) => { if (q > 0) { const l = remiseLigne(r, q); if (l.type === 'billet') t += l.m; } });
+  let t = 0; Object.entries(lignesPayantes(lignes)).forEach(([r, q]) => { if (q > 0) { const l = remiseLigne(r, q); if (l.type === 'billet') t += l.m; } });
   return Math.round(t * 100) / 100;
 }
 // Arrondie aux 10 centimes supérieurs, en faveur du client : pas de pièces de 5 centimes à rendre
@@ -970,8 +997,11 @@ function totalPanier() {
 // Prix réellement encaissé par verre (formules et remise billet réparties), envoyé au Sheet pour un CA exact
 function prixEncaisses(lignes) {
   const brute = remiseBilletBrute(lignes), k = brute > 0 ? remisePanier() / brute : 1;   // l'arrondi est réparti sur les lignes remisées
-  return Object.fromEntries(Object.keys(lignes).map(r => { const q = lignes[r], pu = priceOf(prod(r)), l = remiseLigne(r, q);
-    return [r, Math.round((pu - (l.type === 'billet' ? l.m * k : l.m) / q) * 1000) / 1000]; }));
+  const o = boissonOfferte(lignes), lp = lignesPayantes(lignes);   // boisson offerte : son prix est retiré de sa ligne
+  return Object.fromEntries(Object.keys(lignes).map(r => { const q = lignes[r], pu = priceOf(prod(r)), qp = lp[r];
+    const l = qp > 0 ? remiseLigne(r, qp) : { type: 'billet', m: 0 };
+    const red = (l.type === 'billet' ? l.m * k : l.m) + (o && o.ref === r ? o.m : 0);
+    return [r, Math.round((pu - red / q) * 1000) / 1000]; }));
 }
 // Conso bénévole : seulement des boissons (pas d'écocup ni de billet), jamais un remboursement
 function benevolePossible() {
@@ -1001,7 +1031,9 @@ function renderPanier() {
   const g = panier.gob || nouveauxGob();
   [33, 50].forEach(t => { if (g['s' + t]) rows.push(ligneHtml(`🥤 Gobelet ${t}cl consigné`, '+1 € par gobelet', g['s' + t], g['s' + t] * CONSIGNE, `changeConsigne(-1,${t})`, `changeConsigne(1,${t})`)); });
   [33, 50].forEach(t => { if (g['r' + t]) rows.push(ligneHtml(`♻️ Gobelet ${t}cl rendu`, 'consigne remboursée', g['r' + t], g['r' + t] * CONSIGNE, `changeRendue(-1,${t})`, `changeRendue(1,${t})`, true)); });
-  Object.entries(panier.lignes).forEach(([r, q]) => { const f = remiseLigne(r, q).type === 'formule' ? remiseLigne(r, q).m : 0; if (f) { const n = Math.floor(q / FORMULES[r].n);
+  const off = boissonOfferte(panier.lignes);
+  if (off) rows.push(`<div class="line neg remise"><span class="n">🎁 ${esc(prod(off.ref).nom)} offert(e)<small>billet ${esc(billet.profil)} · 1 boisson par billet · consigne payée</small></span><span class="step"></span><span class="m">−${fmt(off.m)}</span></div>`);
+  Object.entries(lignesPayantes(panier.lignes)).forEach(([r, q]) => { if (!(q > 0)) return; const f = remiseLigne(r, q).type === 'formule' ? remiseLigne(r, q).m : 0; if (f) { const n = Math.floor(q / FORMULES[r].n);
     rows.push(`<div class="line neg remise"><span class="n">🍻 Formule ${FORMULES[r].nom} = ${fmt(FORMULES[r].prix)}<small>× ${n} appliquée${n > 1 ? 's' : ''} automatiquement</small></span><span class="step"></span><span class="m">−${fmt(f)}</span></div>`); } });
   const rem = remisePanier();
   if (rem) rows.push(`<div class="line neg remise"><span class="n">🎫 ${libelleRemise()}<small>${esc(billet.nom || 'billet scanné')}${remiseFormules() ? ' · hors formules' : ''}</small></span><span class="step"></span><span class="m">−${fmt(rem)}</span></div>`);
@@ -1354,6 +1386,7 @@ function encaisser(mode) {
     panier.gob = Object.assign(nouveauxGob(), { n33: g.r33, n50: g.r50 });
     syncConsigne();
   }
+  const off = benev || nonRemb ? null : boissonOfferte(panier.lignes);
   const total = benev || nonRemb ? 0 : totalPanier(), remise = benev || nonRemb ? 0 : remisePanier(), taux = remise ? tauxRemise() : 0;
   const lignes = {};
   Object.entries(panier.lignes).forEach(([r, q]) => { if (q > 0) lignes[r] = q; });
@@ -1363,7 +1396,8 @@ function encaisser(mode) {
     matchId: state.match ? state.match.idMatch : '',
     buvette: state.tab,
     lignes, consigne: panier.consigne, rendue: panier.rendue, gob: Object.assign({}, panier.gob), total, remise,
-    tauxRemise: taux, profilRemise: remise && billet ? billet.profil || '' : '',
+    tauxRemise: taux, profilRemise: (remise || off) && billet ? billet.profil || '' : '',
+    offerte: off ? { ref: off.ref, montant: off.m } : null,   // boisson offerte par un billet « place + boisson »
     paiement: mode,
     prix: benev ? Object.fromEntries(Object.keys(lignes).map(r => [r, 0])) : prixEncaisses(lignes),   // prix réellement encaissés (formules et remise billet incluses)
     ticket: billet ? { ticket_id: billet.ticket_id || '', barcode: billet.barcode || '', tarif: billet.tarif || '' } : null,
@@ -1372,15 +1406,17 @@ function encaisser(mode) {
   state.outbox.push(vente);
   if ((mode === 'CB' || mode === 'ESP') && Object.keys(lignes).length)
     derniereCmd = { tab: state.tab, lignes: Object.assign({}, lignes), s33: panier.gob.s33, s50: panier.gob.s50 };
-  state.historique.unshift({ id: vente.id, ts: vente.ts, total, remise, prix: vente.prix, paiement: mode, lignes, consigne: vente.consigne, rendue: vente.rendue, gob: vente.gob, billet: !!vente.ticket, buvette: state.tab });
+  state.historique.unshift({ id: vente.id, ts: vente.ts, total, remise, prix: vente.prix, paiement: mode, lignes, consigne: vente.consigne, rendue: vente.rendue, gob: vente.gob, billet: !!vente.ticket, buvette: state.tab,
+    offerte: off ? billet.barcode : null });
   state.historique = state.historique.slice(0, 40);
+  if (off) { state.offertes = state.offertes || {}; state.offertes[billet.barcode] = 1; }
   panier = nouveauPanier(); billet = null;
   save(); renderAll();
   vibre(25);
   const side = document.getElementById('side'); side.classList.remove('flash'); void side.offsetWidth; side.classList.add('flash');
   derniere = vente.id;
   const nbNonRemb = (vente.gob.n33 || 0) + (vente.gob.n50 || 0);
-  snack(nonRemb ? `🚫 ${nbNonRemb} gobelet${nbNonRemb > 1 ? 's' : ''} non remboursé${nbNonRemb > 1 ? 's' : ''} (plus d'espèces) · noté` : benev ? `🙋 Boisson bénévole enregistrée (0 €)` : `✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${vente.remise ? ' · 🎫 −' + Math.round(taux * 100) + ' %' : ''}`, true);
+  snack(nonRemb ? `🚫 ${nbNonRemb} gobelet${nbNonRemb > 1 ? 's' : ''} non remboursé${nbNonRemb > 1 ? 's' : ''} (plus d'espèces) · noté` : benev ? `🙋 Boisson bénévole enregistrée (0 €)` : `✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${off ? ' · 🎁 boisson offerte' : ''}${vente.remise ? ' · 🎫 −' + Math.round(taux * 100) + ' %' : ''}`, true);
   setTimeout(envoyerVentes, DELAI_ANNUL + 500);
   defiVerifier(vente);
 }
@@ -1425,6 +1461,7 @@ function annulerVente(id) {
   }
   appliquerCumul({ buvette: h.buvette, lignes: h.lignes, consigne: h.consigne, rendue: h.rendue, gob: h.gob, total: h.total, remise: h.remise || 0, paiement: h.paiement }, -1);
   h.annulee = true;
+  if (h.offerte && state.offertes) delete state.offertes[h.offerte];   // le billet retrouve sa boisson offerte
   if (derniere === id) derniere = null;
   defiVerifier({ annulation: true });
   save(); renderAll();
@@ -1621,7 +1658,8 @@ function relierBillet(t, barcode) {
   vibre(30);
   renderPanier();
   if (paiementEnAttente) setTimeout(reprendrePaiement, 600);   // question « billet ? » → on enchaîne sur le paiement, remise incluse
-  info((t.nonVerifie ? '🎫 Billet enregistré (vérifié plus tard)' : `🎫 ${nom || 'Billet'} relié`) + ' · ' + libelleRemise() + ' appliquée');
+  if (boissonDejaPrise()) { vibre(200); info(`⚠️ Ce billet ${billet.profil} a déjà eu sa boisson offerte · remise billet −5 % seulement`); }
+  else info((t.nonVerifie ? '🎫 Billet enregistré (vérifié plus tard)' : `🎫 ${nom || 'Billet'} relié`) + ' · ' + libelleRemise() + (billetBoisson() ? '' : ' appliquée'));
 }
 function refuserBillet(msg) {
   vibre([80, 60, 80]);
@@ -2033,7 +2071,8 @@ async function chargerMatch(auto) {
     }
     if (d.produits && Object.keys(d.produits).length && panierVide()) { state.prix = d.produits; appliquerPrix(); renderTiles(); }
     if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {
-      if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; save(); }
+      if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
+      fusionnerOffertes(d); save(); renderPanier();
       return;
     }
     appliquerChargement(d, nouveau);
@@ -2059,10 +2098,17 @@ function appliquerChargement(d, nouveau) {
   (state.reassorts || []).filter(r => !r.envoye && r.buvette === state.tab && r.matchId === d.match.idMatch)
     .forEach(r => Object.entries(r.ajout).forEach(([k, q]) => { state.stocks[state.tab][k] = (Number(state.stocks[state.tab][k]) || 0) + q; }));
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
-  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.brouillons = {}; state.mouvCaisse = {}; state.releves = {}; state.modeFin = false; derniereCmd = null; state.forcer = {}; panier = nouveauPanier(); billet = null; }
+  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.brouillons = {}; state.mouvCaisse = {}; state.releves = {}; state.modeFin = false; derniereCmd = null; state.forcer = {}; state.offertes = {}; panier = nouveauPanier(); billet = null; }
   else if (reassort) state.forcer = {};   // nouveau stock reçu : on refait confiance au comptage
+  fusionnerOffertes(d);
   save(); renderAll(); renderEtatMatch();
   info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
+}
+// Boissons offertes déjà données dans les autres buvettes (lues par le Sheet dans 🧾 VENTES) : ajoutées à celles de la tablette
+function fusionnerOffertes(d) {
+  if (!Array.isArray(d.offertes)) return;
+  state.offertes = state.offertes || {};
+  d.offertes.forEach(c => { state.offertes[String(c).toLowerCase()] = 1; });
 }
 function confirmerNouveauMatch() {
   if (Object.values(state.clotures || {}).some(x => !x.envoyee)) { info('⏳ Le rapport de fin de match n\'est pas encore arrivé au Sheet : attends le wifi avant de changer de match'); return; }
