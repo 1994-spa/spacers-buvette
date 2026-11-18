@@ -31,6 +31,12 @@ const PIL = {
   CLIENTS_REMISE: {
     '6a300038606cb61d33ae0f79': 'CROUS',              // lot partenaire CROUS (billets attribués via « Gestion des partenaires »)
   },
+  // Billets « place + boisson » (registre transverse du 09/11) : une boisson offerte à la buvette, une seule par billet
+  // toutes buvettes confondues, consigne payée, −5 % sur le reste. Même liste que BILLETS_BOISSON dans la tablette.
+  BILLETS_BOISSON: {
+    AISC: { ticketTypes: ['6ada071ec4a71b3c0a3d34d4', '6af720c0c1465c450dbb4b4d', '6af720d3c1465c450dbb4b4e'],   // AISC – Place + boisson (plein, réduit, −8 ans), Tours 21/11
+            clients: ['6afda97d6ce0eb5d78f1244c'] },   // client « AISC AISC » : 2 places émises en Plein Tarif (commande 448129)
+  },
   // Onglets : feuille_('VENTES') = 🧾 VENTES, feuille_('DETAIL') = ⚙️ détail ventes, feuille_('MATCHS') = 📅 MATCHS
   // (anciens noms 51_VENTES_LIVE / 50_VENTES_DIRECTES / 10_MATCHS acceptés). Stock de départ, stock restant
   // et suivi des tablettes sont gardés dans les propriétés du script.
@@ -263,6 +269,9 @@ function pilCompterBillets_(eventId, ttl) {
 // Profil de remise d'un billet : 'ABO' (abonnement), nom du partenaire (lot CLIENTS_REMISE) ou '' (billet simple)
 function pilProfilRemise_(t, eventId) {
   if ((eventId || t.eventId) === PIL.ABONNEMENT_EVENT_ID) return 'ABO';
+  const kb = Object.keys(PIL.BILLETS_BOISSON).filter(function (k) { const b = PIL.BILLETS_BOISSON[k];
+    return b.ticketTypes.indexOf(t.ticketTypeId) >= 0 || b.clients.indexOf(t.customerId) >= 0 || /AISC/i.test(t.ticketName || ''); })[0];
+  if (kb) return kb;
   return PIL.CLIENTS_REMISE[t.customerId] || '';
 }
 function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom du titulaire, profil remise] — pas d'email ni d'adresse
@@ -425,7 +434,22 @@ function pilChargerTablette_(buvette) {
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
     buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
-    billets: billets, billetsOk: billetsOk, charge: new Date().toISOString() };
+    billets: billets, billetsOk: billetsOk, offertes: pilBoissonsOffertes_(actif.idMatch), charge: new Date().toISOString() };
+}
+// Billets « place + boisson » dont la boisson a déjà été donnée pendant ce match (toutes buvettes), ventes annulées exclues
+function pilBoissonsOffertes_(idm) {
+  try {
+    const sh = feuille_('VENTES');
+    if (!sh || sh.getLastRow() < 2) return [];
+    const data = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB).getValues(), annulees = {}, out = {};
+    data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
+    data.forEach(function (r) {
+      if (String(r[PIL_I['ID_MATCH']]) !== String(idm) || annulees[String(r[PIL_I['ID vente']])]) return;
+      const f = String(r[PIL_I['Fidélité']]), code = String(r[PIL_I['Code-barres']] || '').trim().toLowerCase();
+      if (code && /boisson offerte/.test(f) && !/^annulation/.test(f)) out[code] = 1;
+    });
+    return Object.keys(out);
+  } catch (e) { return []; }
 }
 
 // Prix de vente et seuils de 📦 PRODUITS envoyés aux tablettes (réf → {prix, seuil})
@@ -464,7 +488,10 @@ function pilEnregistrerVentes_(ventes) {
     const t = v.ticket || {}, ts = new Date(v.ts || Date.now()), idm = v.matchId || '', b = v.buvette || '', day = pilDate_(ts);
     const row = [now, ts, v.id, idm, b, Number(v.total) || 0, Number(v.consigne) || 0, Number(v.rendue) || 0,
       t.ticket_id || '', t.barcode || '', t.tarif || '', '',
-      (v.annule ? 'annulation de ' + v.annule : '') + (Number(v.remise) ? (v.annule ? ' · ' : '') + 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '')];
+      [v.annule ? 'annulation de ' + v.annule : '',
+       v.offerte && v.offerte.ref ? 'boisson offerte ' + v.offerte.ref + ' (' + (v.profilRemise || 'billet') + ') : ' + (Number(v.offerte.montant) || 0).toFixed(2).replace('.', ',') + ' €' : '',
+       Number(v.remise) ? 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise] ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '']
+        .filter(Boolean).join(' · ')];
     PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : v.paiement === 'BENEVOLE' ? 'BENEVOLE' : '');
     rows.push(row);
