@@ -828,12 +828,16 @@ function pilotageTraiterBillets() {
   const data = rg.getValues(), memo = {}, debut = Date.now();
   let relies = 0, credites = 0;
   const annulees = {};                                      // ventes annulées depuis la tablette : pas de points
-  data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+)$/); if (m) annulees[m[1]] = 1; });
+  data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
+  // La colonne Fidélité porte aussi la note de la tablette (« remise billet 5 % : 0,30 € », « boisson offerte … ») :
+  // une vente n'est traitée que si elle n'a pas encore de statut fidélité, et le statut s'ajoute à la note.
+  const STATUT = /(^|· )(\d+ pts|relié|billet introuvable|vente annulée)$/;
+  const noter = function (r, statut) { const n = String(r[PIL_I['Fidélité']] || ''); r[PIL_I['Fidélité']] = n ? n + ' · ' + statut : statut; };
   data.forEach(function (r) {
     if (Date.now() - debut > 270000) return;               // marge sous la limite d'exécution
-    const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']];
-    if ((!id && !code) || r[PIL_I['Fidélité']]) return;
-    if (annulees[String(r[PIL_I['ID vente']])]) { r[PIL_I['Fidélité']] = 'vente annulée'; return; }
+    const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']], note = String(r[PIL_I['Fidélité']] || '');
+    if ((!id && !code) || STATUT.test(note) || /^annulation/.test(note)) return;
+    if (annulees[String(r[PIL_I['ID vente']])]) { noter(r, 'vente annulée'); return; }
     const key = id || ('bc:' + code);
     if (!(key in memo)) {
       try {
@@ -846,7 +850,7 @@ function pilotageTraiterBillets() {
     }
     const c = memo[key];
     if (c === undefined) return;                            // erreur réseau : on réessaiera
-    if (c === null) { r[PIL_I['Fidélité']] = 'billet introuvable'; return; }
+    if (c === null) { noter(r, 'billet introuvable'); return; }
     r[PIL_I['Client Tickie']] = c.customerId;
     if (!r[PIL_I['ID billet']]) r[PIL_I['ID billet']] = c.id;
     if (!r[PIL_I['Tarif billet']]) r[PIL_I['Tarif billet']] = c.tarif;
@@ -855,8 +859,8 @@ function pilotageTraiterBillets() {
     const montant = (Number(r[PIL_I['Total €']]) || 0) - (Number(r[PIL_I['Consignes +']]) || 0) + (Number(r[PIL_I['Consignes rendues']]) || 0);
     if (typeof _fidCreditOne_ === 'function' && c.email && montant > 0) {
       _fidCreditOne_({ carte: c.email, nom: c.nom, montant: montant }, r[PIL_I['ID_MATCH']], r[PIL_I['Buvette']], pilDate_(r[PIL_I['Horodatage']]));
-      r[PIL_I['Fidélité']] = Math.floor(montant) + ' pts'; credites++;
-    } else r[PIL_I['Fidélité']] = 'relié';
+      noter(r, Math.floor(montant) + ' pts'); credites++;
+    } else noter(r, 'relié');
   });
   rg.setValues(data);
   try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); } catch (e) {}   // achats Pennylane (toutes les 6 h)
