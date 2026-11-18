@@ -434,7 +434,7 @@ function pilChargerTablette_(buvette) {
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
     buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
-    billets: billets, billetsOk: billetsOk, offertes: pilBoissonsOffertes_(actif.idMatch), charge: new Date().toISOString() };
+    billets: billets, billetsOk: billetsOk, offertes: pilBoissonsOffertes_(actif.idMatch), hh: pilHappyHourServies_(actif.idMatch), charge: new Date().toISOString() };
 }
 // Billets « place + boisson » dont la boisson a déjà été donnée pendant ce match (toutes buvettes), ventes annulées exclues
 function pilBoissonsOffertes_(idm) {
@@ -452,11 +452,36 @@ function pilBoissonsOffertes_(idm) {
   } catch (e) { return []; }
 }
 
+// Boissons happy hour déjà servies pendant ce match (toutes buvettes) : [[id vente, code-barres, nb]], ventes annulées exclues.
+// Lu dans la note de la colonne Fidélité (« happy hour 50 % : 2 boissons · … »).
+function pilHappyHourServies_(idm) {
+  try {
+    const sh = feuille_('VENTES');
+    if (!sh || sh.getLastRow() < 2) return [];
+    const data = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB).getValues(), annulees = {}, out = [];
+    data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
+    data.forEach(function (r) {
+      const id = String(r[PIL_I['ID vente']]);
+      if (String(r[PIL_I['ID_MATCH']]) !== String(idm) || annulees[id]) return;
+      const f = String(r[PIL_I['Fidélité']]), code = String(r[PIL_I['Code-barres']] || '').trim().toLowerCase();
+      const m = f.match(/happy hour \d+ % : (\d+) boisson/);
+      if (code && m && !/^annulation/.test(f)) out.push([id, code, Number(m[1])]);
+    });
+    return out;
+  } catch (e) { return []; }
+}
+
 // Prix de vente et seuils de 📦 PRODUITS envoyés aux tablettes (réf → {prix, seuil})
 function pilPrixTablette_() {
   const cat = produitsCatalogue_(), out = {};
   PIL.PRODUITS.forEach(function (p) { const c = cat[p[0]]; if (c && c.prix > 0) out[p[0]] = { prix: c.prix, seuil: c.seuil }; });
   return out;
+}
+
+// Remise billet / abonné hors happy hour (la tablette envoie le total des deux dans « remise »)
+function pilRemiseHorsHh_(v) {
+  const r = Number(v.remise) || 0, h = v.hh ? Number(v.hh.montant) || 0 : 0;
+  return Math.round((r - h) * 100) / 100;
 }
 
 // ── Réception des ventes ─────────────────────────────────────────────────
@@ -490,7 +515,8 @@ function pilEnregistrerVentes_(ventes) {
       t.ticket_id || '', t.barcode || '', t.tarif || '', '',
       [v.annule ? 'annulation de ' + v.annule : '',
        v.offerte && v.offerte.ref ? 'boisson offerte ' + v.offerte.ref + ' (' + (v.profilRemise || 'billet') + ') : ' + (Number(v.offerte.montant) || 0).toFixed(2).replace('.', ',') + ' €' : '',
-       Number(v.remise) ? 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise] ? v.profilRemise : 'billet') + ' ' + Math.round((Number(v.tauxRemise) || 0.05) * 100) + ' % : ' + Number(v.remise).toFixed(2).replace('.', ',') + ' €' : '']
+       v.hh && Number(v.hh.n) ? 'happy hour ' + Math.round((Number(v.hh.taux) || 0.5) * 100) + ' % : ' + Number(v.hh.n) + ' boisson' + (Number(v.hh.n) > 1 ? 's' : '') + ' · ' + (Number(v.hh.montant) || 0).toFixed(2).replace('.', ',') + ' €' : '',
+       pilRemiseHorsHh_(v) ? 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise] ? v.profilRemise : 'billet') + ' ' + Math.round((v.hh ? (v.profilRemise === 'ABO' || (v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise]) ? 0.10 : 0.05) : (Number(v.tauxRemise) || 0.05)) * 100) + ' % : ' + pilRemiseHorsHh_(v).toFixed(2).replace('.', ',') + ' €' : '']
         .filter(Boolean).join(' · ')];
     PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : v.paiement === 'BENEVOLE' ? 'BENEVOLE' : '');
