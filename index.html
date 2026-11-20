@@ -435,6 +435,16 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
 </div>
 
 <!-- CB -->
+<!-- Remboursement de gobelets par carte (plus d'espèces dans la caisse) -->
+<div class="overlay" id="m-cbr">
+  <div class="modal" style="max-width:520px;text-align:center">
+    <button class="x" onclick="fermer('m-cbr')" aria-label="Fermer">✕</button>
+    <h3 style="padding:0">💳 Rembourse ce montant sur le TPE</h3>
+    <div class="rendu"><div class="v" id="cbr-montant" style="color:var(--text)">0,00 €</div><div class="s">Sur le TPE : touche « Remboursement » (ou « Crédit »), tape ce montant, puis le client présente sa carte.</div></div>
+    <div class="row2" style="margin-top:0"><button class="btn" style="min-height:70px" onclick="fermer('m-cbr')">✕ Refusé / annuler</button><button class="btn prim" style="min-height:70px;font-size:1.2rem" onclick="fermer('m-cbr');rembourserCB()">✓ Remboursement accepté</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="m-cb">
   <div class="modal" style="max-width:520px;text-align:center">
     <button class="x" onclick="fermer('m-cb')" aria-label="Fermer">✕</button>
@@ -493,7 +503,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
     <button class="lieu-card" id="aide-lieu" onclick="openLieu()"></button>
     <ol>
       <li><span><b>Touche les boissons demandées.</b>1 touche = 1 boisson.</span></li>
-      <li><span><b>Gobelet : 🥤 + Gobelet 33 ou 50 si le client n'en a pas.</b>Une touche par gobelet donné, de la bonne taille = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Rendu 33 ou 50. Plus assez d'espèces pour le rembourser ? Touche 🚫 Plus d'espèces : le club garde la consigne, c'est compté à part. Gobelet posé sur le comptoir ou ramassé, et personne ne demande l'euro ? Touche 🫙 Récupéré 30 ou 50 : aucun argent ne bouge, mais le gobelet revient dans le stock d'écocups.</span></li>
+      <li><span><b>Gobelet : 🥤 + Gobelet 33 ou 50 si le client n'en a pas.</b>Une touche par gobelet donné, de la bonne taille = 1 € de consigne. Il revient avec son verre ? Rien à ajouter. Il rend son gobelet pour récupérer 1 € ? Touche ♻️ Rendu 33 ou 50. Plus assez d'espèces pour le rembourser ? Touche 💳 Plus d'espèces : rembourser par carte, et fais un « Remboursement » du montant affiché sur le TPE. Ni espèces ni carte ? Touche 🚫 : le club garde la consigne, c'est compté à part. Gobelet posé sur le comptoir ou ramassé, et personne ne demande l'euro ? Touche 🫙 Récupéré 30 ou 50 : aucun argent ne bouge, mais le gobelet revient dans le stock d'écocups.</span></li>
       <li><span><b>Demande le billet ou la carte abonné, et scanne-le.</b>Abonné ou partenaire CROUS : −10 % sur sa commande. Autre billet : −5 %. Billet « place + boisson » (AISC, match de Tours) : la tablette offre toute seule la boisson la plus chère du panier, une seule fois par billet (la consigne du gobelet reste payée). Pas de cumul avec les formules « 2 bières » : la tablette applique toute seule l'avantage le plus intéressant, et le client gagne des points. Pas de billet ? On continue.</span></li>
       <li><span><b>Encaisse : 💳 CB ou 💶 Espèces.</b>CB : tape le montant affiché sur le TPE, puis touche « Paiement accepté ». Espèces : touche le billet donné, la tablette affiche la monnaie à rendre.</span></li>
     </ol>
@@ -1101,7 +1111,8 @@ function renderPanier() {
 
   const pb = document.getElementById('paybtns');
   if (!vide && tot < 0) pb.innerHTML = `<button class="pbtn esp full" onclick="encaisser('ESP')">💶 Rendre ${fmt(-tot)}<small>remboursement des gobelets</small></button>`
-    + (nonRembPossible() ? `<button class="pbtn benev full${confirmNonRemb ? ' confirme' : ''}" onclick="nonRembourse()">${confirmNonRemb ? '⚠️ Touche encore pour confirmer' : '🚫 Plus d\'espèces : pas remboursé'}<small>le client repart sans son euro · le club garde la consigne</small></button>` : '');
+    + `<button class="pbtn cb full" onclick="ouvrirRembCB()">💳 Plus d'espèces : rembourser par carte<small>${fmt(-tot)} rendus sur la carte du client, avec le TPE</small></button>`
+    + (nonRembPossible() ? `<button class="pbtn benev full${confirmNonRemb ? ' confirme' : ''}" onclick="nonRembourse()">${confirmNonRemb ? '⚠️ Touche encore pour confirmer' : '🚫 Ni espèces ni carte : pas remboursé'}<small>le client repart sans son euro · le club garde la consigne</small></button>` : '');
   else if (!vide && tot === 0) pb.innerHTML = `<button class="pbtn cb full" onclick="encaisser('ESP')">✓ Valider<small>rien à payer</small></button>`;
   else if (sansCaisse()) pb.innerHTML = `<button class="pbtn cb full" onclick="ouvrirCB()" ${vide ? 'disabled' : ''}>💳 CB<small>carte / sans contact · pas d'espèces à cette buvette</small></button>`
     + (benevolePossible() ? `<button class="pbtn benev full" onclick="encaisser('BENEVOLE')">🙋 Boisson bénévole<small>offerte, 0 € · sort du stock</small></button>` : '');
@@ -1135,7 +1146,7 @@ function renderAlerts() {
       if (d === 0) out.push(['err', `🚨 ${p.nom} épuisé`]);
     });
   }
-  if (!sansCaisse() && caisseTheorique() < SEUIL_CAISSE) out.unshift(['err', `💶 Moins de ${SEUIL_CAISSE} € en caisse : demande de la monnaie au responsable`]);
+  if (!sansCaisse() && caisseTheorique() < SEUIL_CAISSE) out.unshift(['err', `💶 Moins de ${SEUIL_CAISSE} € en caisse : demande de la monnaie au responsable, ou rembourse les gobelets par carte`]);
   z.innerHTML = out.slice(0, 3).map(([c, t]) => `<div class="alert ${c}">${esc(t)}</div>`).join('');
 }
 
@@ -1391,6 +1402,15 @@ function ouvrirCB(dejaDemande) {
   document.getElementById('cb-montant').textContent = fmt(totalPanier());
   ouvrir('m-cb');
 }
+// Plus d'espèces : les gobelets rendus sont remboursés sur la carte du client, avec le TPE (opération « Remboursement »)
+function ouvrirRembCB() {
+  if (panierVide() || sansCaisse()) return;
+  const tot = totalPanier();
+  if (!(tot < 0)) return;
+  document.getElementById('cbr-montant').textContent = fmt(-tot);
+  ouvrir('m-cbr');
+}
+function rembourserCB() { if (totalPanier() < 0) encaisser('CB'); }
 function ouvrirEspeces(dejaDemande) {
   if (panierVide() || sansCaisse()) return;
   if (!dejaDemande && questionBillet('ESP')) return;
@@ -1470,7 +1490,7 @@ function encaisser(mode) {
   const side = document.getElementById('side'); side.classList.remove('flash'); void side.offsetWidth; side.classList.add('flash');
   derniere = vente.id;
   const nbNonRemb = (vente.gob.n33 || 0) + (vente.gob.n50 || 0);
-  snack(nonRemb ? `🚫 ${nbNonRemb} gobelet${nbNonRemb > 1 ? 's' : ''} non remboursé${nbNonRemb > 1 ? 's' : ''} (plus d'espèces) · noté` : benev ? `🙋 Boisson bénévole enregistrée (0 €)` : `✅ ${mode === 'CB' ? 'CB' : 'Espèces'} · ${fmt(Math.abs(total))}${off ? ' · 🎁 boisson offerte' : ''}${hhN ? ' · 🎉 happy hour' : vente.remise ? ' · 🎫 −' + Math.round(taux * 100) + ' %' : ''}`, true);
+  snack(nonRemb ? `🚫 ${nbNonRemb} gobelet${nbNonRemb > 1 ? 's' : ''} non remboursé${nbNonRemb > 1 ? 's' : ''} (plus d'espèces) · noté` : benev ? `🙋 Boisson bénévole enregistrée (0 €)` : `✅ ${mode === 'CB' ? (total < 0 ? 'Remboursé par carte' : 'CB') : (total < 0 ? 'Rendu en espèces' : 'Espèces')} · ${fmt(Math.abs(total))}${off ? ' · 🎁 boisson offerte' : ''}${hhN ? ' · 🎉 happy hour' : vente.remise ? ' · 🎫 −' + Math.round(taux * 100) + ' %' : ''}`, true);
   setTimeout(envoyerVentes, DELAI_ANNUL + 500);
   defiVerifier(vente);
 }
@@ -1756,7 +1776,7 @@ function afficherRapport() {
     <div class="k"><span>🍺 Boissons</span><b>${fmt(Math.round((c.ca - (c.consigne - c.rendue) * CONSIGNE) * 100) / 100)}</b><small>${c.ventes} vente${c.ventes > 1 ? 's' : ''}${c.nbRemise ? ` · dont ${fmt(c.remise)} de remises billet (${c.nbRemise})` : ''} · hors consignes</small></div>
     <div class="k"><span>🥤 Consignes écocups</span><b>${fmt((c.consigne - c.rendue) * CONSIGNE)}</b><small>${c.consigne} encaissée${c.consigne > 1 ? 's' : ''} · ${c.rendue} rendue${c.rendue > 1 ? 's' : ''}${c.gob.n33 + c.gob.n50 ? ` · ${c.gob.n33 + c.gob.n50} non remboursée${c.gob.n33 + c.gob.n50 > 1 ? 's' : ''} (plus d'espèces)` : ''}${c.gob.l33 + c.gob.l50 ? ` · ${c.gob.l33 + c.gob.l50} récupéré${c.gob.l33 + c.gob.l50 > 1 ? 's' : ''} sans remboursement` : ''} · à part du CA</small></div>
     <div class="k"><span>Total encaissé</span><b>${fmt(c.ca)}</b><small>boissons + consignes = CB + espèces</small></div>
-    <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · à comparer au ticket TPE</small></div>
+    <div class="k"><span>💳 CB</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} · remboursements par carte déduits · à comparer au total net du ticket TPE</small></div>
     <div class="k"><span>💶 Espèces</span><b>${fmt(c.esp)}</b><small>${c.nbEsp} paiement${c.nbEsp > 1 ? 's' : ''}</small></div>
     ${c.nbBenev ? `<div class="k"><span>🙋 Bénévoles</span><b>${Object.values(c.benev).reduce((a, q) => a + q, 0)}</b><small>boisson${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} offerte${Object.values(c.benev).reduce((a, q) => a + q, 0) > 1 ? 's' : ''} · hors CA</small></div>` : ''}</div>`;
   h += (sansCaisse() ? `<div hidden><input id="cl-fond" value="0"><input id="cl-compte" value="0"><b id="cl-attendu"></b><div id="cl-ecart-box"><b id="cl-ecart"></b><small id="cl-ecart-s"></small></div></div>`
