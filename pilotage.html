@@ -950,7 +950,9 @@ function renderGraphiques(d){
   const avecCaisse = B.filter(b => !(d.sansCaisse || []).includes(b));
   if (!Q.length || !avecCaisse.length) vide(elC, !avecCaisse.length ? 'Aucune buvette avec caisse espèces.' : 'Pas encore de mouvement d\'espèces.');
   else {
-    const fond = b => { const c = (d.clotures || {})[b]; return c && Number(c.fond) > 0 ? Number(c.fond) : Number((d.fonds || {})[b]) || 0; };
+    // Fond propre à un match (même liste que FONDS_MATCH dans index.html) : prime sur le fond par défaut du Sheet
+    const FONDS_MATCH = { 'TOU-21-11': { 'Buvette 1': 400, 'Buvette 2': 500 } };
+    const fond = b => { const c = (d.clotures || {})[b]; return c && Number(c.fond) > 0 ? Number(c.fond) : Number((FONDS_MATCH[d.idMatch] || {})[b] ?? (d.fonds || {})[b]) || 0; };
     const series = avecCaisse.map(b => { let c = fond(b); return { buv: b, nom: nomBuv(b), court: court(b), couleur: couleurBuv(b, B.indexOf(b)), vals: Q.map(q => c += P(q).espB[b] || 0) }; });
     elC.innerHTML = legende(series.map(x => Object.assign({ ln: 1 }, x))) + graphCourbes(elC, 'caisse', { cats: Q, series, fmt: e0, label: 'Espèces en caisse par buvette',
       refs: [{ v: 100, nom: '100 € ⚠️', couleur: 'var(--warn)' }, { v: 50, nom: '50 € ⛔', couleur: 'var(--bad)' }],

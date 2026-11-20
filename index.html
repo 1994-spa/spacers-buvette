@@ -401,7 +401,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
       <div class="gobs recup"><span class="lab">🫙 Récupéré<small>sans rendre 1 €</small></span>
         <button onclick="gobeletRecupere(33)" aria-label="Gobelet 30 cl récupéré sans remboursement">30<small>cl</small></button>
         <button onclick="gobeletRecupere(50)" aria-label="Gobelet 50 cl récupéré sans remboursement">50<small>cl</small></button></div>
-      <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner billet / carte<small>Abonné −10 % · billet −5 %</small></span></button>
+      <button class="ubtn scan" id="btn-scan" onclick="ouvrirScanner()"><span class="ico">🎫</span><span>Scanner le billet<small>Remise −5 %<br>Abonné −10 %</small></span></button>
     </div>
   </main>
 
@@ -595,7 +595,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-fonds</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-scan</p>
     </div>
   </div>
 </div>
@@ -1136,7 +1136,8 @@ function renderPanier() {
     bz.innerHTML = '';
     bs.classList.remove('lie');
     bs.classList.toggle('attente', !panierVide());   // rappel doux : demander le billet tant que la commande est en cours
-    bs.innerHTML = `<span class="ico">🎫</span><span>Scanner billet / carte abonné<small>Le client gagne des points fidélité</small></span>`;
+    const hhc = happyHourCourant();   // le scan donne d'abord une remise ; les points fidélité viennent en plus
+    bs.innerHTML = `<span class="ico">🎫</span><span>Scanner le billet<small style="font-weight:800;white-space:nowrap">${hhc ? `🎉 Happy hour<br>−${Math.round(hhc.taux * 100)} % sur ${hhc.max} boissons` : 'Remise −5 %<br>Abonné −10 %'}</small></span>`;
   }
 }
 
@@ -2252,7 +2253,17 @@ chargerVisuels();
 envoyerVentes();
 setTimeout(() => chargerMatch(true), 1500);
 try { if (!localStorage.getItem('buvette_aide_vue')) ouvrir('m-aide'); } catch(e) {}
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// Mise à jour toute seule : la tablette cherche une nouvelle version toutes les 5 minutes (avec du réseau) et se recharge
+// dès que la commande en cours est vide. Les ventes, le stock et la caisse sont déjà enregistrés dans la tablette.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const avaitSW = !!navigator.serviceWorker.controller; let majPrete = false;
+  const rechargerSiLibre = () => { if (majPrete && panierVide() && !billet && !document.querySelector('.overlay.open')) location.reload(); };
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (avaitSW) { majPrete = true; rechargerSiLibre(); } });
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    setInterval(() => { if (navigator.onLine) reg.update().catch(() => {}); }, 5 * 60000);
+    setInterval(rechargerSiLibre, 15000);
+  }).catch(() => {});
+}
 </script>
 </body>
 </html>
