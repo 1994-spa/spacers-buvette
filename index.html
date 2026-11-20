@@ -595,7 +595,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-sirop</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-fonds</p>
     </div>
   </div>
 </div>
@@ -1216,12 +1216,18 @@ function gobeletRecupere(t, n) {
   defiVerifier(vente);
 }
 // ── 💶 Espèces dans la caisse (théorique) ──
+// Fond de caisse propre à un match (communiqué par Clément avant le match) : prime sur le fond par défaut de LIEUX
+const FONDS_MATCH = { 'TOU-21-11': { 'Buvette 1': 400, 'Buvette 2': 500 } };
+function fondDefaut() {
+  const m = FONDS_MATCH[state.match ? state.match.idMatch : ''] || {};
+  return m[state.tab] ?? (LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0;
+}
 const SEUIL_CAISSE = 50;
 function totalMouv(tab) { return Math.round(((state.mouvCaisse || {})[tab || state.tab] || []).reduce((s, m) => s + m.montant, 0) * 100) / 100; }
 function fondDepart() {
   const b = brouillon(), f = Number(String(b.fond ?? '').replace(',', '.'));
   if (b.fond != null && b.fond !== '' && !isNaN(f)) return f;
-  return (LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0;
+  return fondDefaut();
 }
 function caisseTheorique() { return Math.round((fondDepart() + cumulTab().esp + totalMouv()) * 100) / 100; }
 function niveauCaisse(v) { return v < SEUIL_CAISSE ? 'bas' : v < SEUIL_CAISSE * 2 ? 'moyen' : 'ok'; }
@@ -1777,7 +1783,7 @@ function openBilan() { avecCode(afficherRapport); }
 function afficherRapport() {
   const c = cumulTab(), cl = state.clotures[state.tab], b = cl ? {} : brouillon();
   if (!cl) invNonCompte = !!b.nc;
-  const fond = cl ? cl.fond : (b.fond ?? (LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0);
+  const fond = cl ? cl.fond : (b.fond ?? fondDefaut());
   const compte = cl ? cl.compte : (b.compte ?? ''), tpeVal = cl ? (cl.tpe ?? '') : (b.tpe ?? ''), tpeId = cl ? cl.tpeId : b.tpeId;
   document.getElementById('bilan-titre').textContent = '📊 Rapport ' + state.tab + (state.match ? ' · ' + state.match.nom : '');
   let h = `<div class="kpis">
