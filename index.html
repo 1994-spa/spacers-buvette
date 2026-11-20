@@ -585,7 +585,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-happyhour</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-sirop</p>
     </div>
   </div>
 </div>
@@ -619,11 +619,18 @@ const CATALOGUE = [
   { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧', big:'PLATE' },
   { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧', big:'GAZEUSE' },
   { ref:'P02_COCA', nom:'Coca-Cola',         pv:2.00, seuil:5,  color:'#d7141f', icon:'🥤' },
+  { ref:'P02_COCZ', nom:'Coca Zéro',         pv:2.00, color:'#22262e', icon:'🥤', big:'ZÉRO', libre:true, verre:true },   // 20/11/2026 : stock pas suivi par la tablette
   { ref:'P02_ORAN', nom:'Orangina',          pv:2.00, seuil:5,  color:'#ef7d00', icon:'🍊' },
   { ref:'P02_ICET', nom:'Ice Tea',           pv:2.00, seuil:5,  color:'#8a5a12', icon:'🍑' },
   { ref:'P02_SCHW', nom:'Schweppes Agrumes', pv:2.00, seuil:5,  color:'#c9a000', icon:'🍋' },
+  // Option à prix fixe (décision du 20/11/2026) : ajoutée à une boisson, jamais remisée, ni offerte, ni happy hour
+  { ref:'P05_PECHE', nom:'Sirop de pêche',   pv:0.50, color:'#e2725b', icon:'🍑', big:'+ SIROP', libre:true, option:true },
 ];
 const prod = ref => CATALOGUE.find(p => p.ref === ref) || {};
+// libre : produit vendu sans suivi de stock sur la tablette (pas de préparation, pas d'inventaire, jamais « épuisé »)
+// option : supplément à prix fixe (hors remise billet / abonné, hors boisson offerte, hors happy hour)
+const estLibre = ref => !!prod(ref).libre, estOption = ref => !!prod(ref).option;
+const suivis = () => CATALOGUE.filter(p => !p.libre);
 
 // Visuel de marque : déposer produits/<REF>.png (ou .svg / .jpg / .webp) — ex. produits/P02_COCA.png.
 // Si le fichier existe, il remplace l'emoji sur la tuile ; sinon l'emoji reste.
@@ -789,20 +796,21 @@ function stockApresVentes(ref) {
   return Math.max(0, stockInit(ref) - consomme(ref));
 }
 function stockDispo(ref) {
+  if (estLibre(ref)) return 9999;
   if (LITRES[ref]) return Math.floor(litresRestants(true) / LITRES[ref] + 1e-9);
   if (BOUTEILLE_L[ref]) return verresSoft(ref, true);
   return Math.max(0, stockApresVentes(ref) - (panier.lignes[ref] || 0));
 }
 // Ce qu'on compte à l'inventaire : bouteilles pour les softs, unités pour le reste
 function stockCompte(ref) { return BOUTEILLE_L[ref] ? bouteillesApresVentes(ref) : stockApresVentes(ref); }
-function aStock(ref) { return LITRES[ref] ? stockInit('FUT') > 0 : stockInit(ref) > 0; }
+function aStock(ref) { return estLibre(ref) || (LITRES[ref] ? stockInit('FUT') > 0 : stockInit(ref) > 0); }
 // Sans match chargé, on laisse vendre (le stock n'est simplement pas suivi)
 function stockSuivi() { return !!state.match; }
 function peutAjouter(ref) { return !stockSuivi() || !!(state.forcer || {})[ref] || stockDispo(ref) > 0; }
 function stockSnapshot() {
   const o = {};
   if (stockInit('FUT') > 0) o.FUT_L = litresRestants(false);
-  CATALOGUE.forEach(p => { if (!LITRES[p.ref] && aStock(p.ref)) o[p.ref] = stockCompte(p.ref); });
+  suivis().forEach(p => { if (!LITRES[p.ref] && aStock(p.ref)) o[p.ref] = stockCompte(p.ref); });
   return o;
 }
 
@@ -923,7 +931,7 @@ function renderTiles() {
   const caches = voirTout ? [] : CATALOGUE.filter(absentIci);
   const liste = CATALOGUE.filter(p => !caches.includes(p));
   const n = liste.length + (caches.length || voirTout && CATALOGUE.some(absentIci) ? 1 : 0);
-  const cols = n <= 3 ? Math.max(n, 1) : n <= 4 ? 2 : n <= 6 ? 3 : 4;
+  const cols = n <= 3 ? Math.max(n, 1) : n <= 4 ? 2 : n <= 6 ? 3 : n <= 8 ? 4 : n <= 10 ? 5 : 6;
   const t = document.getElementById('tiles');
   t.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`;
   t.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)},minmax(0,1fr))`;
@@ -975,7 +983,7 @@ function hhReste() { return billet && billet.hh ? Math.max(0, billet.hh.max - hh
 function hhSelection(lignes) {
   let reste = hhReste(); const sel = {};
   if (!reste) return sel;
-  Object.entries(lignesPayantes(lignes)).filter(([, q]) => q > 0).sort((a, b) => priceOf(prod(b[0])) - priceOf(prod(a[0])))
+  Object.entries(lignesPayantes(lignes)).filter(([r, q]) => q > 0 && !estOption(r)).sort((a, b) => priceOf(prod(b[0])) - priceOf(prod(a[0])))
     .forEach(([r, q]) => { const k = Math.min(q, reste); if (k > 0) { sel[r] = k; reste -= k; } });
   return sel;
 }
@@ -1004,7 +1012,7 @@ function libelleRemise() {
 function boissonOfferte(lignes) {
   if (!billetBoisson() || boissonDejaPrise()) return null;
   let o = null;
-  Object.entries(lignes).forEach(([r, q]) => { if (q > 0) { const pu = priceOf(prod(r)); if (!o || pu > o.m) o = { ref: r, m: pu }; } });
+  Object.entries(lignes).forEach(([r, q]) => { if (q > 0 && !estOption(r)) { const pu = priceOf(prod(r)); if (!o || pu > o.m) o = { ref: r, m: pu }; } });
   return o && o.m > 0 ? o : null;
 }
 // Lignes payantes : la boisson offerte retirée (formules et remise billet portent sur le reste)
@@ -1019,7 +1027,7 @@ function remiseFormule(ref, q) {   // € retirés par les formules « 2 verres 
 }
 // Pas de cumul formule + remise billet : sur chaque ligne, le client a l'avantage le plus intéressant des deux
 function remiseLigne(ref, q) {
-  const f = remiseFormule(ref, q), b = billet ? q * priceOf(prod(ref)) * tauxRemise() : 0;
+  const f = remiseFormule(ref, q), b = billet && !estOption(ref) ? q * priceOf(prod(ref)) * tauxRemise() : 0;
   return f > 0 && f >= b ? { type:'formule', m:f } : { type:'billet', m:b };
 }
 function remiseFormules() { let t = 0; Object.entries(lignesRemisables(panier.lignes)).forEach(([r, q]) => { if (q > 0) { const l = remiseLigne(r, q); if (l.type === 'formule') t += l.m; } }); return Math.round(t * 100) / 100; }
@@ -1090,7 +1098,7 @@ function renderPanier() {
     : dc ? `<div class="refaire"><span><big>👈</big>Touche les boissons demandées</span><button onclick="refaireCommande()">↻ Même commande que la précédente<small>${esc(resumeCmd(dc))}</small></button></div>`
     : `<div class="empty"><big>👈</big>Touche les boissons<br>demandées par le client</div>`;
   // Rappel doux : une boisson servie en gobelet est dans la commande, mais aucun gobelet consigné
-  const auVerre = Object.entries(panier.lignes).some(([r, q]) => q > 0 && (LITRES[r] || BOUTEILLE_L[r]));
+  const auVerre = Object.entries(panier.lignes).some(([r, q]) => q > 0 && (LITRES[r] || BOUTEILLE_L[r] || prod(r).verre));
   document.getElementById('gob-zone').classList.toggle('rappel', auVerre && !(panier.gob.s33 + panier.gob.s50) && !panier.rendue);
 
   const tot = totalPanier(), vide = panierVide();
@@ -1130,7 +1138,7 @@ function renderAlerts() {
       if (l <= 0) out.push(['err', '🚨 Fût vide : préviens le responsable']);
       else if (l <= 4) out.push(['warn', `⚠️ Bière : ~${Math.floor(l / .3)} verres de 30cl restants`]);
     }
-    CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => {
+    suivis().filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => {
       const d = stockDispo(p.ref);
       if (d === 0) out.push(['err', `🚨 ${p.nom} épuisé`]);
     });
@@ -1287,7 +1295,7 @@ function ouvrirReleve() {
   document.getElementById('releve-depuis').textContent = r
     ? `Depuis la relève de ${new Date(r.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}${r.nom ? ' (arrivée de ' + r.nom + ')' : ''} :`
     : 'Depuis le début du match :';
-  const bas = stockSuivi() ? CATALOGUE.filter(p => aStock(p.ref) && stockDispo(p.ref) <= p.seuil).map(p => p.nom + ' (' + stockDispo(p.ref) + ')') : [];
+  const bas = stockSuivi() ? suivis().filter(p => aStock(p.ref) && stockDispo(p.ref) <= p.seuil).map(p => p.nom + ' (' + stockDispo(p.ref) + ')') : [];
   const lignes = [
     ['🧾 Ventes', d('ventes')], ['💳 CB', fmt(d('cb'))]].concat(sansCaisse() ? [] : [['💶 Espèces (ventes − remboursements)', fmt(d('esp'))], ['💶 Dans la caisse maintenant', '≈ ' + fmt(caisseTheorique())]])
     .concat([['🥤 Gobelets donnés / rendus / récupérés', `${dg('s33') + dg('s50')} / ${dg('r33') + dg('r50')} / ${dg('l33') + dg('l50')}`]])
@@ -1793,7 +1801,7 @@ function afficherRapport() {
   if (!stockSuivi()) h += '<div><span>Match pas chargé</span><b>—</b></div>';
   else {
     if (aStock('P01_25') || aStock('P01_50')) h += `<div><span>🍺 Bière</span><b>${litresRestants(false).toLocaleString('fr-FR')} L</b></div>`;
-    CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => { h += `<div><span>${esc(p.nom)}</span><b>${BOUTEILLE_L[p.ref] ? `${stockApresVentes(p.ref)} verres (${bouteillesApresVentes(p.ref).toLocaleString('fr-FR')} bout.)` : stockApresVentes(p.ref)}</b></div>`; });
+    suivis().filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => { h += `<div><span>${esc(p.nom)}</span><b>${BOUTEILLE_L[p.ref] ? `${stockApresVentes(p.ref)} verres (${bouteillesApresVentes(p.ref).toLocaleString('fr-FR')} bout.)` : stockApresVentes(p.ref)}</b></div>`; });
   }
   h += `</div></div></div>`;
   const hist = state.historique.filter(x => x.buvette === state.tab).slice(0, 8);
@@ -1814,7 +1822,7 @@ function afficherRapport() {
   ouvrir('m-bilan');
 }
 // Inventaire de fin : on compte ce qui reste (fûts pleins + fût entamé, bouteilles)
-function produitsInventaire() { return stockSuivi() ? CATALOGUE.filter(p => !LITRES[p.ref] && aStock(p.ref)) : []; }
+function produitsInventaire() { return stockSuivi() ? suivis().filter(p => !LITRES[p.ref] && aStock(p.ref)) : []; }
 function inventaireHtml(cl) {
   if (!stockSuivi()) return '';
   const inv = cl ? (cl.inventaire || {}) : (brouillon().inv || {}), nc = cl ? !!cl.nonCompte : invNonCompte, dis = cl || nc ? 'disabled' : '';
@@ -1979,7 +1987,7 @@ function cloturerCaisse() {
 function cloturerCaisseSeule() { invNonCompte = true; cloturerCaisse(); if (!state.clotures[state.tab]) invNonCompte = false; }
 function rouvrirCaisse() { delete state.clotures[state.tab]; save(); afficherRapport(); }
 // ── Stock reçu pendant le match (packs rajoutés, fût apporté…) ──
-function refsReassort() { return [['FUT', '🍺 Fûts de 30 L']].concat(CATALOGUE.filter(p => !LITRES[p.ref]).map(p => [p.ref, p.nom + (BOUTEILLE_L[p.ref] ? ' (bouteilles)' : '')])); }
+function refsReassort() { return [['FUT', '🍺 Fûts de 30 L']].concat(suivis().filter(p => !LITRES[p.ref]).map(p => [p.ref, p.nom + (BOUTEILLE_L[p.ref] ? ' (bouteilles)' : '')])); }
 function reassortHtml() {
   if (!stockSuivi()) return '';
   const deja = state.reassorts.filter(r => r.buvette === state.tab && r.matchId === (state.match || {}).idMatch);
