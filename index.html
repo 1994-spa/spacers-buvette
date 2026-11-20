@@ -595,7 +595,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-scan</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-caisse</p>
     </div>
   </div>
 </div>
@@ -702,7 +702,7 @@ function cumulTab(tab) {
   if (typeof c.nbBenev !== 'number') c.nbBenev = 0;
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','mouvCaisse','releves','modeFin','offertes','hh'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','fondsAppliques','mouvCaisse','releves','modeFin','offertes','hh'];
 let alerteMemoire = false;
 function save() {
   if (entrainement) return;
@@ -1222,6 +1222,22 @@ const FONDS_MATCH = { 'TOU-21-11': { 'Buvette 1': 400, 'Buvette 2': 500 } };
 function fondDefaut() {
   const m = FONDS_MATCH[state.match ? state.match.idMatch : ''] || {};
   return m[state.tab] ?? (LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0;
+}
+// Un fond déjà gardé dans les saisies de fin de match (Rapport ouvert avant la mise à jour du fond) masquait le fond du match :
+// on l'efface une seule fois par match, buvette et montant ; une saisie faite ensuite par le responsable est respectée.
+function appliquerFondsMatch() {
+  const idm = state.match ? state.match.idMatch : '', m = FONDS_MATCH[idm];
+  if (!m) return;
+  state.fondsAppliques = state.fondsAppliques || {};
+  let change = false;
+  Object.keys(m).forEach(tab => {
+    const k = idm + '|' + tab + '|' + m[tab];
+    if (state.fondsAppliques[k]) return;
+    const b = (state.brouillons || {})[tab];
+    if (b && b.fond != null && Number(String(b.fond).replace(',', '.')) !== m[tab]) delete b.fond;
+    state.fondsAppliques[k] = 1; change = true;
+  });
+  if (change) save();
 }
 const SEUIL_CAISSE = 50;
 function totalMouv(tab) { return Math.round(((state.mouvCaisse || {})[tab || state.tab] || []).reduce((s, m) => s + m.montant, 0) * 100) / 100; }
@@ -2193,6 +2209,7 @@ function appliquerChargement(d, nouveau) {
   if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.brouillons = {}; state.mouvCaisse = {}; state.releves = {}; state.modeFin = false; derniereCmd = null; state.forcer = {}; state.offertes = {}; state.hh = {}; panier = nouveauPanier(); billet = null; }
   else if (reassort) state.forcer = {};   // nouveau stock reçu : on refait confiance au comptage
   fusionnerOffertes(d);
+  appliquerFondsMatch();
   save(); renderAll(); renderEtatMatch();
   info(nouveau ? '✅ ' + d.match.nom + ' : stock chargé' : reassort ? '📦 Réassort reçu : stock mis à jour' : '✅ Stock à jour');
 }
@@ -2248,6 +2265,7 @@ appliquerPrix();
 lireLienConfig();
 initDefaultStocks();
 save();
+appliquerFondsMatch();
 renderAll();
 chargerVisuels();
 envoyerVentes();
