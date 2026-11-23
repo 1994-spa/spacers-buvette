@@ -595,7 +595,7 @@ details summary{cursor:pointer;font-weight:800;color:var(--muted);padding:6px 0}
         </div>
       </details>
       <button class="btn" style="min-height:56px" onclick="fermerEtVerrouiller('m-settings')">🔒 Fermer et verrouiller</button>
-      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.21-caisse</p>
+      <p class="hint" style="text-align:center">Le match, le stock et la liste des billets se chargent tout seuls dès qu'il y a du wifi.<br>Version 2026.11.23-stock</p>
     </div>
   </div>
 </div>
@@ -629,12 +629,12 @@ const CATALOGUE = [
   { ref:'P03',      nom:'Eau plate 50cl',    pv:1.00, seuil:5,  color:'#1f7fd1', icon:'💧', big:'PLATE' },
   { ref:'P04',      nom:'Eau gazeuse 50cl',  pv:1.00, seuil:5,  color:'#0f8fa0', icon:'🫧', big:'GAZEUSE' },
   { ref:'P02_COCA', nom:'Coca-Cola',         pv:2.00, seuil:5,  color:'#d7141f', icon:'🥤' },
-  { ref:'P02_COCZ', nom:'Coca Zéro',         pv:2.00, color:'#22262e', icon:'🥤', big:'ZÉRO', libre:true, verre:true },   // 20/11/2026 : stock pas suivi par la tablette
+  { ref:'P02_COCZ', nom:'Coca Zéro',         pv:2.00, seuil:5,  color:'#22262e', icon:'🥤', big:'ZÉRO', verre:true },   // 23/11/2026 : stock suivi (bout. 1,25 L = 4 verres de 30 cl)
   { ref:'P02_ORAN', nom:'Orangina',          pv:2.00, seuil:5,  color:'#ef7d00', icon:'🍊' },
   { ref:'P02_ICET', nom:'Ice Tea',           pv:2.00, seuil:5,  color:'#8a5a12', icon:'🍑' },
   { ref:'P02_SCHW', nom:'Schweppes Agrumes', pv:2.00, seuil:5,  color:'#c9a000', icon:'🍋' },
   // Option à prix fixe (décision du 20/11/2026) : ajoutée à une boisson, jamais remisée, ni offerte, ni happy hour
-  { ref:'P05_PECHE', nom:'Sirop de pêche',   pv:0.50, color:'#e2725b', icon:'🍑', big:'+ SIROP', libre:true, option:true },
+  { ref:'P05_PECHE', nom:'Sirop de pêche',   pv:0.50, seuil:30, color:'#e2725b', icon:'🍑', big:'+ SIROP', option:true },   // 23/11/2026 : stock suivi (bout. 60 cl = 30 doses de 2 cl) ; seuil en doses
 ];
 const prod = ref => CATALOGUE.find(p => p.ref === ref) || {};
 // libre : produit vendu sans suivi de stock sur la tablette (pas de préparation, pas d'inventaire, jamais « épuisé »)
@@ -678,6 +678,7 @@ const state = {
   releves:{},        // { 'Buvette 1': { ts, nom, c: compteurs au moment de la relève } }
   modeFin:false,     // 🏁 mode fin de match (remboursements de gobelets en grand)
   prix:{},           // prix et seuils lus dans l'onglet 📦 PRODUITS du Sheet { réf: {prix, seuil} }
+  stockCat:{},       // structure de stock lue dans 📦 PRODUITS { réf: { unite, services } } : verres / doses par bouteille
   forcer:{},         // produits que la tablette croit épuisés mais que le bénévole a confirmé avoir encore
   reassorts:[],      // stock reçu en cours de match, saisi sur la tablette, pas encore arrivé au Sheet
   offertes:{},       // { code-barres: 1 } billets « place + boisson » dont la boisson a déjà été donnée (toutes buvettes, via le Sheet)
@@ -702,7 +703,7 @@ function cumulTab(tab) {
   if (typeof c.nbBenev !== 'number') c.nbBenev = 0;
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','fondsAppliques','mouvCaisse','releves','modeFin','offertes','hh'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','fondsAppliques','mouvCaisse','releves','modeFin','offertes','hh','stockCat'];
 let alerteMemoire = false;
 function save() {
   if (entrainement) return;
@@ -778,9 +779,17 @@ function toggleTheme() { theme = theme === 'dark' ? 'light' : 'dark'; try { loca
 // STOCK — la bière 25/50 cl est tirée des mêmes fûts (stock en litres)
 // ═══════════════════════════════════════════════════════════════════
 const LITRES = { P01_25:0.3, P01_50:0.5 };
-// Softs servis au verre de 30 cl, tirés de grandes bouteilles : le stock (préparation, inventaire) reste en bouteilles
-const VERRE_SOFT = 0.3;
-const BOUTEILLE_L = { P02_COCA:1.25, P02_ICET:1.25, P02_ORAN:1.5, P02_SCHW:1.5 };
+// Produits tirés d'une bouteille : le stock (préparation, inventaire, livraison) reste en BOUTEILLES,
+// la vente se fait au verre de 30 cl (softs) ou à la dose de 2 cl (sirop). Le nombre de services par
+// bouteille est réglé dans 📦 PRODUITS (colonne SERVICES PAR UNITÉ) et envoyé par le Sheet (state.stockCat) ;
+// les valeurs ci-dessous sont le repli hors ligne : 1,25 L = 4 verres, 1,5 L = 5 verres, 60 cl = 30 doses.
+const PAR_BOUTEILLE_DEFAUT = { P02_COCA:4, P02_COCZ:4, P02_ICET:4, P02_ORAN:5, P02_SCHW:5, P05_PECHE:30 };
+const parBouteille = ref => {
+  const c = (state.stockCat || {})[ref];
+  if (c && c.unite === 'bouteille' && Number(c.services) > 0) return Number(c.services);
+  if (c && c.unite && c.unite !== 'bouteille') return 0;
+  return PAR_BOUTEILLE_DEFAUT[ref] || 0;
+};
 // Formules : 2 verres de 30 cl = 7 €, 2 verres de 50 cl = 10 € (appliquées toutes seules par paire)
 const FORMULES = { P01_25: { n:2, prix:7, nom:'2 bières 30cl' }, P01_50: { n:2, prix:10, nom:'2 bières 50cl' } };
 function stockInit(ref) { return Number((state.stocks[state.tab] || {})[ref]) || 0; }
@@ -792,27 +801,28 @@ function litresRestants(avecPanier) {
   Object.keys(LITRES).forEach(r => { l -= (consomme(r) + (avecPanier ? (panier.lignes[r] || 0) : 0)) * LITRES[r]; });
   return Math.max(0, Math.round(l * 100) / 100);
 }
-function bouteillesApresVentes(ref) {   // softs : bouteilles restantes (décimales = bouteille entamée)
-  const b = stockInit(ref) - consomme(ref) * VERRE_SOFT / BOUTEILLE_L[ref];
+function bouteillesApresVentes(ref) {   // bouteilles restantes (décimales = bouteille entamée)
+  const n = parBouteille(ref);
+  const b = stockInit(ref) - (n ? consomme(ref) / n : 0);
   return Math.max(0, Math.round(b * 10) / 10);
 }
-function verresSoft(ref, avecPanier) {
+function servicesBouteille(ref, avecPanier) {   // verres (softs) ou doses (sirop) encore disponibles
   const vendus = consomme(ref) + (avecPanier ? (panier.lignes[ref] || 0) : 0);
-  return Math.max(0, Math.floor((stockInit(ref) * BOUTEILLE_L[ref] + 1e-9) / VERRE_SOFT) - vendus);
+  return Math.max(0, Math.floor(stockInit(ref) * parBouteille(ref) + 1e-9) - vendus);
 }
 function stockApresVentes(ref) {
   if (LITRES[ref]) return Math.floor(litresRestants(false) / LITRES[ref] + 1e-9);
-  if (BOUTEILLE_L[ref]) return verresSoft(ref, false);
+  if (parBouteille(ref)) return servicesBouteille(ref, false);
   return Math.max(0, stockInit(ref) - consomme(ref));
 }
 function stockDispo(ref) {
   if (estLibre(ref)) return 9999;
   if (LITRES[ref]) return Math.floor(litresRestants(true) / LITRES[ref] + 1e-9);
-  if (BOUTEILLE_L[ref]) return verresSoft(ref, true);
+  if (parBouteille(ref)) return servicesBouteille(ref, true);
   return Math.max(0, stockApresVentes(ref) - (panier.lignes[ref] || 0));
 }
-// Ce qu'on compte à l'inventaire : bouteilles pour les softs, unités pour le reste
-function stockCompte(ref) { return BOUTEILLE_L[ref] ? bouteillesApresVentes(ref) : stockApresVentes(ref); }
+// Ce qu'on compte à l'inventaire : bouteilles pour tout ce qui sort d'une bouteille, unités pour le reste
+function stockCompte(ref) { return parBouteille(ref) ? bouteillesApresVentes(ref) : stockApresVentes(ref); }
 function aStock(ref) { return estLibre(ref) || (LITRES[ref] ? stockInit('FUT') > 0 : stockInit(ref) > 0); }
 // Sans match chargé, on laisse vendre (le stock n'est simplement pas suivi)
 function stockSuivi() { return !!state.match; }
@@ -1108,7 +1118,8 @@ function renderPanier() {
     : dc ? `<div class="refaire"><span><big>👈</big>Touche les boissons demandées</span><button onclick="refaireCommande()">↻ Même commande que la précédente<small>${esc(resumeCmd(dc))}</small></button></div>`
     : `<div class="empty"><big>👈</big>Touche les boissons<br>demandées par le client</div>`;
   // Rappel doux : une boisson servie en gobelet est dans la commande, mais aucun gobelet consigné
-  const auVerre = Object.entries(panier.lignes).some(([r, q]) => q > 0 && (LITRES[r] || BOUTEILLE_L[r] || prod(r).verre));
+  // Une option seule (sirop) ne justifie pas un gobelet : elle se verse dans un verre déjà servi.
+  const auVerre = Object.entries(panier.lignes).some(([r, q]) => q > 0 && !estOption(r) && (LITRES[r] || parBouteille(r) || prod(r).verre));
   document.getElementById('gob-zone').classList.toggle('rappel', auVerre && !(panier.gob.s33 + panier.gob.s50) && !panier.rendue);
 
   const tot = totalPanier(), vide = panierVide();
@@ -1844,7 +1855,7 @@ function afficherRapport() {
   if (!stockSuivi()) h += '<div><span>Match pas chargé</span><b>—</b></div>';
   else {
     if (aStock('P01_25') || aStock('P01_50')) h += `<div><span>🍺 Bière</span><b>${litresRestants(false).toLocaleString('fr-FR')} L</b></div>`;
-    suivis().filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => { h += `<div><span>${esc(p.nom)}</span><b>${BOUTEILLE_L[p.ref] ? `${stockApresVentes(p.ref)} verres (${bouteillesApresVentes(p.ref).toLocaleString('fr-FR')} bout.)` : stockApresVentes(p.ref)}</b></div>`; });
+    suivis().filter(p => !LITRES[p.ref] && aStock(p.ref)).forEach(p => { h += `<div><span>${esc(p.nom)}</span><b>${parBouteille(p.ref) ? `${stockApresVentes(p.ref)} ${estOption(p.ref) ? 'doses' : 'verres'} (${bouteillesApresVentes(p.ref).toLocaleString('fr-FR')} bout.)` : stockApresVentes(p.ref)}</b></div>`; });
   }
   h += `</div></div></div>`;
   const hist = state.historique.filter(x => x.buvette === state.tab).slice(0, 8);
@@ -1882,7 +1893,7 @@ function inventaireHtml(cl) {
       <div class="k inv-biere"><span>Bière</span><small>départ : ${fmtFuts(stockInit('FUT'))} (${(stockInit('FUT') * L).toLocaleString('fr-FR')} L)</small><small>théorique : <b style="font-size:1.1rem">${theo.toLocaleString('fr-FR')} L</b></small><small id="inv-fut-s">compté : —</small></div>`;
   }
   produitsInventaire().forEach(p => {
-    const theo = stockCompte(p.ref), v = inv[p.ref] ?? '', bt = BOUTEILLE_L[p.ref];
+    const theo = stockCompte(p.ref), v = inv[p.ref] ?? '', bt = parBouteille(p.ref);
     h += `<label>${esc(p.nom)}${bt ? ' — bouteilles (une demie = 0,5)' : ''}<small class="inv-dep">départ ${stockInit(p.ref).toLocaleString('fr-FR')} · théorique ${theo.toLocaleString('fr-FR')}</small><input class="input inv-n" data-ref="${p.ref}" inputmode="decimal" placeholder="théorique ${theo.toLocaleString('fr-FR')}" value="${v}" ${dis} oninput="majInventaire()"><small class="inv-e" id="inv-e-${p.ref}"></small></label>`;
   });
   return h + `</div>`;
@@ -1940,7 +1951,7 @@ function ecartsSuspects(inv) {
   const out = [];
   if (inv.FUT_L != null) { const t = litresRestants(false), d = inv.FUT_L - t; if (Math.abs(d) > Math.max(6, t * 0.25)) out.push(`bière ${d > 0 ? '+' : ''}${Math.round(d)} L`); }
   produitsInventaire().forEach(p => { if (inv[p.ref] == null) return; const t = stockCompte(p.ref), d = inv[p.ref] - t;
-    if (Math.abs(d) > Math.max(BOUTEILLE_L[p.ref] ? 2 : 3, t * 0.25)) out.push(`${p.nom} ${d > 0 ? '+' : ''}${Math.round(d * 10) / 10}`); });
+    if (Math.abs(d) > Math.max(parBouteille(p.ref) ? 2 : 3, t * 0.25)) out.push(`${p.nom} ${d > 0 ? '+' : ''}${Math.round(d * 10) / 10}`); });
   return out;
 }
 let ecartConfirme = '';
@@ -2030,7 +2041,7 @@ function cloturerCaisse() {
 function cloturerCaisseSeule() { invNonCompte = true; cloturerCaisse(); if (!state.clotures[state.tab]) invNonCompte = false; }
 function rouvrirCaisse() { delete state.clotures[state.tab]; save(); afficherRapport(); }
 // ── Stock reçu pendant le match (packs rajoutés, fût apporté…) ──
-function refsReassort() { return [['FUT', '🍺 Fûts de 30 L']].concat(suivis().filter(p => !LITRES[p.ref]).map(p => [p.ref, p.nom + (BOUTEILLE_L[p.ref] ? ' (bouteilles)' : '')])); }
+function refsReassort() { return [['FUT', '🍺 Fûts de 30 L']].concat(suivis().filter(p => !LITRES[p.ref]).map(p => [p.ref, p.nom + (parBouteille(p.ref) ? ' (bouteilles)' : '')])); }
 function reassortHtml() {
   if (!stockSuivi()) return '';
   const deja = state.reassorts.filter(r => r.buvette === state.tab && r.matchId === (state.match || {}).idMatch);
@@ -2177,6 +2188,7 @@ async function chargerMatch(auto) {
       st.hidden = true;
       return;
     }
+    if (d.stockCat && Object.keys(d.stockCat).length) state.stockCat = d.stockCat;   // verres / doses par bouteille, réglés dans 📦 PRODUITS
     if (d.produits && Object.keys(d.produits).length && panierVide()) { state.prix = d.produits; appliquerPrix(); renderTiles(); }
     if (auto && !nouveau && state.match && state.match.prepa === d.match.prepa) {
       if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
