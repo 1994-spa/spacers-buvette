@@ -35,7 +35,9 @@ const PRODUITS_26_27 = [
 ];
 // CONTRÔLE : marquage du rapprochement Drive ↔ Pennylane (Achats.gs). Une ligne dont ce texte
 // contient « hors total » est exclue du total boissons du 📊 TABLEAU DE BORD ; « garder » la force à être comptée.
-const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE', 'CONTRÔLE'];
+// QUANTITÉ : colonne facultative, saisie à la main quand la facture ne peut pas être rattachée à une
+// livraison enregistrée (Couts.gs). Jamais remplie par le script, jamais devinée depuis le libellé.
+const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE', 'CONTRÔLE', 'QUANTITÉ'];
 
 function reorganiserFichier() {
   const ui = SpreadsheetApp.getUi();
@@ -338,19 +340,28 @@ function assurerStructure_(forcer) {
         const g = function (n) { const i = col_(h, n); return i >= 0 ? r[i] : ''; };
         const d = g('DATE');
         return [d, g('SOURCE') || 'Saisie', g('LIBELLÉ') || [g('FOURNISSEUR'), g('DÉTAIL')].filter(String).join(' — '), g('COMPTE'), g('MONTANT HT €'),
-          g('SAISON') || saisonDe_(d), g('MOIS') || (d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : ''), g('PIÈCE') || g('N° FACTURE'), g('ID PENNYLANE'), g('CONTRÔLE')];
+          g('SAISON') || saisonDe_(d), g('MOIS') || (d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : ''), g('PIÈCE') || g('N° FACTURE'), g('ID PENNYLANE'), g('CONTRÔLE'), g('QUANTITÉ')];
       });
       if (a.getFilter()) a.getFilter().remove();
       a.getRange(1, 1, Math.max(a.getLastRow(), 1), Math.max(a.getLastColumn(), ACHATS_ENTETE.length)).clearContent().clearDataValidations();
       a.getRange(1, 1, 1, ACHATS_ENTETE.length).setValues([ACHATS_ENTETE]);
       if (rows.length) a.getRange(2, 1, rows.length, ACHATS_ENTETE.length).setValues(rows);
-      mettreEnForme_(a, { dates: [1], euros: [5], largeurs: { 3: 340, 8: 200, 10: 330 } });
+      mettreEnForme_(a, { dates: [1], euros: [5], largeurs: { 3: 340, 8: 200, 10: 330, 11: 220 } });
       a.getRange('A1').setNote('Une ligne par facture du dossier Drive 05_ACHATS_DIRECTS_BUVETTE (lien dans PIÈCE). Boissons : compte 607100000. Écocups : compte 606300000 (isolés du coût des boissons). Consignes de fûts : ne pas saisir. La dernière colonne est le contrôle Pennylane, rempli par le script.');
       a.getRange(1, ACHATS_ENTETE.indexOf('CONTRÔLE') + 1).setNote(
         'Rapprochement Drive ↔ Pennylane, écrit par le script (menu 🏐 Matchday → 🧾 Contrôler les achats).\n' +
         '« doublon — … » : même facture déjà présente en source Facture Drive. La ligne est conservée mais sortie du total.\n' +
         '« hors total » : mot-clé lu par le 📊 TABLEAU DE BORD pour exclure la ligne du total boissons.\n' +
         'Écrire « garder » ici force la ligne à rester comptée : le script ne la marquera plus.');
+      a.getRange(1, ACHATS_ENTETE.indexOf('QUANTITÉ') + 1).setNote(
+        'Facultatif. Quantités livrées par cette facture, pour la valorisation au prix moyen pondéré (CUMP).\n' +
+        'À remplir seulement quand la facture n\'a pas pu être rattachée à une livraison enregistrée dans\n' +
+        '📥 Livraison reçue (menu 🏐 Matchday → 💶 Contrôler la valorisation le signale).\n\n' +
+        'Écrire la référence puis la quantité, séparées par « ; » :\n' +
+        '  FUT 15\n' +
+        '  P02_ICET 240 ; P03 840 ; P04 240\n' +
+        'Un nombre seul (« 15 ») vaut si la livraison rattachée ne porte qu\'une seule référence.\n' +
+        'Références : voir la colonne RÉF de 📦 PRODUITS. Jamais rempli par le script.');
     }
   }
 }
@@ -533,7 +544,7 @@ function construireTableauDeBord_(saisonForcee) {
   const lignes = [
     ['Achats boissons facturés (Drive ↔ Pennylane, hors doublons et écocups)',
       '=SUMPRODUCT(' + saisonAc + '*(1-' + ecocups + ')*' + sansDoublon + '*N(' + AC + 'E2:E))', '+'],
-    ['Stock au début de la saison (valeur HT, à saisir une fois)', '', '+'],
+    ['Stock au début de la saison (valeur HT, à saisir une fois) — amorce le PMP', '', '+'],
     ['Coût matière consommé aux matchs', '=SUMIFS(' + S('COÛT MATIÈRE €') + ',' + cond + ')', '−'],
     ['Conso bénévoles', '=SUMIFS(' + S('CONSO BÉNÉVOLES €') + ',' + cond + ')', '−'],
     ['Stock restant valorisé (dernier inventaire)', '', '−'],
@@ -551,13 +562,18 @@ function construireTableauDeBord_(saisonForcee) {
     sh.getRange(r, 2).setNumberFormat('#,##0.00 €').setHorizontalAlignment('right');
     sh.getRange(r, 1, 1, 3).setBackground(i % 2 ? DAY_SOFT : WHITE);
   });
-  sh.getRange(r3 + 2, 2).setValue(stockDebut === '' ? 0 : stockDebut).setBackground('#FFF8D6').setNote('À saisir une fois par saison : valeur HT du stock de boissons au 1er match.');
+  sh.getRange(r3 + 2, 2).setValue(stockDebut === '' ? 0 : stockDebut).setBackground('#FFF8D6').setNote(
+    'À saisir une fois par saison : valeur HT du stock de boissons au comptage de base (🔢 Recomptage).\n\n' +
+    'Cette valeur amorce le prix moyen pondéré (CUMP) : elle est répartie entre les références comptées, ' +
+    'au prorata de leur PRIX ACHAT de 📦 PRODUITS.\n' +
+    'Laissée à 0, le stock de départ est estimé au prix de la 1re facture connue de chaque référence, ' +
+    'sinon au prix catalogue — et le menu 🏐 Matchday → 💶 Contrôler la valorisation (CUMP) le signale.');
   ss.setNamedRange('STOCK_DEBUT', sh.getRange(r3 + 2, 2));
   ss.setNamedRange('STOCK_VALORISE', sh.getRange(r3 + 5, 2));
-  sh.getRange(r3 + 5, 2).setNote('Calculé par le script (inventaires comptés, sinon théorique) à chaque mise à jour des matchs.');
+  sh.getRange(r3 + 5, 2).setNote('Calculé par le script (inventaires comptés, sinon théorique) à chaque mise à jour des matchs, au même prix moyen pondéré (CUMP) que le coût matière des matchs.');
   sh.getRange(r3 + 6, 1, 1, 3).setFontWeight('bold').setFontSize(12);
   sh.getRange(r3 + 7, 1, 2, 3).setFontColor('#64778A').setFontStyle('italic');
-  sh.getRange(r3 + 9, 1).setValue('Écart > 0 : achats sans consommation constatée (facture d\'un autre usage, inventaire manquant…). Écart < 0 : consommation sans facture (facture non saisie dans 🛒 ACHATS, prix d\'achat trop haut…). Les écocups (compte 606300000) sont un parc réutilisable : hors rapprochement. Les deux lignes « dont » ci-dessus sont informatives : elles ne sont pas dans l\'écart.')
+  sh.getRange(r3 + 9, 1).setValue('Écart > 0 : achats sans consommation constatée (facture d\'un autre usage, inventaire manquant…). Écart < 0 : consommation sans facture (facture non saisie dans 🛒 ACHATS). Coût matière et stock restant sont valorisés au prix moyen pondéré (CUMP) calculé sur ces mêmes factures, donc le rapprochement boucle dès que toutes les factures sont saisies avec leurs quantités (menu 🏐 Matchday → 💶 Contrôler la valorisation). Les écocups (compte 606300000) sont un parc réutilisable : hors rapprochement. Les deux lignes « dont » ci-dessus sont informatives : elles ne sont pas dans l\'écart.')
     .setFontColor('#64778A').setFontStyle('italic').setFontSize(9);
   const regles = [
     SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$A' + r1 + '=$B$4').setBackground(DAY).setBold(true).setRanges([sh.getRange(r1, 1, n, 10)]).build(),
