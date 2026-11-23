@@ -64,15 +64,136 @@ const PIL = {
   VERRE_BIERE_L: { P01_25: 0.3, P01_50: 0.5 },
   VERRE_SOFT_L: 0.3,
   BOUTEILLE_L: { P02_COCA: 1.25, P02_ICET: 1.25, P02_ORAN: 1.5, P02_SCHW: 1.5 },
-  // Lignes de préparation : FUT en fûts de 30 L (30cl et 50cl tirés du même fût), softs en bouteilles, eaux en unités
+  // Lignes de préparation HISTORIQUES, gardées comme filet de sécurité : la vraie liste vient de
+  // 📦 PRODUITS (colonnes UNITÉ DE STOCK et SERVICES PAR UNITÉ), via pilLignesStock_().
   PREPA: [['FUT', 'Bière (fûts 30 L)'], ['P02_COCA', 'Coca-Cola (bout. 1,25 L)'], ['P02_ORAN', 'Orangina (bout. 1,5 L)'], ['P02_ICET', 'Ice Tea (bout. 1,25 L)'],
           ['P02_SCHW', 'Schweppes (bout. 1,5 L)'], ['P03', 'Eau plate 50cl'], ['P04', 'Eau gazeuse 50cl']],
 };
+// ═══════════════════════════════════════════════════════════════════════════
+// 📦 PRODUITS pilote le stock : plus aucune liste de produits en dur
+// ═══════════════════════════════════════════════════════════════════════════
+// Colonnes lues : RÉF, PRODUIT, FAMILLE, PRIX VENTE €, PRIX ACHAT €, COLISAGE, SEUIL ALERTE,
+// UNITÉ DE STOCK (fût / bouteille / unité / vide) et SERVICES PAR UNITÉ (verres ou doses par bouteille).
+//   • UNITÉ DE STOCK vide = produit sans stock propre (bière au verre tirée du fût, consigne écocup) ;
+//   • SERVICES PAR UNITÉ : 4 verres dans une bouteille de 1,25 L, 5 dans 1,5 L, 30 doses de 2 cl dans 60 cl.
+// Ajouter un produit = ajouter sa ligne dans 📦 PRODUITS : formulaire 📥 Livraison reçue, 🔢 Recomptage,
+// préparation par buvette, inventaire de fin, seuils d'alerte et commande conseillée le reprennent seuls.
+// Les valeurs par défaut ci-dessous servent de filet tant que les deux colonnes ne sont pas remplies :
+// cellule vide = valeur par défaut ; texte non reconnu (« non ») = produit retiré du suivi de stock.
+const PIL_UNITE_DEFAUT = { FUT: 'fût', P02_COCA: 'bouteille', P02_COCZ: 'bouteille', P02_ORAN: 'bouteille',
+  P02_ICET: 'bouteille', P02_SCHW: 'bouteille', P05_PECHE: 'bouteille', P03: 'unité', P04: 'unité' };
+const PIL_SERVICES_DEFAUT = { P02_COCA: 4, P02_COCZ: 4, P02_ICET: 4, P02_ORAN: 5, P02_SCHW: 5, P05_PECHE: 30 };
+function pilUnite_(v) {
+  const t = pilNomNorm_(String(v == null ? '' : v)).toLowerCase().trim();
+  if (/^fut/.test(t)) return 'fût';
+  if (/^bout/.test(t)) return 'bouteille';
+  if (/^unit|^piece|^pce/.test(t)) return 'unité';
+  return '';
+}
+let PIL_CAT_MEMO = null;
+function pilCatalogue_(forcer) {
+  if (PIL_CAT_MEMO && !forcer) return PIL_CAT_MEMO;
+  const cat = { refs: [], par: {}, stock: [], vente: [] };
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ONG.PRODUITS);
+  if (sh && sh.getLastRow() > 1) {
+    const d = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues(), h = d[0].map(String);
+    const c = function (n) { return h.indexOf(n); };
+    const iRef = c('RÉF'), iNom = c('PRODUIT'), iFam = c('FAMILLE'), iPv = c('PRIX VENTE €'),
+      iPa = c('PRIX ACHAT €'), iCol = c('COLISAGE'), iSe = c('SEUIL ALERTE'),
+      iU = c('UNITÉ DE STOCK'), iSv = c('SERVICES PAR UNITÉ');
+    for (let r = 1; r < d.length && iRef >= 0; r++) {
+      const ref = String(d[r][iRef] || '').trim();
+      if (!ref || cat.par[ref]) continue;
+      const fam = String(iFam >= 0 ? d[r][iFam] : '').trim();
+      const uSaisie = iU >= 0 ? pilUnite_(d[r][iU]) : '';
+      const p = { ref: ref, nom: String((iNom >= 0 ? d[r][iNom] : '') || ref).trim(), famille: fam,
+        prix: Number(iPv >= 0 ? d[r][iPv] : 0) || 0, achat: Number(iPa >= 0 ? d[r][iPa] : 0) || 0,
+        colisage: Number(iCol >= 0 ? d[r][iCol] : 0) || 0, seuil: Number(iSe >= 0 ? d[r][iSe] : 0) || 0,
+        unite: uSaisie || (iU >= 0 && String(d[r][iU] || '').trim() ? '' : (PIL_UNITE_DEFAUT[ref] || '')),
+        services: Math.round(Number(iSv >= 0 ? d[r][iSv] : 0) || PIL_SERVICES_DEFAUT[ref] || 0),
+        option: /option/i.test(fam) };
+      cat.refs.push(ref); cat.par[ref] = p;
+      if (p.unite) cat.stock.push(ref);
+      if (p.prix > 0 && !/consigne/i.test(fam)) cat.vente.push(ref);
+    }
+  }
+  if (!cat.stock.length) {   // onglet illisible : on retombe sur les lignes historiques
+    [['FUT', 'Bière — fût 30 L', 'fût', 0], ['P02_COCA', 'Coca-Cola', 'bouteille', 4], ['P02_ORAN', 'Orangina', 'bouteille', 5],
+     ['P02_ICET', 'Ice Tea', 'bouteille', 4], ['P02_SCHW', 'Schweppes Agrumes', 'bouteille', 5],
+     ['P03', 'Eau plate 50cl', 'unité', 0], ['P04', 'Eau gazeuse 50cl', 'unité', 0]].forEach(function (x) {
+      if (cat.par[x[0]]) { cat.par[x[0]].unite = x[2]; cat.par[x[0]].services = x[3]; }
+      else { cat.par[x[0]] = { ref: x[0], nom: x[1], famille: '', prix: 0, achat: 0, colisage: 0, seuil: 0, unite: x[2], services: x[3], option: false }; cat.refs.push(x[0]); }
+      cat.stock.push(x[0]);
+    });
+  }
+  if (!cat.vente.length) PIL.PRODUITS.forEach(function (x) {
+    if (!cat.par[x[0]]) { cat.par[x[0]] = { ref: x[0], nom: x[1], famille: '', prix: x[2], achat: 0, colisage: 0, seuil: 0, unite: '', services: 0, option: false }; cat.refs.push(x[0]); }
+    cat.vente.push(x[0]);
+  });
+  PIL_CAT_MEMO = cat;
+  return cat;
+}
+function pilProd_(ref) {
+  const p = pilCatalogue_().par[ref];
+  return p || { ref: ref, nom: ref, famille: '', prix: 0, achat: 0, colisage: 0, seuil: 0, unite: '', services: 0, option: false };
+}
+// Libellé des lignes de stock, tel qu'il s'affiche au tableau de bord et sur la tablette
+function pilLibelleStock_(p) {
+  if (p.unite === 'fût') return p.nom.replace(/\s*[—-].*$/, '').trim() + ' (fûts ' + PIL.FUT_LITRES + ' L)';
+  if (p.unite === 'bouteille') return p.nom + (p.services ? ' (bout., ' + p.services + ' ' + (p.option ? 'doses' : 'verres') + ')' : ' (bouteilles)');
+  return p.nom;
+}
+// Lignes de préparation / livraison / comptage : [réf, libellé, pas de saisie, unité, services]
+function pilLignesStock_() {
+  const cat = pilCatalogue_();
+  return cat.stock.map(function (ref) {
+    const p = cat.par[ref];
+    return [ref, pilLibelleStock_(p), p.unite === 'fût' ? 0.25 : p.unite === 'bouteille' ? 0.5 : 1, p.unite, p.services];
+  });
+}
+// Ordre des colonnes produit de 🧾 VENTES : mémorisé, jamais réordonné, allongé en fin de liste
+// quand un produit vendable apparaît dans 📦 PRODUITS (les colonnes du Sheet suivent, voir pilMigrerColonnesVentes_).
+function pilColsVentes_() {
+  const p = PropertiesService.getScriptProperties();
+  let cols = [];
+  try { cols = JSON.parse(p.getProperty('PIL_COLS_VENTES') || 'null') || []; } catch (e) { cols = []; }
+  if (!cols.length) cols = PIL.PRODUITS.map(function (x) { return x[0]; });   // les 8 colonnes historiques
+  let change = false;
+  pilCatalogue_().vente.forEach(function (ref) { if (cols.indexOf(ref) < 0) { cols.push(ref); change = true; } });
+  if (change) p.setProperty('PIL_COLS_VENTES', JSON.stringify(cols));
+  return cols;
+}
+function pilProduitsCols_() {
+  return pilColsVentes_().map(function (ref) { const p = pilProd_(ref); return [ref, p.nom, p.prix]; });
+}
+function pilColPaiement_() { return PIL_NB + pilColsVentes_().length; }
+// Ajoute dans 🧾 VENTES les colonnes produit qui manquent, juste avant « Paiement »,
+// pour que les lignes déjà écrites gardent leur alignement. Renvoie le nombre de colonnes insérées.
+function pilMigrerColonnesVentes_() {
+  const sh = feuille_('VENTES');
+  if (!sh || sh.getLastColumn() <= PIL_NB) return 0;
+  const cols = pilColsVentes_();
+  const h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const iPay = h.indexOf('Paiement');
+  if (iPay < PIL_NB) return 0;                       // en-tête inattendu : on ne touche à rien
+  const manque = PIL_NB + cols.length - iPay;
+  if (manque <= 0) return 0;
+  sh.insertColumnsBefore(iPay + 1, manque);
+  for (let k = 0; k < manque; k++) {
+    const ref = cols[iPay - PIL_NB + k], p = pilProd_(ref);
+    styleEntete_(sh.getRange(1, iPay + 1 + k).setValue(p.nom || ref));
+  }
+  Logger.log('🧾 VENTES : ' + manque + ' colonne(s) produit ajoutée(s) avant « Paiement ».');
+  return manque;
+}
+
 const PIL_LIVE_COLS = ['Reçu le', 'Horodatage', 'ID vente', 'ID_MATCH', 'Buvette', 'Total €', 'Consignes +',
   'Consignes rendues', 'ID billet', 'Code-barres', 'Tarif billet', 'Client Tickie', 'Fidélité'];
 const PIL_I = {}; PIL_LIVE_COLS.forEach(function (c, i) { PIL_I[c] = i; });
 const PIL_NB = PIL_LIVE_COLS.length;
-const PIL_COL_PAIEMENT = PIL_NB + PIL.PRODUITS.length;   // index 0 de la colonne « Paiement » (CB / ESP), après les produits
+// Position historique de la colonne « Paiement » (13 colonnes + 8 produits). Depuis que 📦 PRODUITS
+// pilote la liste, utiliser pilColPaiement_() : le nombre de colonnes produit peut grandir.
+const PIL_COL_PAIEMENT = PIL_NB + PIL.PRODUITS.length;
 const PIL_VD_HDR = ['MATCH', 'DATE', 'TABLETTE', 'REF', 'PRODUIT', 'QTY', 'PRIX_UNIT', 'CONSIGNE_UNIT', 'CA_HT', 'CA_CONSIGNE', 'TYPE'];
 // Gobelets revenus sans remboursement : rapportés mais pas remboursés faute d'espèces (bouton 🚫 Plus d'espèces,
 // motif PLUS_ESPECES) ou posés sur le comptoir / ramassés sans que personne demande l'euro (bouton 🫙 Récupéré, motif RECUPERE).
@@ -111,7 +232,7 @@ function pilotageInitialiser() {
   let sh = feuille_('VENTES');
   if (!sh) {
     sh = ss.insertSheet(ss.getSheetByName(ONG.MATCHS) ? ONG.VENTES : ONG_ANCIEN.VENTES);
-    const head = PIL_LIVE_COLS.concat(PIL.PRODUITS.map(function (p) { return p[1]; })).concat(['Paiement']);
+    const head = PIL_LIVE_COLS.concat(pilProduitsCols_().map(function (p) { return p[1]; })).concat(['Paiement']);
     styleEntete_(sh.getRange(1, 1, 1, head.length).setValues([head]));
     sh.setFrozenRows(1);
   }
@@ -144,8 +265,12 @@ function pilotageSyncMatchs(silencieux) {
   const evs = pilMatchsTickie_().filter(function (ev) { return /spacer/i.test(ev.nom); });
   let abonnes = 0;
   try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+  // Les soirées doubles mal découpées sont corrigées avant tout calcul (adversaire, puis ID_MATCH si libre)
+  let corrections = [];
+  try { corrections = pilCorrigerAdversaires_(evs); } catch (e) { corrections = ['⚠️ Contrôle des adversaires : ' + e.message]; }
   const lignes = evs.map(function (ev) {
     const idm = pilIdMatch_(ev, true);
+    if (!idm) return '⚠️ « ' + ev.nom + ' » : adversaire des Spacer\'s illisible, match non créé';
     pilModeDirect_(idm);
     const b = pilCompterBillets_(ev.id, 600).total;
     const entrees = ev.dateMatch <= pilDate_(new Date()) ? pilCompterEntrees_(ev.id) : null;
@@ -154,7 +279,8 @@ function pilotageSyncMatchs(silencieux) {
     return idm + ' : ' + aff + (entrees > 0 ? ' entrées' : ' attendus (' + b + ' billets + ' + abonnes + ' abonnés)');
   });
   PropertiesService.getScriptProperties().setProperty('PIL_SYNC', String(Date.now()));
-  const msg = '🔄 ' + evs.length + ' match(s) Tickie dans 📅 MATCHS\n' + lignes.join('\n');
+  const msg = '🔄 ' + evs.length + ' match(s) Tickie dans 📅 MATCHS\n' + lignes.join('\n') +
+    (corrections.length ? '\n\n' + corrections.join('\n') : '');
   if (silencieux === true) return msg;
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
   return msg;
@@ -166,7 +292,7 @@ function pilTokenOk_(t) { const ref = PropertiesService.getScriptProperties().ge
 function pilTz_() { return Session.getScriptTimeZone() || 'Europe/Paris'; }
 function pilDate_(d) { return Utilities.formatDate(new Date(d), pilTz_(), 'yyyy-MM-dd'); }
 function pilSheet_(n) { return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(n); }
-function pilProduit_(ref) { return PIL.PRODUITS.filter(function (x) { return x[0] === ref; })[0] || [ref, ref, 0]; }
+function pilProduit_(ref) { const p = pilProd_(ref); return [p.ref, p.nom, p.prix]; }
 
 function pilEnsureVdHeader_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -305,6 +431,98 @@ function pilCompterEntrees_(eventId) {   // null si le contrôle d'accès n'est 
   } catch (e) { return null; }
 }
 
+// ── Nom d'événement Tickie → adversaire des Spacer's ────────────────────
+// Les soirées doubles portent DEUX « vs » (« France Avenir vs Nantes & Spacer's vs Nice ») :
+// l'adversaire est celui du segment des Spacer's, jamais le premier « vs » de la chaîne.
+// Apostrophe typographique (’ ‘ ʼ ` ´), espace insécable, casse et accents sont indifférents.
+const PIL_NOM_REMPL = { '\u2019': "'", '\u2018': "'", '\u02BC': "'", '\u0060': "'", '\u00B4': "'",
+  '\u00A0': ' ', '\u202F': ' ', '\u2007': ' ', '\u2009': ' ', '\u200B': ' ' };
+const PIL_ACCENTS = 'àáâãäåçèéêëìíîïñòóôõöùúûüýÿÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ';
+const PIL_SANS_ACCENT = 'aaaaaaceeeeiiiinooooouuuuyyAAAAAACEEEEIIIINOOOOOUUUUY';
+// Normalisation caractère par caractère : la chaîne garde la MÊME longueur, donc les index
+// trouvés sur la version normalisée restent valables sur le nom d'origine (accents conservés).
+function pilNomNorm_(s) {
+  const t = String(s == null ? '' : s);
+  let out = '';
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charAt(i);
+    if (PIL_NOM_REMPL[c] != null) { out += PIL_NOM_REMPL[c]; continue; }
+    const k = PIL_ACCENTS.indexOf(c);
+    out += k < 0 ? c : PIL_SANS_ACCENT.charAt(k);
+  }
+  return out;
+}
+// Adversaire des Spacer's dans un nom d'événement Tickie, ou null si le nom ne contient pas de
+// segment Spacer's : on ne devine JAMAIS (un faux adversaire casse 📅 MATCHS et tout ce qui s'y rattache).
+function pilAdversaireTickie_(nom) {
+  const brut = String(nom == null ? '' : nom), norm = pilNomNorm_(brut);
+  const m = norm.match(/spacer'?s?\s*vs\.?\s+/i);
+  if (!m) return null;
+  const deb = m.index + m[0].length;
+  const suite = norm.slice(deb);
+  const fin = suite.search(/\s+[-–—]|\s*[&·]|$/);
+  const adv = brut.slice(deb, fin < 0 ? brut.length : deb + fin).trim().replace(/[\s\-–—&·]+$/, '');
+  return adv || null;
+}
+function pilIdm_(adv, dateMatch) {
+  return String(adv).replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase() + '-' + dateMatch.slice(8, 10) + '-' + dateMatch.slice(5, 7);
+}
+// Combien de cellules AILLEURS que dans 📅 MATCHS portent cet ID_MATCH (ventes, détail, clôtures…).
+// En cas de doute on renvoie 1 : on ne renomme pas un ID auquel des données peuvent être rattachées.
+function pilCompterRefs_(idm) {
+  if (!idm) return 0;
+  const sh = feuille_('MATCHS'), nom = sh ? sh.getName() : '';
+  try {
+    return SpreadsheetApp.getActiveSpreadsheet().createTextFinder(String(idm)).matchEntireCell(true).matchCase(true)
+      .findAll().filter(function (rg) { return rg.getSheet().getName() !== nom; }).length;
+  } catch (e) { return 1; }
+}
+function pilRenommerProps_(a, b) {
+  const p = PropertiesService.getScriptProperties();
+  ['PIL_PREPA_', 'PIL_INVENTAIRE_', 'PIL_CLOTURE_'].forEach(function (pre) {
+    const v = p.getProperty(pre + a);
+    if (v == null) return;
+    if (p.getProperty(pre + b) == null) p.setProperty(pre + b, v);
+    p.deleteProperty(pre + a);
+  });
+  const act = pilActif_();
+  if (act && act.idMatch === a) { act.idMatch = b; p.setProperty('PIL_MATCH_ACTIF', JSON.stringify(act)); }
+}
+// Répare les lignes déjà écrites avec le mauvais adversaire (soirées doubles mal découpées).
+// Lancé à chaque synchronisation : la correction est portée par le code, pas par une saisie à la main.
+function pilCorrigerAdversaires_(evs) {
+  const sh = feuille_('MATCHS');
+  if (!sh) return [];
+  const d = sh.getDataRange().getValues(), h = d[0].map(String);
+  const cId = h.indexOf('ID_MATCH'), cAdv = h.indexOf('ADVERSAIRE'), cEv = h.indexOf('TICKIE_EVENT_ID');
+  if (cId < 0 || cAdv < 0 || cEv < 0) return [];
+  const rapport = [];
+  evs.forEach(function (ev) {
+    const adv = pilAdversaireTickie_(ev.nom);
+    if (!adv) { rapport.push('⚠️ « ' + ev.nom + ' » : segment « Spacer\'s vs » introuvable, ligne laissée en l\'état (à vérifier dans Tickie)'); return; }
+    for (let r = 1; r < d.length; r++) {
+      if (String(d[r][cEv]) !== String(ev.id)) continue;
+      const idAct = String(d[r][cId]), advAct = String(d[r][cAdv] || '');
+      if (pilNomNorm_(advAct).toLowerCase().trim() === pilNomNorm_(adv).toLowerCase().trim()) return;   // déjà bon
+      sh.getRange(r + 1, cAdv + 1).setValue(adv);
+      let note = '🛠️ ' + (idAct || '(sans ID)') + ' : adversaire « ' + (advAct || 'vide') + ' » → « ' + adv + ' »';
+      const idAttendu = pilIdm_(adv, ev.dateMatch);
+      if (idAttendu !== idAct) {
+        const n = pilCompterRefs_(idAct);
+        if (n) note += ' · ID_MATCH gardé (' + n + ' ligne(s) déjà rattachée(s) à ' + idAct + ')';
+        else {
+          sh.getRange(r + 1, cId + 1).setValue(idAttendu);
+          pilRenommerProps_(idAct, idAttendu);
+          note += ' · ID_MATCH → ' + idAttendu;
+        }
+      }
+      rapport.push(note);
+      return;
+    }
+  });
+  return rapport;
+}
+
 // ── 📅 MATCHS : retrouver / créer l'ID_MATCH d'un match Tickie ───────────
 function pilIdMatch_(ev, creer) {
   const sh = feuille_('MATCHS');
@@ -321,10 +539,10 @@ function pilIdMatch_(ev, creer) {
     }
   }
   if (!creer) return '';
-  // Adversaire = texte après « Vs » dans le nom Tickie (« Spacer's Vs Narbonne - Samedi… »)
-  const m = String(ev.nom).match(/spacer'?s\s+vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/i) || String(ev.nom).match(/vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/i);
-  const adv = m ? m[1].trim() : String(ev.nom);
-  const idm = adv.replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase() + '-' + ev.dateMatch.slice(8, 10) + '-' + ev.dateMatch.slice(5, 7);
+  // Adversaire = segment « Spacer's vs … » du nom Tickie. Introuvable : on n'invente pas de ligne.
+  const adv = pilAdversaireTickie_(ev.nom);
+  if (!adv) { Logger.log('Nom Tickie sans segment Spacer\'s, match non créé : ' + ev.nom); return ''; }
+  const idm = pilIdm_(adv, ev.dateMatch);
   if (cEv < 0) cEv = pilAjouterColonne_(sh, 'TICKIE_EVENT_ID');
   const hh = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   sh.appendRow(ligneMatch_(hh, {
@@ -408,7 +626,7 @@ function pilEnregistrerReassort_(r) {
 }
 function pilStocksPrepa_(idm) {
   const out = {}, saved = pilProp_('PIL_PREPA_' + idm, {});
-  PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) { out[b] = {}; PIL.PREPA.forEach(function (p) { out[b][p[0]] = Number((saved[b] || {})[p[0]]) || 0; }); });
+  PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) { out[b] = {}; pilLignesStock_().forEach(function (p) { out[b][p[0]] = Number((saved[b] || {})[p[0]]) || 0; }); });
   return out;
 }
 function pilActif_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PIL_MATCH_ACTIF') || 'null'); } catch (e) { return null; } }
@@ -417,7 +635,7 @@ function pilLirePrepa_(eventId) {
   let idm = '';
   if (eventId) { const ev = pilEvent_(eventId); if (ev) idm = pilIdMatch_(ev, false); }
   else if (actif) { idm = actif.idMatch; eventId = actif.eventId; }
-  return { eventId: eventId || '', idMatch: idm, actif: actif, lignes: PIL.PREPA, buvettes: PIL.BUVETTES, reserves: PIL.RESERVES,
+  return { eventId: eventId || '', idMatch: idm, actif: actif, lignes: pilLignesStock_(), buvettes: PIL.BUVETTES, reserves: PIL.RESERVES,
     stocks: idm ? pilStocksPrepa_(idm) : null, tablettes: pilLireJournal_(),
     inventaire: idm ? pilProp_('PIL_INVENTAIRE_' + idm, {}) : {}, reassorts: idm ? pilProp_('PIL_REASSORTS_' + idm, []) : [],
     clotures: idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {}, futLitres: PIL.FUT_LITRES };
@@ -434,6 +652,9 @@ function pilChargerTablette_(buvette) {
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
     buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
+    // Structure de stock lue dans 📦 PRODUITS : { réf: { unite, services } }. La tablette s'en sert pour
+    // convertir verres/doses ↔ bouteilles ; sans réseau elle garde ses valeurs par défaut.
+    stockCat: (function () { const o = {}; pilLignesStock_().forEach(function (l) { o[l[0]] = { unite: l[3], services: l[4] }; }); return o; })(),
     billets: billets, billetsOk: billetsOk, offertes: pilBoissonsOffertes_(actif.idMatch), hh: pilHappyHourServies_(actif.idMatch), charge: new Date().toISOString() };
 }
 // Billets « place + boisson » dont la boisson a déjà été donnée pendant ce match (toutes buvettes), ventes annulées exclues
@@ -474,7 +695,11 @@ function pilHappyHourServies_(idm) {
 // Prix de vente et seuils de 📦 PRODUITS envoyés aux tablettes (réf → {prix, seuil})
 function pilPrixTablette_() {
   const cat = produitsCatalogue_(), out = {};
-  PIL.PRODUITS.forEach(function (p) { const c = cat[p[0]]; if (c && c.prix > 0) out[p[0]] = { prix: c.prix, seuil: c.seuil }; });
+  pilColsVentes_().forEach(function (ref) {
+    const c = cat[ref], p = pilProd_(ref);
+    const prix = c && c.prix > 0 ? c.prix : p.prix;
+    if (prix > 0) out[ref] = { prix: prix, seuil: c && c.seuil != null ? c.seuil : p.seuil };
+  });
   return out;
 }
 
@@ -489,8 +714,10 @@ function pilEnregistrerVentes_(ventes) {
   const sh = feuille_('VENTES');
   if (!sh) throw new Error('Pilotage non initialisé (menu 📡 Pilotage live → Initialiser)');
   const vd = pilEnsureVdHeader_();
-  if (sh.getMaxColumns() < PIL_COL_PAIEMENT + 1) sh.insertColumnsAfter(sh.getMaxColumns(), PIL_COL_PAIEMENT + 1 - sh.getMaxColumns());
-  const hPay = sh.getRange(1, PIL_COL_PAIEMENT + 1);
+  try { pilMigrerColonnesVentes_(); } catch (e) { Logger.log('Colonnes 🧾 VENTES : ' + e.message); }
+  const cPay = pilColPaiement_();
+  if (sh.getMaxColumns() < cPay + 1) sh.insertColumnsAfter(sh.getMaxColumns(), cPay + 1 - sh.getMaxColumns());
+  const hPay = sh.getRange(1, cPay + 1);
   if (!hPay.getValue()) hPay.setValue('Paiement').setBackground(NAVY).setFontColor(YELLOW).setFontWeight('bold');
   const last = sh.getLastRow(), deja = {};
   if (last > 1) sh.getRange(2, PIL_I['ID vente'] + 1, last - 1, 1).getValues().forEach(function (r) { deja[String(r[0])] = 1; });
@@ -518,7 +745,7 @@ function pilEnregistrerVentes_(ventes) {
        v.hh && Number(v.hh.n) ? 'happy hour ' + Math.round((Number(v.hh.taux) || 0.5) * 100) + ' % : ' + Number(v.hh.n) + ' boisson' + (Number(v.hh.n) > 1 ? 's' : '') + ' · ' + (Number(v.hh.montant) || 0).toFixed(2).replace('.', ',') + ' €' : '',
        pilRemiseHorsHh_(v) ? 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise] ? v.profilRemise : 'billet') + ' ' + Math.round((v.hh ? (v.profilRemise === 'ABO' || (v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise]) ? 0.10 : 0.05) : (Number(v.tauxRemise) || 0.05)) * 100) + ' % : ' + pilRemiseHorsHh_(v).toFixed(2).replace('.', ',') + ' €' : '']
         .filter(Boolean).join(' · ')];
-    PIL.PRODUITS.forEach(function (p) { row.push(Number((v.lignes || {})[p[0]]) || 0); });
+    pilColsVentes_().forEach(function (ref) { row.push(Number((v.lignes || {})[ref]) || 0); });
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : v.paiement === 'BENEVOLE' ? 'BENEVOLE' : '');
     rows.push(row);
     Object.keys(v.lignes || {}).forEach(function (ref) {
@@ -692,7 +919,8 @@ function pilDashboard_(eventId) {
     if (idm) pilAffluence_(idm, billetterie.entrees > 0 ? billetterie.entrees : b.total + (abonnes || 0));
   }
   const sh = feuille_('VENTES');
-  const data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, PIL_COL_PAIEMENT + 1).getValues() : [];
+  const cPay = pilColPaiement_();
+  const data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(cPay + 1, sh.getLastColumn())).getValues() : [];
   const rows = data.filter(function (r) {
     return idm ? String(r[PIL_I['ID_MATCH']]) === idm : (ev && pilDate_(r[PIL_I['Horodatage']]) === ev.dateMatch);
   });
@@ -700,11 +928,11 @@ function pilDashboard_(eventId) {
     reliees: { ventes: 0, ca: 0 }, parFamilleTarif: {}, paiement: { CB: 0, ESP: 0, inconnu: 0 }, annulations: 0 };
   const nb0 = function () { return { ca: 0, ventes: 0, cb: 0, esp: 0, consignes: 0, rendues: 0, reliees: 0, produits: {} }; };
   PIL.BUVETTES.forEach(function (b) { buv.parBuvette[b] = nb0(); });
-  PIL.PRODUITS.forEach(function (p) { buv.parProduit[p[0]] = { nom: p[1], qte: 0 }; });
+  pilProduitsCols_().forEach(function (p) { buv.parProduit[p[0]] = { nom: p[1], qte: 0 }; });
   rows.forEach(function (r) {
     const tot = Number(r[PIL_I['Total €']]) || 0, b = r[PIL_I['Buvette']] || '?';
     const annul = /^annulation/.test(String(r[PIL_I['Fidélité']]));
-    const pay = String(r[PIL_COL_PAIEMENT] || '');
+    const pay = String(r[cPay] || '');
     buv.paiement[pay === 'CB' || pay === 'ESP' ? pay : 'inconnu'] += tot;
     if (annul) { buv.annulations++; buv.ventes -= 2; }   // la ligne d'annulation et la vente annulée ne comptent plus
     buv.ca += tot;
@@ -716,10 +944,10 @@ function pilDashboard_(eventId) {
     pb.consignes += Number(r[PIL_I['Consignes +']]) || 0;
     pb.rendues += Number(r[PIL_I['Consignes rendues']]) || 0;
     if (r[PIL_I['ID billet']] || r[PIL_I['Code-barres']]) pb.reliees++;
-    PIL.PRODUITS.forEach(function (p, i) {
+    pilColsVentes_().forEach(function (ref, i) {
       const q = Number(r[PIL_NB + i]) || 0;
-      buv.parProduit[p[0]].qte += q;
-      if (q) pb.produits[p[0]] = (pb.produits[p[0]] || 0) + q;
+      if (buv.parProduit[ref]) buv.parProduit[ref].qte += q;
+      if (q) pb.produits[ref] = (pb.produits[ref] || 0) + q;
     });
     const d = new Date(r[PIL_I['Horodatage']]);
     const q = Utilities.formatDate(new Date(Math.floor(d.getTime() / 900000) * 900000), pilTz_(), 'HH:mm');
@@ -747,7 +975,7 @@ function pilDashboard_(eventId) {
   const clotures = idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {};
   const graph = pilGraphiques_(data, rows, idm);
   return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(), clotures: clotures,
-    produits: PIL.PRODUITS.map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString(),
+    produits: pilProduitsCols_().map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString(),
     serie: graph.serie, saison: graph.saison, fonds: PIL.FONDS_CAISSE, sansCaisse: PIL.BUVETTES_SANS_CAISSE };
 }
 
@@ -771,7 +999,7 @@ function pilGraphiques_(data, rows, idm, serieSeule) {   // serieSeule : pas de 
   rows.forEach(function (r) {
     if (ecartee(r)) return;
     const q = quart(r[PIL_I['Horodatage']]); if (!q) return;
-    const p = pt(q), b = String(r[PIL_I['Buvette']] || '?'), pay = String(r[PIL_COL_PAIEMENT] || ''), tot = Number(r[PIL_I['Total €']]) || 0;
+    const p = pt(q), b = String(r[PIL_I['Buvette']] || '?'), pay = String(r[pilColPaiement_()] || ''), tot = Number(r[PIL_I['Total €']]) || 0;
     p.sortis += Number(r[PIL_I['Consignes +']]) || 0;
     p.revenus += Number(r[PIL_I['Consignes rendues']]) || 0;
     if (pay === 'BENEVOLE') return;
@@ -812,7 +1040,7 @@ function pilGraphiques_(data, rows, idm, serieSeule) {   // serieSeule : pas de 
     const m = String(r[PIL_I['ID_MATCH']] || ''); if (!m || ecartee(r)) return;
     if (saisonCourante && infos[m] && infos[m].saison && infos[m].saison !== saisonCourante) return;
     const o = parMatch[m] = parMatch[m] || { ca: 0, ventes: 0, reliees: 0, parBuvette: {}, sortis: 0, rendus: 0, premier: null };
-    const b = String(r[PIL_I['Buvette']] || '?'), pay = String(r[PIL_COL_PAIEMENT] || '');
+    const b = String(r[PIL_I['Buvette']] || '?'), pay = String(r[pilColPaiement_()] || '');
     o.sortis += Number(r[PIL_I['Consignes +']]) || 0;
     o.rendus += Number(r[PIL_I['Consignes rendues']]) || 0;
     const t = new Date(r[PIL_I['Horodatage']]); if (!isNaN(t) && (!o.premier || t < o.premier)) o.premier = t;
@@ -916,10 +1144,10 @@ function pilDonneesCommande_(eventId) {
   const live = feuille_('VENTES');
   const parMatch = {};
   if (live && live.getLastRow() > 1) {
-    live.getRange(2, 1, live.getLastRow() - 1, PIL_NB + PIL.PRODUITS.length).getValues().forEach(function (r) {
+    live.getRange(2, 1, live.getLastRow() - 1, PIL_NB + pilColsVentes_().length).getValues().forEach(function (r) {
       const m = String(r[PIL_I['ID_MATCH']]); if (!m || m === idm) return;
       const o = parMatch[m] = parMatch[m] || { qte: {}, parBuvette: {} };
-      PIL.PRODUITS.forEach(function (p, i) { o.qte[p[0]] = (o.qte[p[0]] || 0) + (Number(r[PIL_NB + i]) || 0); });
+      pilColsVentes_().forEach(function (ref, i) { o.qte[ref] = (o.qte[ref] || 0) + (Number(r[PIL_NB + i]) || 0); });
       const bv = r[PIL_I['Buvette']]; o.parBuvette[bv] = (o.parBuvette[bv] || 0) + (Number(r[PIL_I['Total €']]) || 0);
     });
   }
@@ -968,6 +1196,9 @@ function pilDonneesCommande_(eventId) {
     billetterie: { billets: b.total, payants: b.payants, invitations: b.invitations, abonnes: abonnes, jauge: ev.jauge },
     presence: taux.length ? taux.reduce(function (a, x) { return a + x; }, 0) / taux.length : null, presenceN: taux.length,
     observes: observes, reste: reste, stockClub: !!stockClub, enBuvette: enBuvette, futLitres: PIL.FUT_LITRES, buvettes: PIL.BUVETTES,
+    // Lignes de stock de 📦 PRODUITS : [réf, libellé, pas, unité, services]. La commande conseillée
+    // s'y cale, donc un produit ajouté dans 📦 PRODUITS y apparaît sans toucher au tableau de bord.
+    lignes: pilLignesStock_(),
     colisage: (function () { const c = {}, cat = produitsCatalogue_(); Object.keys(cat).forEach(function (r) { if (cat[r].colisage && r !== 'FUT') c[r] = cat[r].colisage; }); return c; })() };
 }
 
@@ -980,7 +1211,7 @@ function pilReserve_() {
   const r = pilProp_('PIL_RESERVE', null) || {};
   return { base: r.base || null, livraisons: Array.isArray(r.livraisons) ? r.livraisons : [] };
 }
-function pilRefsPrepa_() { return PIL.PREPA.map(function (p) { return p[0]; }); }
+function pilRefsPrepa_() { return pilLignesStock_().map(function (p) { return p[0]; }); }
 function pilQtesPrepa_(o) {
   const out = {};
   pilRefsPrepa_().forEach(function (ref) { out[ref] = Math.round((Number((o || {})[ref]) || 0) * 100) / 100; });
@@ -1029,7 +1260,7 @@ function pilLireStockClub_(eventId) {
   let idm = '';
   if (eventId) { const ev = pilEvent_(eventId); if (ev) idm = pilIdMatch_(ev, false); }
   const R = pilReserve_();
-  return { idMatch: idm, lignes: PIL.PREPA, futLitres: PIL.FUT_LITRES, base: R.base,
+  return { idMatch: idm, lignes: pilLignesStock_(), futLitres: PIL.FUT_LITRES, base: R.base,
     avant: R.base ? pilStockClub_(idm) : null,                // disponible pour ce match
     total: R.base ? pilStockClub_(null) : null,               // après tous les matchs préparés
     livraisons: R.livraisons.slice(-30).reverse() };

@@ -15,20 +15,27 @@ const REORG_SUPPRIMER = ['PILOTAGE', 'DASHBOARD', 'DASHBOARD_SAISON', '10_MATCHS
 const REORG_ARCHIVER = ['20_OANDB_COMMANDES', '30_OANDB_TICKETS', '40_PENNYLANE_LOCATION', 'ANALYSE_SEGMENTS'];
 
 // Catalogue 26-27 : réf, produit, famille, prix vente TTC, prix achat HT (unité ; FUT = fût 30 L), TVA, colisage, seuil
-const PRODUITS_ENTETE = ['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'TVA', 'COLISAGE', 'SEUIL ALERTE', 'NOTES'];
+// UNITÉ DE STOCK (fût / bouteille / unité / vide) et SERVICES PAR UNITÉ (verres ou doses par bouteille)
+// pilotent tout le suivi de stock : voir le bloc catalogue de Pilotage.gs.
+const PRODUITS_ENTETE = ['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'TVA', 'COLISAGE', 'SEUIL ALERTE', 'NOTES', 'UNITÉ DE STOCK', 'SERVICES PAR UNITÉ'];
 const PRODUITS_26_27 = [
   ['FUT',      'Bière — fût 30 L',      'Bière', '',  95,    0.2, 1,  ''],
-  ['P01_25',   'Bière 33cl',            'Bière', 4,   '',    0.2, '', 15],
+  ['P01_25',   'Bière 30cl',            'Bière', 4,   '',    0.2, '', 15],
   ['P01_50',   'Bière 50cl',            'Bière', 6,   '',    0.2, '', 10],
   ['P02_COCA', 'Coca-Cola',             'Soft',  2,   1.88,  0.1, 6,  8],
+  ['P02_COCZ', 'Coca-Cola Zéro',        'Soft',  2,   1.44,  0.1, 6,  8],   // 23/11/2026 : bouteille de 1,25 L = 4 verres de 30 cl
   ['P02_ORAN', 'Orangina',              'Soft',  2,   2.13,  0.1, 6,  8],
   ['P02_ICET', 'Ice Tea',               'Soft',  2,   1.62,  0.1, 6,  8],
   ['P02_SCHW', 'Schweppes Agrumes',     'Soft',  2,   2.13,  0.1, 6,  8],
   ['P03',      'Eau plate 50cl',        'Eau',   1,   0.22,  0.1, 24, 5],
   ['P04',      'Eau gazeuse 50cl',      'Eau',   1,   0.253, 0.1, 24, 5],
-  ['E01',      'Écocup (consigne)',     'Consigne', 1, 0.40, 0, '', ''],
+  // Option à prix fixe : ajoutée à une boisson, hors remise billet / abonné, hors boisson offerte, hors happy hour
+  ['P05_PECHE', 'Sirop de pêche',       'Option', 0.5, 3.00, 0.1, 6, 2],    // 23/11/2026 : bouteille de 60 cl = 30 doses de 2 cl
+  ['E01',      'Écocup (consigne)',     'Consigne', 1, 0.35, 0, '', ''],
 ];
-const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE'];
+// CONTRÔLE : marquage du rapprochement Drive ↔ Pennylane (Achats.gs). Une ligne dont ce texte
+// contient « hors total » est exclue du total boissons du 📊 TABLEAU DE BORD ; « garder » la force à être comptée.
+const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE', 'CONTRÔLE'];
 
 function reorganiserFichier() {
   const ui = SpreadsheetApp.getUi();
@@ -147,12 +154,12 @@ function reorganiser_() {
     const p = ss.insertSheet(ONG.PRODUITS);
     p.getRange(1, 1, 1, PRODUITS_ENTETE.length).setValues([PRODUITS_ENTETE]);
     p.getRange(2, 1, PRODUITS_26_27.length, 8).setValues(PRODUITS_26_27);
-    p.getRange(2, 9).setValue('Prix d\'achat HT d\'un fût de 30 L. Rendement : 90 × 33cl ou 60 × 50cl.');
-    p.getRange(4, 9).setValue('Même fût que la 33cl.');
+    p.getRange(2, 9).setValue('Prix d\'achat HT d\'un fût de 30 L. Rendement : 100 × 30cl ou 60 × 50cl avant perte.');
+    p.getRange(4, 9).setValue('Même fût que la 30cl.');
     journal.push('📦 PRODUITS créé : complète les prix d\'achat manquants (fût, Orangina, Ice Tea)');
   }
 
-  // ── 8. ACHATS (miroir de Pennylane, compte 607100000) ───────────────────
+  // ── 8. ACHATS (factures du Drive ; Pennylane = contrôle) ─────────────────
   if (!get(ONG.ACHATS)) {
     const a = ss.insertSheet(ONG.ACHATS);
     a.getRange(1, 1, 1, ACHATS_ENTETE.length).setValues([ACHATS_ENTETE]);
@@ -248,9 +255,9 @@ function formulesProduits_() {
   if (p) {
     const refs = p.getRange('A1:A20').getValues().map(function (r) { return String(r[0]); });
     const lf = refs.indexOf('FUT') + 1;
-    [['P01_25', 0.33], ['P01_50', 0.5]].forEach(function (x) {
+    [['P01_25', 0.3], ['P01_50', 0.5]].forEach(function (x) {
       const l = refs.indexOf(x[0]) + 1;
-      if (lf && l) p.getRange(l, 5).setFormula(f_('=IF($E$' + lf + '="","",ROUND($E$' + lf + '/30/0.95*' + x[1] + ',2))'));
+      if (lf && l) p.getRange(l, 5).setFormula(f_('=IF($E$' + lf + '="","",ROUND($E$' + lf + '/30/0.9*' + x[1] + ',2))'));
     });
   }
   const ft = ss.getSheetByName(ONG.FOODTRUCKS);
@@ -288,6 +295,29 @@ function assurerStructure_(forcer) {
       if (d.length) p.getRange(2, iA + 1, d.length, 1).setValues(d.map(function (r) { return [/bi[eè]re/i.test(String(r[iF])) ? 0.2 : /consigne/i.test(String(r[iF])) ? 0 : 0.1]; }));
       h = entete_(p);
     }
+    // V16 : 📦 PRODUITS pilote le stock (lignes de livraison, comptage, préparation, inventaire, seuils)
+    ['UNITÉ DE STOCK', 'SERVICES PAR UNITÉ'].forEach(function (nom) {
+      if (h.indexOf(nom) >= 0) return;
+      ajout = true;
+      p.getRange(1, p.getLastColumn() + 1).setValue(nom);
+      h = entete_(p);
+    });
+    (function () {
+      const iU = h.indexOf('UNITÉ DE STOCK'), iS = h.indexOf('SERVICES PAR UNITÉ'), iR = h.indexOf('RÉF');
+      const d = iU < 0 || iS < 0 || iR < 0 ? [] : donnees_(p);
+      if (!d.length) return;
+      const vide = function (v) { return v === '' || v === null || v === undefined; };
+      const u = [], sv = [];
+      d.forEach(function (r) {
+        const ref = String(r[iR] || '').trim();
+        u.push([vide(r[iU]) ? (PIL_UNITE_DEFAUT[ref] || '') : r[iU]]);
+        sv.push([vide(r[iS]) ? (PIL_SERVICES_DEFAUT[ref] || '') : r[iS]]);
+      });
+      p.getRange(2, iU + 1, u.length, 1).setValues(u);
+      p.getRange(2, iS + 1, sv.length, 1).setValues(sv);
+      p.getRange(1, iU + 1).setNote('fût / bouteille / unité — comment ce produit est stocké et compté.\nVide = pas de stock propre (bière au verre tirée du fût, consigne écocup).\nÉcrire « non » retire le produit du suivi de stock (vendu sans stock, comme avant).');
+      p.getRange(1, iS + 1).setNote('Nombre de verres ou de doses servis dans une unité stockée : 4 verres de 30 cl dans une bouteille de 1,25 L, 5 dans 1,5 L, 30 doses de 2 cl dans un sirop de 60 cl.');
+    })();
     const ix = function (n) { return h.indexOf(n) + 1; };
     if (ajout || forcer) {
     mettreEnForme_(p, { euros: [ix('PRIX VENTE €'), ix('PRIX ACHAT €')], pourcents: [ix('TVA')], entiers: [ix('COLISAGE'), ix('SEUIL ALERTE')], largeurs: (function () { const o = {}; o[ix('PRODUIT')] = 190; o[ix('NOTES')] = 380; return o; })() });
@@ -308,14 +338,19 @@ function assurerStructure_(forcer) {
         const g = function (n) { const i = col_(h, n); return i >= 0 ? r[i] : ''; };
         const d = g('DATE');
         return [d, g('SOURCE') || 'Saisie', g('LIBELLÉ') || [g('FOURNISSEUR'), g('DÉTAIL')].filter(String).join(' — '), g('COMPTE'), g('MONTANT HT €'),
-          g('SAISON') || saisonDe_(d), g('MOIS') || (d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : ''), g('PIÈCE') || g('N° FACTURE'), g('ID PENNYLANE')];
+          g('SAISON') || saisonDe_(d), g('MOIS') || (d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : ''), g('PIÈCE') || g('N° FACTURE'), g('ID PENNYLANE'), g('CONTRÔLE')];
       });
       if (a.getFilter()) a.getFilter().remove();
       a.getRange(1, 1, Math.max(a.getLastRow(), 1), Math.max(a.getLastColumn(), ACHATS_ENTETE.length)).clearContent().clearDataValidations();
       a.getRange(1, 1, 1, ACHATS_ENTETE.length).setValues([ACHATS_ENTETE]);
       if (rows.length) a.getRange(2, 1, rows.length, ACHATS_ENTETE.length).setValues(rows);
-      mettreEnForme_(a, { dates: [1], euros: [5], largeurs: { 3: 340, 8: 200 } });
-      a.getRange('A1').setNote('Alimenté automatiquement par Pennylane (compte 607100000, achats buvette). Ne pas saisir ici : Pennylane reste la seule source des factures.');
+      mettreEnForme_(a, { dates: [1], euros: [5], largeurs: { 3: 340, 8: 200, 10: 330 } });
+      a.getRange('A1').setNote('Une ligne par facture du dossier Drive 05_ACHATS_DIRECTS_BUVETTE (lien dans PIÈCE). Boissons : compte 607100000. Écocups : compte 606300000 (isolés du coût des boissons). Consignes de fûts : ne pas saisir. La dernière colonne est le contrôle Pennylane, rempli par le script.');
+      a.getRange(1, ACHATS_ENTETE.indexOf('CONTRÔLE') + 1).setNote(
+        'Rapprochement Drive ↔ Pennylane, écrit par le script (menu 🏐 Matchday → 🧾 Contrôler les achats).\n' +
+        '« doublon — … » : même facture déjà présente en source Facture Drive. La ligne est conservée mais sortie du total.\n' +
+        '« hors total » : mot-clé lu par le 📊 TABLEAU DE BORD pour exclure la ligne du total boissons.\n' +
+        'Écrire « garder » ici force la ligne à rester comptée : le script ne la marquera plus.');
     }
   }
 }
@@ -365,7 +400,7 @@ function construireAccueil_(matchActif) {
     [lien('MATCHS', '📅 MATCHS'), 'Une ligne par match (22-23 → aujourd\'hui) : affluence, CA TTC/HT, coût matière, casse, conso bénévoles, marge HT, écarts de caisse… Filtre pour chercher', 'Automatique (affluence et notes modifiables)'],
     [lien('VENTES', '🧾 VENTES'), 'Chaque vente des tablettes : heure, buvette, paiement CB/espèces, billet scanné, produits', 'Automatique (tablettes)'],
     [lien('PRODUITS', '📦 PRODUITS'), 'Prix de vente TTC (affichés sur les tablettes), prix d\'achat HT, TVA, colisage, seuils d\'alerte', 'Toi, en début de saison et à chaque changement de tarif'],
-    [lien('ACHATS', '🛒 ACHATS'), 'Achats buvette de Pennylane (compte 607100000), rapprochés de la consommation dans le tableau de bord', 'Automatique (Pennylane, toutes les 6 h)'],
+    [lien('ACHATS', '🛒 ACHATS'), 'Achats buvette relevés sur les factures du Drive (dossier 05_ACHATS_DIRECTS_BUVETTE) : boissons 607100000, écocups 606300000 à part. Pennylane sert au rapprochement.', 'Une ligne par facture déposée dans le Drive'],
     [lien('FOODTRUCKS', '🚚 FOODTRUCKS'), 'Foodtrucks présents par match, formule (gratuit / forfait / % du CA) et montant dû', 'Toi, selon le calendrier'],
     [lien('FIDELITE', '⭐ FIDÉLITÉ'), 'Points fidélité des spectateurs qui ont scanné leur billet à la buvette', 'Automatique (toutes les 10 min)'],
     ['', '', ''],
@@ -489,14 +524,24 @@ function construireTableauDeBord_(saisonForcee) {
 
   // Rapprochement avec Pennylane (saison choisie)
   const r3 = r1 + n + 1;
-  titre(r3, 'RAPPROCHEMENT AVEC PENNYLANE — achats buvette (compte 607100000)');
+  titre(r3, 'RAPPROCHEMENT DES ACHATS — buvette (Facture Drive ↔ Pennylane, compte 607100000)');
+  // Total boissons : une facture ne compte qu'une fois (doublon Drive ↔ Pennylane marqué « hors total »
+  // par Achats.gs) et les écocups (606300000) sont un parc réutilisable, donc jamais des boissons.
+  const sansDoublon = 'ISERROR(SEARCH("hors total",' + AC + 'J2:J))';
+  const ecocups = '((' + AC + 'D2:D="606300000")+(' + AC + 'D2:D=606300000))';
+  const saisonAc = '(' + AC + 'F2:F=$B$4)';
   const lignes = [
-    ['Achats boissons facturés (Pennylane)', '=SUMIFS(' + AC + 'E2:E,' + AC + 'F2:F,$B$4)', '+'],
+    ['Achats boissons facturés (Drive ↔ Pennylane, hors doublons et écocups)',
+      '=SUMPRODUCT(' + saisonAc + '*(1-' + ecocups + ')*' + sansDoublon + '*N(' + AC + 'E2:E))', '+'],
     ['Stock au début de la saison (valeur HT, à saisir une fois)', '', '+'],
     ['Coût matière consommé aux matchs', '=SUMIFS(' + S('COÛT MATIÈRE €') + ',' + cond + ')', '−'],
     ['Conso bénévoles', '=SUMIFS(' + S('CONSO BÉNÉVOLES €') + ',' + cond + ')', '−'],
     ['Stock restant valorisé (dernier inventaire)', '', '−'],
     ['ÉCART NON EXPLIQUÉ', '=B' + (r3 + 1) + '+B' + (r3 + 2) + '-B' + (r3 + 3) + '-B' + (r3 + 4) + '-B' + (r3 + 5), '→'],
+    ['dont doublons Pennylane écartés (facture déjà saisie en Facture Drive)',
+      '=SUMPRODUCT(' + saisonAc + '*(1-' + sansDoublon + ')*N(' + AC + 'E2:E))', 'ℹ'],
+    ['dont écocups 606300000 écartés (parc réutilisable, hors boissons)',
+      '=SUMPRODUCT(' + saisonAc + '*' + ecocups + '*N(' + AC + 'E2:E))', 'ℹ'],
   ];
   lignes.forEach(function (l, i) {
     const r = r3 + 1 + i;
@@ -511,7 +556,8 @@ function construireTableauDeBord_(saisonForcee) {
   ss.setNamedRange('STOCK_VALORISE', sh.getRange(r3 + 5, 2));
   sh.getRange(r3 + 5, 2).setNote('Calculé par le script (inventaires comptés, sinon théorique) à chaque mise à jour des matchs.');
   sh.getRange(r3 + 6, 1, 1, 3).setFontWeight('bold').setFontSize(12);
-  sh.getRange(r3 + 7, 1).setValue('Écart > 0 : achats sans consommation constatée (facture d\'un autre usage, inventaire manquant…). Écart < 0 : consommation sans facture (facture oubliée dans Pennylane, prix d\'achat trop haut…).')
+  sh.getRange(r3 + 7, 1, 2, 3).setFontColor('#64778A').setFontStyle('italic');
+  sh.getRange(r3 + 9, 1).setValue('Écart > 0 : achats sans consommation constatée (facture d\'un autre usage, inventaire manquant…). Écart < 0 : consommation sans facture (facture non saisie dans 🛒 ACHATS, prix d\'achat trop haut…). Les écocups (compte 606300000) sont un parc réutilisable : hors rapprochement. Les deux lignes « dont » ci-dessus sont informatives : elles ne sont pas dans l\'écart.')
     .setFontColor('#64778A').setFontStyle('italic').setFontSize(9);
   const regles = [
     SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$A' + r1 + '=$B$4').setBackground(DAY).setBold(true).setRanges([sh.getRange(r1, 1, n, 10)]).build(),
@@ -522,8 +568,8 @@ function construireTableauDeBord_(saisonForcee) {
   ];
   sh.setConditionalFormatRules(regles);
 
-  // Matchs de la saison
-  const r2 = r3 + 9;
+  // Matchs de la saison (deux lignes de détail « dont » ont été ajoutées sous l'écart)
+  const r2 = r3 + 11;
   titre(r2, 'MATCHS DE LA SAISON');
   const cols = ['DATE', 'ADVERSAIRE', 'AFFLUENCE', 'CA BUVETTE €', 'CA HT €', 'MARGE HT €', 'TAUX DE MARGE', '€ / SPECTATEUR', 'PANIER MOYEN €', 'CASSE / ÉCARTS €', 'INVENTAIRE'];
   const derniere = lettre_(MCOL[MCOL.length - 1]);
@@ -559,16 +605,16 @@ function construireTableauDeBord_(saisonForcee) {
 // Ne touche ni au colisage ni aux seuils. Les tablettes prennent les nouveaux prix au prochain chargement.
 const TARIFS_26_27 = {
   //           libellé                prix vente  prix achat HT  note
-  FUT:      ['Bière — fût 30 L',      '',   115.11, 'Prix d\'achat HT d\'un fût AMOS 30 L, accise et frais compris, hors consigne fût (facture Crouzil 05/10/2026). Rendement : 90 × 33cl ou 60 × 50cl.'],
-  P01_25:   ['Bière 33cl',            4,    null,  'Même fût, verre de 30cl (4 €). Formule : 2 verres de 30cl = 7 € (appliquée par la tablette).'],
-  P01_50:   ['Bière 50cl',            6,    null,  'Même fût. Formule : 2 verres de 50cl = 10 € (appliquée par la tablette).'],
-  P02_COCA: ['Coca-Cola',             2,    1.88,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,25 L (≈ 3,8 verres). Stock en bouteilles.'],
-  P02_ORAN: ['Orangina',              2,    2.13,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,5 L (≈ 4,5 verres). Stock en bouteilles.'],
-  P02_ICET: ['Ice Tea',               2,    1.62,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,25 L (≈ 3,8 verres). Stock en bouteilles.'],
-  P02_SCHW: ['Schweppes Agrumes',     2,    2.13,  'Vendu au verre de 33cl. Prix d\'achat = bouteille de 1,5 L (≈ 4,5 verres). Stock en bouteilles.'],
+  FUT:      ['Bière — fût 30 L',      '',   114.81, 'Prix d\'achat HT d\'un fût AMOS 30 L (bière 101,97 € + accise 12,84 €), hors consigne fût (facture Crouzil 07/10/2026). Rendement : 100 × 30cl ou 60 × 50cl avant perte, ≈ 90 × 30cl ou 54 × 50cl avec 10 % de perte.'],
+  P01_25:   ['Bière 30cl',            4,    null,  'Même fût, servi en verre de 30cl (4 €). Formule : 2 verres de 30cl = 7 € (appliquée par la tablette). Coût HT avec 10 % de perte.'],
+  P01_50:   ['Bière 50cl',            6,    null,  'Même fût. Formule : 2 verres de 50cl = 10 € (appliquée par la tablette). Coût HT avec 10 % de perte.'],
+  P02_COCA: ['Coca-Cola',             2,    1.88,  'Vendu au verre de 30cl. Prix d\'achat = bouteille de 1,25 L (4 verres). Stock en bouteilles.'],
+  P02_ORAN: ['Orangina',              2,    2.13,  'Vendu au verre de 30cl. Prix d\'achat = bouteille de 1,5 L (5 verres). Stock en bouteilles.'],
+  P02_ICET: ['Ice Tea',               2,    1.62,  'Vendu au verre de 30cl. Prix d\'achat = bouteille de 1,25 L (4 verres). Stock en bouteilles.'],
+  P02_SCHW: ['Schweppes Agrumes',     2,    2.13,  'Vendu au verre de 30cl. Prix d\'achat = bouteille de 1,5 L (5 verres). Stock en bouteilles.'],
   P03:      ['Eau plate 50cl',        1,    0.22,  'Bouteille de 50cl.'],
   P04:      ['Eau gazeuse 50cl',      1,    0.253, 'Bouteille de 50cl.'],
-  E01:      ['Écocup (consigne)',     1,    null,  'Parc : 2 000 écocups 33cl + 2 000 écocups 50cl.'],
+  E01:      ['Écocup (consigne)',     1,    0.35,  'Parc : 2 000 écocups 30cl (0,324 € HT) + 2 100 écocups 50cl (0,379 € HT), Crouzil 07/10/2026. Hors coût matière : consigne encaissée / rendue à part.'],
 };
 function appliquerTarifs2627() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), p = ss.getSheetByName(ONG.PRODUITS);
@@ -584,10 +630,10 @@ function appliquerTarifs2627() {
     if (iA >= 0 && t[2] !== null) p.getRange(row, iA + 1).setValue(t[2]);
     if (iNo >= 0) p.getRange(row, iNo + 1).setValue(t[3]);
   });
-  formulesProduits_();   // coût du verre de bière recalculé (33cl et 50cl) depuis le prix du fût
+  formulesProduits_();   // coût du verre de bière recalculé (30cl et 50cl) depuis le prix du fût
   const manquent = Object.keys(TARIFS_26_27).filter(function (r) { return !vus[r]; });
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
-  alerte_('✅ Tarifs 26-27 appliqués dans 📦 PRODUITS.\n\nBière 33cl 3 € · 50cl 6 € · formules 2 × 33cl = 5 € et 2 × 50cl = 10 €\nSofts au verre de 33cl : 2 € · Eaux : 1 €\nFût 115,11 € HT · softs au prix de la bouteille.' +
+  alerte_('✅ Tarifs 26-27 appliqués dans 📦 PRODUITS.\n\nBière 30cl 4 € · 50cl 6 € · formules 2 × 30cl = 7 € et 2 × 50cl = 10 €\nSofts au verre de 30cl : 2 € · Eaux : 1 €\nFût 114,81 € HT · softs au prix de la bouteille.' +
     (manquent.length ? '\n\n⚠️ Références absentes de l\'onglet : ' + manquent.join(', ') : '') +
     '\n\nVérifie le COLISAGE des softs (bouteilles par pack), puis touche « Charger » sur chaque tablette.');
 }

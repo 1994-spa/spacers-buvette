@@ -54,7 +54,8 @@ function grDonnees_(ss) {
   let ds = ss.getSheetByName(GR_DATA_TAB);
   if (!ds) { ds = ss.insertSheet(GR_DATA_TAB); ds.hideSheet(); }
   const sv = feuille_('VENTES');
-  const data = sv && sv.getLastRow() > 1 ? sv.getRange(2, 1, sv.getLastRow() - 1, PIL_COL_PAIEMENT + 1).getValues() : [];
+  const cPay = typeof pilColPaiement_ === 'function' ? pilColPaiement_() : PIL_COL_PAIEMENT;
+  const data = sv && sv.getLastRow() > 1 ? sv.getRange(2, 1, sv.getLastRow() - 1, Math.max(cPay + 1, sv.getLastColumn())).getValues() : [];
   const tout = pilGraphiques_(data, [], '');           // saisonCourante vide → tous les matchs
   const matchs = tout.saison.matchs;
 
@@ -67,7 +68,7 @@ function grDonnees_(ss) {
   }
   // CA et quantités par produit (⚙️ détail ventes : prix encaissés)
   const prod = {}, nomP = {};
-  PIL.PRODUITS.forEach(function (p) { nomP[p[0]] = p[1]; });
+  pilProduitsCols_().forEach(function (p) { nomP[p[0]] = p[1]; });
   const vd = feuille_('DETAIL');
   if (vd && vd.getLastRow() > 1) vd.getRange(2, 1, vd.getLastRow() - 1, PIL_VD_HDR.length).getValues().forEach(function (r) {
     const m = String(r[0] || ''), ref = String(r[3] || '');
@@ -104,7 +105,7 @@ function grDonnees_(ss) {
           Math.round(cb * 100) / 100, Math.round(es * 100) / 100, so, re]);
       }
     }
-    PIL.PRODUITS.forEach(function (p) { const x = pc[p[0]]; if (x && x.q) pRows.push([m.id, p[1], Math.round(x.ca * 100) / 100, x.q]); });
+    pilProduitsCols_().forEach(function (p) { const x = pc[p[0]]; if (x && x.q) pRows.push([m.id, p[1], Math.round(x.ca * 100) / 100, x.q]); });
   });
 
   ds.clearContents();
