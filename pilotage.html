@@ -266,7 +266,7 @@ th:first-child,td:first-child{text-align:left}
         <button class="btn" type="submit" id="prepa-save">Enregistrer le stock</button>
         <span class="note" id="prepa-status" role="status"></span>
       </div>
-      <p class="note">Les tablettes chargent leur stock seules dès qu'elles ont le wifi (réassort compris). 1 fût = 30 L, soit 100 bières 30cl ou 60 bières 50cl. Softs comptés en <b>bouteilles</b> (1,25 L ou 1,5 L, servies au verre de 30cl). <b>🙋 Bénévoles</b> = réserve hors vente (boissons offertes aux bénévoles) : jamais sur une tablette, comptée à part dans la marge.</p>
+      <p class="note">Les tablettes chargent leur stock seules dès qu'elles ont le wifi (réassort compris). 1 fût = 30 L, soit 100 bières 30cl ou 60 bières 50cl. Softs comptés en <b>bouteilles</b> (4 verres de 30cl dans 1,25 L, 5 dans 1,5 L) ; sirop compté en <b>bouteilles</b> aussi (30 doses de 2 cl par bouteille de 60 cl). Le nombre de verres ou de doses par bouteille se règle dans 📦 PRODUITS. <b>🙋 Bénévoles</b> = réserve hors vente (boissons offertes aux bénévoles) : jamais sur une tablette, comptée à part dans la marge.</p>
     </form>
   </section>
   <section class="panel prepa" aria-label="Inventaire de fin de match">
@@ -474,9 +474,23 @@ const PRIOR = {
 const POIDS_PRIOR = 3;       // l'historique compte comme 3 matchs, puis les vrais matchs 26-27 prennent le dessus
 const PERTE_BIERE = 0.05;    // mousse, purge, fond de fût
 const CV_AFFLUENCE = 0.08;   // incertitude sur le nombre de présents
-const PRODUITS_CMD = [['P02_COCA','Coca-Cola (bout. 1,25 L)'],['P02_ORAN','Orangina (bout. 1,5 L)'],['P02_ICET','Ice Tea (bout. 1,25 L)'],['P02_SCHW','Schweppes (bout. 1,5 L)'],['P03','Eau plate 50cl'],['P04','Eau gazeuse 50cl']];
+// Repli si le Sheet ne renvoie pas encore ses lignes de stock
+const PRODUITS_CMD_DEF = [['P02_COCA','Coca-Cola'],['P02_ORAN','Orangina'],['P02_ICET','Ice Tea'],['P02_SCHW','Schweppes Agrumes'],['P03','Eau plate 50cl'],['P04','Eau gazeuse 50cl']];
 const COLIS_DEF = { P02_COCA:6, P02_ORAN:6, P02_ICET:6, P02_SCHW:6, P03:24, P04:24 };
-const VERRE_SOFT = 0.33, BOUTEILLE_L = { P02_COCA:1.25, P02_ICET:1.25, P02_ORAN:1.5, P02_SCHW:1.5 };   // softs : verres → bouteilles
+const CV_DEFAUT = 0.35;      // incertitude par défaut pour un produit sans historique
+// Produits à commander et conversion verres/doses → bouteilles : lus dans 📦 PRODUITS (via le Sheet).
+// Un produit ajouté là-bas entre tout seul dans la commande conseillée.
+const lignesCmd = () => (cmdData && cmdData.lignes) || [];
+function produitsCmd(){
+  const d = lignesCmd().filter(l => l[0] !== 'FUT').map(l => [l[0], l[1]]);
+  return d.length ? d : PRODUITS_CMD_DEF;
+}
+// Nombre de verres (softs) ou de doses (sirop) dans une bouteille ; 0 = produit vendu à l'unité
+function servicesCmd(ref){
+  const l = lignesCmd().find(x => x[0] === ref);
+  if (l) return l[3] === 'bouteille' ? (Number(l[4]) || 0) : 0;
+  return { P02_COCA:4, P02_COCZ:4, P02_ICET:4, P02_ORAN:5, P02_SCHW:5, P05_PECHE:30 }[ref] || 0;
+}
 let cmdData = null, cmdCalc = null;
 // Colisage : onglet 📦 PRODUITS du Sheet (source unique) ; une modification ici ne vaut que pour cette session
 let colisSession = {};
@@ -497,10 +511,12 @@ function apprendre(){
   const rL = obs.map(o => ((o.qte.P01_25||0)*0.33 + (o.qte.P01_50||0)*0.5) / o.presents);
   out.litres = (PRIOR.litres*POIDS_PRIOR + rL.reduce((a,b)=>a+b,0)) / (POIDS_PRIOR + n);
   out.cvL = n >= 3 ? Math.max(0.12, (sd(rL)/mean(rL) + PRIOR.cvL)/2) : PRIOR.cvL;
-  PRODUITS_CMD.forEach(([ref]) => {
+  produitsCmd().forEach(([ref]) => {
     const r = obs.map(o => (o.qte[ref]||0) / o.presents);
-    out[ref] = (PRIOR[ref]*POIDS_PRIOR + r.reduce((a,b)=>a+b,0)) / (POIDS_PRIOR + n);
-    out['cv_'+ref] = n >= 3 && mean(r) > 0 ? Math.max(0.15, (sd(r)/mean(r) + PRIOR.cv[ref])/2) : PRIOR.cv[ref];
+    // Produit sans historique (nouveauté) : pas de prior, on part de ce qui a été vraiment vendu
+    const prior = PRIOR[ref] || 0, poids = PRIOR[ref] ? POIDS_PRIOR : 0, cvP = PRIOR.cv[ref] || CV_DEFAUT;
+    out[ref] = (prior*poids + r.reduce((a,b)=>a+b,0)) / ((poids + n) || 1);
+    out['cv_'+ref] = n >= 3 && mean(r) > 0 ? Math.max(0.15, (sd(r)/mean(r) + cvP)/2) : cvP;
   });
   // Répartition entre buvettes : parts de CA observées, sinon un tiers chacune
   const parts = {}; let tot = 0;
@@ -525,8 +541,8 @@ function calculerCommande(){
   const futsBesoin = Math.ceil(Ls / cmdData.futLitres), futsCmd = Math.max(0, futsBesoin - (reste.FUT||0));
   lignes.push({ ref:'FUT', nom:'Bière (fûts 30 L)', prevu: (L/cmdData.futLitres).toFixed(1).replace('.',',') + ' fût' + (L > 60 ? 's' : '') + ` (${Math.round(L)} L)`,
     marge: futsBesoin, reste: reste.FUT||0, cmd: futsCmd, unites: futsCmd, colis: null, dispo: futsBesoin > (reste.FUT||0) ? futsBesoin : (reste.FUT||0) });
-  PRODUITS_CMD.forEach(([ref, nom]) => {
-    const conv = BOUTEILLE_L[ref] ? VERRE_SOFT / BOUTEILLE_L[ref] : 1;   // softs : bouteilles à commander
+  produitsCmd().forEach(([ref, nom]) => {
+    const sv = servicesCmd(ref), conv = sv ? 1 / sv : 1;   // verres ou doses prévus → bouteilles à commander
     const prevu = P * t[ref] * conv, m = Math.ceil(prevu * marge(t['cv_'+ref]));
     const r = Math.round(reste[ref]||0), besoin = Math.max(0, m - r), k = c[ref] || 1, nb = Math.ceil(besoin / k);
     lignes.push({ ref, nom, prevu: Math.round(prevu), marge: m, reste: r, cmd: nb, unites: nb * k, colis: k, dispo: r + nb * k });
@@ -608,8 +624,21 @@ function engagePourCeMatch(ref){
   if (!prepa || prepa.eventId !== current || !prepa.stocks) return 0;
   return colonnes().reduce((t, b) => t + (Number((prepa.stocks[b] || {})[ref]) || 0), 0);
 }
+// Pas de saisie : fourni par 📦 PRODUITS (fût 0,25 · bouteille 0,5 pour une demie · unité 1).
+// Les lignes viennent toutes du Sheet : un produit ajouté là-bas apparaît ici sans toucher au code.
+const pasDe = (ref, defaut) => { const l = (club && club.lignes || []).find(x => x[0] === ref); return l && l[2] ? l[2] : (defaut || 1); };
 function champsQtes(prefixe, valeurs){
-  return club.lignes.map(([ref, nom]) => `<label>${esc(nom)}<input type="number" min="0" step="${ref === 'FUT' ? '0.25' : '1'}" inputmode="decimal" id="${prefixe}-${ref}" value="${valeurs && valeurs[ref] != null ? Math.round(valeurs[ref]*100)/100 : ''}" placeholder="0"></label>`).join('');
+  return club.lignes.map(([ref, nom, pas]) => `<label>${esc(nom)}<input type="number" min="0" step="${pas || 1}" inputmode="decimal" id="${prefixe}-${ref}" value="${valeurs && valeurs[ref] != null ? Math.round(valeurs[ref]*100)/100 : ''}" placeholder="0"></label>`).join('');
+}
+// Adversaire des Spacer's dans un nom d'événement Tickie (soirées doubles : deux « vs »).
+// Apostrophe courbe, espace insécable et accents indifférents ; rien trouvé = on n'invente pas.
+function advTickie(nom){
+  const norm = String(nom || '').replace(/[\u2019\u2018\u02BC`\u00B4]/g, "'").replace(/[\u00A0\u202F\u2007\u2009]/g, ' ');
+  const m = norm.match(/spacer'?s?\s*vs\.?\s+/i);
+  if (!m) return '';
+  const suite = norm.slice(m.index + m[0].length);
+  const fin = suite.search(/\s+[-–—]|\s*[&·]|$/);
+  return (fin < 0 ? suite : suite.slice(0, fin)).trim().replace(/[\s\-–—&·]+$/, '');
 }
 function renderClub(){
   if (!club) return;
@@ -623,7 +652,7 @@ function renderClub(){
     $('club-note').innerHTML = 'Pas encore de comptage : ouvre <b>🔢 Recompter tout le stock du club</b> pour démarrer.';
     $('cpt-box').open = true; $('club-livs').innerHTML = ''; return;
   }
-  const ev = events.find(e => e.id === current), nomMatch = ev ? (ev.nom.match(/vs\.?\s+([^-&·]+?)(\s+-|\s*&|$)/gi) || [ev.nom]).pop().replace(/^vs\.?\s+/i,'').replace(/\s*[-&]\s*$/,'') : 'ce match';
+  const ev = events.find(e => e.id === current), nomMatch = (ev ? advTickie(ev.nom) : '') || 'ce match';
   const mvt = ref => Math.round(((b.stock[ref]||0) + (av.livre[ref]||0) - (av.stock[ref]||0)) * 100) / 100;
   let h = `<thead><tr><th>Produit</th><th>Compté le ${dateFr(b.date)}</th><th>+ Livré depuis</th><th>− Matchs depuis</th><th>Disponible pour ${esc(nomMatch)}</th><th>Prévu pour ${esc(nomMatch)}</th><th>Reste en réserve</th></tr></thead><tbody>`;
   L.forEach(([ref, nom]) => {
@@ -693,8 +722,8 @@ function renderPrepa(){
   const B = colonnes(), L = prepa.lignes, st = prepa.stocks || {};
   const titre = b => (prepa.reserves || []).includes(b) ? `🙋 ${esc(b)}<span class="tab-state">hors vente</span>` : `${esc(b)}<span class="tab-state" id="ts-${bk(b)}"></span>`;
   let h = `<thead><tr><th>Produit</th>${B.map(b => `<th>${titre(b)}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
-  L.forEach(([ref, nom]) => {
-    h += `<tr><td>${esc(nom)}</td>${B.map(b => `<td><input type="number" min="0" step="${ref==='FUT'?'0.5':'1'}" inputmode="decimal" id="pp-${bk(b)}-${ref}" data-b="${esc(b)}" data-ref="${ref}" value="${(st[b]||{})[ref] || 0}" aria-label="${esc(nom)} ${esc(b)}"></td>`).join('')}<td><b id="pt-${ref}"></b></td></tr>`;
+  L.forEach(([ref, nom, pas]) => {
+    h += `<tr><td>${esc(nom)}</td>${B.map(b => `<td><input type="number" min="0" step="${pas || pasDe(ref, ref==='FUT'?0.5:1)}" inputmode="decimal" id="pp-${bk(b)}-${ref}" data-b="${esc(b)}" data-ref="${ref}" value="${(st[b]||{})[ref] || 0}" aria-label="${esc(nom)} ${esc(b)}"></td>`).join('')}<td><b id="pt-${ref}"></b></td></tr>`;
   });
   $('prepa-tbl').innerHTML = h + '</tbody>';
   renderInventaire();
@@ -734,10 +763,10 @@ function renderInventaire(){
     + (cl[b] && cl[b].nbBenev ? `<span class="tab-state">🙋 ${Object.values(cl[b].benev || {}).reduce((a, q) => a + q, 0)} boisson(s) bénévoles</span>` : '')
     + (peutNc(b) ? `<button type="button" class="btn small" onclick="nonCompte('${esc(b)}')" title="Le comptage est faux ou n'a pas été fait : on reprend le stock théorique">Comptage raté → théorique</button>` : '')
     + `</th>`).join('')}</tr></thead><tbody>`;
-  L.forEach(([ref, nom]) => {
+  L.forEach(([ref, nom, pas]) => {
     h += `<tr><td>${esc(nom)}${ref === 'FUT' ? ' (en fûts)' : ''}</td>${B.map(b => {
       const debut = (prepa.stocks && prepa.stocks[b] || {})[ref] || 0;
-      return `<td><input type="number" min="0" step="${ref==='FUT'?'0.25':'1'}" inputmode="decimal" id="iv-${bk(b)}-${ref}" value="${val(b, ref)}" placeholder="/ ${debut}" aria-label="Reste ${esc(nom)} ${esc(b)}"></td>`;
+      return `<td><input type="number" min="0" step="${pas || pasDe(ref, 0.25)}" inputmode="decimal" id="iv-${bk(b)}-${ref}" value="${val(b, ref)}" placeholder="/ ${debut}" aria-label="Reste ${esc(nom)} ${esc(b)}"></td>`;
     }).join('')}</tr>`;
   });
   $('inv-tbl').innerHTML = h + '</tbody>';

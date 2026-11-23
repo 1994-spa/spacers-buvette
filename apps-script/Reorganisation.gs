@@ -15,20 +15,27 @@ const REORG_SUPPRIMER = ['PILOTAGE', 'DASHBOARD', 'DASHBOARD_SAISON', '10_MATCHS
 const REORG_ARCHIVER = ['20_OANDB_COMMANDES', '30_OANDB_TICKETS', '40_PENNYLANE_LOCATION', 'ANALYSE_SEGMENTS'];
 
 // Catalogue 26-27 : réf, produit, famille, prix vente TTC, prix achat HT (unité ; FUT = fût 30 L), TVA, colisage, seuil
-const PRODUITS_ENTETE = ['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'TVA', 'COLISAGE', 'SEUIL ALERTE', 'NOTES'];
+// UNITÉ DE STOCK (fût / bouteille / unité / vide) et SERVICES PAR UNITÉ (verres ou doses par bouteille)
+// pilotent tout le suivi de stock : voir le bloc catalogue de Pilotage.gs.
+const PRODUITS_ENTETE = ['RÉF', 'PRODUIT', 'FAMILLE', 'PRIX VENTE €', 'PRIX ACHAT €', 'TVA', 'COLISAGE', 'SEUIL ALERTE', 'NOTES', 'UNITÉ DE STOCK', 'SERVICES PAR UNITÉ'];
 const PRODUITS_26_27 = [
   ['FUT',      'Bière — fût 30 L',      'Bière', '',  95,    0.2, 1,  ''],
   ['P01_25',   'Bière 33cl',            'Bière', 4,   '',    0.2, '', 15],
   ['P01_50',   'Bière 50cl',            'Bière', 6,   '',    0.2, '', 10],
   ['P02_COCA', 'Coca-Cola',             'Soft',  2,   1.88,  0.1, 6,  8],
+  ['P02_COCZ', 'Coca-Cola Zéro',        'Soft',  2,   1.44,  0.1, 6,  8],   // 23/11/2026 : bouteille de 1,25 L = 4 verres de 30 cl
   ['P02_ORAN', 'Orangina',              'Soft',  2,   2.13,  0.1, 6,  8],
   ['P02_ICET', 'Ice Tea',               'Soft',  2,   1.62,  0.1, 6,  8],
   ['P02_SCHW', 'Schweppes Agrumes',     'Soft',  2,   2.13,  0.1, 6,  8],
   ['P03',      'Eau plate 50cl',        'Eau',   1,   0.22,  0.1, 24, 5],
   ['P04',      'Eau gazeuse 50cl',      'Eau',   1,   0.253, 0.1, 24, 5],
+  // Option à prix fixe : ajoutée à une boisson, hors remise billet / abonné, hors boisson offerte, hors happy hour
+  ['P05_PECHE', 'Sirop de pêche',       'Option', 0.5, 3.00, 0.1, 6, 2],    // 23/11/2026 : bouteille de 60 cl = 30 doses de 2 cl
   ['E01',      'Écocup (consigne)',     'Consigne', 1, 0.40, 0, '', ''],
 ];
-const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE'];
+// CONTRÔLE : marquage du rapprochement Drive ↔ Pennylane (Achats.gs). Une ligne dont ce texte
+// contient « hors total » est exclue du total boissons du 📊 TABLEAU DE BORD ; « garder » la force à être comptée.
+const ACHATS_ENTETE = ['DATE', 'SOURCE', 'LIBELLÉ', 'COMPTE', 'MONTANT HT €', 'SAISON', 'MOIS', 'PIÈCE', 'ID PENNYLANE', 'CONTRÔLE'];
 
 function reorganiserFichier() {
   const ui = SpreadsheetApp.getUi();
@@ -288,6 +295,29 @@ function assurerStructure_(forcer) {
       if (d.length) p.getRange(2, iA + 1, d.length, 1).setValues(d.map(function (r) { return [/bi[eè]re/i.test(String(r[iF])) ? 0.2 : /consigne/i.test(String(r[iF])) ? 0 : 0.1]; }));
       h = entete_(p);
     }
+    // V16 : 📦 PRODUITS pilote le stock (lignes de livraison, comptage, préparation, inventaire, seuils)
+    ['UNITÉ DE STOCK', 'SERVICES PAR UNITÉ'].forEach(function (nom) {
+      if (h.indexOf(nom) >= 0) return;
+      ajout = true;
+      p.getRange(1, p.getLastColumn() + 1).setValue(nom);
+      h = entete_(p);
+    });
+    (function () {
+      const iU = h.indexOf('UNITÉ DE STOCK'), iS = h.indexOf('SERVICES PAR UNITÉ'), iR = h.indexOf('RÉF');
+      const d = iU < 0 || iS < 0 || iR < 0 ? [] : donnees_(p);
+      if (!d.length) return;
+      const vide = function (v) { return v === '' || v === null || v === undefined; };
+      const u = [], sv = [];
+      d.forEach(function (r) {
+        const ref = String(r[iR] || '').trim();
+        u.push([vide(r[iU]) ? (PIL_UNITE_DEFAUT[ref] || '') : r[iU]]);
+        sv.push([vide(r[iS]) ? (PIL_SERVICES_DEFAUT[ref] || '') : r[iS]]);
+      });
+      p.getRange(2, iU + 1, u.length, 1).setValues(u);
+      p.getRange(2, iS + 1, sv.length, 1).setValues(sv);
+      p.getRange(1, iU + 1).setNote('fût / bouteille / unité — comment ce produit est stocké et compté.\nVide = pas de stock propre (bière au verre tirée du fût, consigne écocup).\nÉcrire « non » retire le produit du suivi de stock (vendu sans stock, comme avant).');
+      p.getRange(1, iS + 1).setNote('Nombre de verres ou de doses servis dans une unité stockée : 4 verres de 30 cl dans une bouteille de 1,25 L, 5 dans 1,5 L, 30 doses de 2 cl dans un sirop de 60 cl.');
+    })();
     const ix = function (n) { return h.indexOf(n) + 1; };
     if (ajout || forcer) {
     mettreEnForme_(p, { euros: [ix('PRIX VENTE €'), ix('PRIX ACHAT €')], pourcents: [ix('TVA')], entiers: [ix('COLISAGE'), ix('SEUIL ALERTE')], largeurs: (function () { const o = {}; o[ix('PRODUIT')] = 190; o[ix('NOTES')] = 380; return o; })() });
@@ -308,14 +338,19 @@ function assurerStructure_(forcer) {
         const g = function (n) { const i = col_(h, n); return i >= 0 ? r[i] : ''; };
         const d = g('DATE');
         return [d, g('SOURCE') || 'Saisie', g('LIBELLÉ') || [g('FOURNISSEUR'), g('DÉTAIL')].filter(String).join(' — '), g('COMPTE'), g('MONTANT HT €'),
-          g('SAISON') || saisonDe_(d), g('MOIS') || (d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : ''), g('PIÈCE') || g('N° FACTURE'), g('ID PENNYLANE')];
+          g('SAISON') || saisonDe_(d), g('MOIS') || (d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : ''), g('PIÈCE') || g('N° FACTURE'), g('ID PENNYLANE'), g('CONTRÔLE')];
       });
       if (a.getFilter()) a.getFilter().remove();
       a.getRange(1, 1, Math.max(a.getLastRow(), 1), Math.max(a.getLastColumn(), ACHATS_ENTETE.length)).clearContent().clearDataValidations();
       a.getRange(1, 1, 1, ACHATS_ENTETE.length).setValues([ACHATS_ENTETE]);
       if (rows.length) a.getRange(2, 1, rows.length, ACHATS_ENTETE.length).setValues(rows);
-      mettreEnForme_(a, { dates: [1], euros: [5], largeurs: { 3: 340, 8: 200 } });
+      mettreEnForme_(a, { dates: [1], euros: [5], largeurs: { 3: 340, 8: 200, 10: 330 } });
       a.getRange('A1').setNote('Alimenté automatiquement par Pennylane (compte 607100000, achats buvette). Ne pas saisir ici : Pennylane reste la seule source des factures.');
+      a.getRange(1, ACHATS_ENTETE.indexOf('CONTRÔLE') + 1).setNote(
+        'Rapprochement Drive ↔ Pennylane, écrit par le script (menu 🏐 Matchday → 🧾 Contrôler les achats).\n' +
+        '« doublon — … » : même facture déjà présente en source Facture Drive. La ligne est conservée mais sortie du total.\n' +
+        '« hors total » : mot-clé lu par le 📊 TABLEAU DE BORD pour exclure la ligne du total boissons.\n' +
+        'Écrire « garder » ici force la ligne à rester comptée : le script ne la marquera plus.');
     }
   }
 }
@@ -489,14 +524,24 @@ function construireTableauDeBord_(saisonForcee) {
 
   // Rapprochement avec Pennylane (saison choisie)
   const r3 = r1 + n + 1;
-  titre(r3, 'RAPPROCHEMENT AVEC PENNYLANE — achats buvette (compte 607100000)');
+  titre(r3, 'RAPPROCHEMENT DES ACHATS — buvette (Facture Drive ↔ Pennylane, compte 607100000)');
+  // Total boissons : une facture ne compte qu'une fois (doublon Drive ↔ Pennylane marqué « hors total »
+  // par Achats.gs) et les écocups (606300000) sont un parc réutilisable, donc jamais des boissons.
+  const sansDoublon = 'ISERROR(SEARCH("hors total",' + AC + 'J2:J))';
+  const ecocups = '((' + AC + 'D2:D="606300000")+(' + AC + 'D2:D=606300000))';
+  const saisonAc = '(' + AC + 'F2:F=$B$4)';
   const lignes = [
-    ['Achats boissons facturés (Pennylane)', '=SUMIFS(' + AC + 'E2:E,' + AC + 'F2:F,$B$4)', '+'],
+    ['Achats boissons facturés (Drive ↔ Pennylane, hors doublons et écocups)',
+      '=SUMPRODUCT(' + saisonAc + '*(1-' + ecocups + ')*' + sansDoublon + '*N(' + AC + 'E2:E))', '+'],
     ['Stock au début de la saison (valeur HT, à saisir une fois)', '', '+'],
     ['Coût matière consommé aux matchs', '=SUMIFS(' + S('COÛT MATIÈRE €') + ',' + cond + ')', '−'],
     ['Conso bénévoles', '=SUMIFS(' + S('CONSO BÉNÉVOLES €') + ',' + cond + ')', '−'],
     ['Stock restant valorisé (dernier inventaire)', '', '−'],
     ['ÉCART NON EXPLIQUÉ', '=B' + (r3 + 1) + '+B' + (r3 + 2) + '-B' + (r3 + 3) + '-B' + (r3 + 4) + '-B' + (r3 + 5), '→'],
+    ['dont doublons Pennylane écartés (facture déjà saisie en Facture Drive)',
+      '=SUMPRODUCT(' + saisonAc + '*(1-' + sansDoublon + ')*N(' + AC + 'E2:E))', 'ℹ'],
+    ['dont écocups 606300000 écartés (parc réutilisable, hors boissons)',
+      '=SUMPRODUCT(' + saisonAc + '*' + ecocups + '*N(' + AC + 'E2:E))', 'ℹ'],
   ];
   lignes.forEach(function (l, i) {
     const r = r3 + 1 + i;
@@ -511,7 +556,8 @@ function construireTableauDeBord_(saisonForcee) {
   ss.setNamedRange('STOCK_VALORISE', sh.getRange(r3 + 5, 2));
   sh.getRange(r3 + 5, 2).setNote('Calculé par le script (inventaires comptés, sinon théorique) à chaque mise à jour des matchs.');
   sh.getRange(r3 + 6, 1, 1, 3).setFontWeight('bold').setFontSize(12);
-  sh.getRange(r3 + 7, 1).setValue('Écart > 0 : achats sans consommation constatée (facture d\'un autre usage, inventaire manquant…). Écart < 0 : consommation sans facture (facture oubliée dans Pennylane, prix d\'achat trop haut…).')
+  sh.getRange(r3 + 7, 1, 2, 3).setFontColor('#64778A').setFontStyle('italic');
+  sh.getRange(r3 + 9, 1).setValue('Écart > 0 : achats sans consommation constatée (facture d\'un autre usage, inventaire manquant…). Écart < 0 : consommation sans facture (facture oubliée dans Pennylane, prix d\'achat trop haut…). Les deux lignes « dont » ci-dessus sont informatives : elles ne sont pas dans l\'écart.')
     .setFontColor('#64778A').setFontStyle('italic').setFontSize(9);
   const regles = [
     SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$A' + r1 + '=$B$4').setBackground(DAY).setBold(true).setRanges([sh.getRange(r1, 1, n, 10)]).build(),
@@ -522,8 +568,8 @@ function construireTableauDeBord_(saisonForcee) {
   ];
   sh.setConditionalFormatRules(regles);
 
-  // Matchs de la saison
-  const r2 = r3 + 9;
+  // Matchs de la saison (deux lignes de détail « dont » ont été ajoutées sous l'écart)
+  const r2 = r3 + 11;
   titre(r2, 'MATCHS DE LA SAISON');
   const cols = ['DATE', 'ADVERSAIRE', 'AFFLUENCE', 'CA BUVETTE €', 'CA HT €', 'MARGE HT €', 'TAUX DE MARGE', '€ / SPECTATEUR', 'PANIER MOYEN €', 'CASSE / ÉCARTS €', 'INVENTAIRE'];
   const derniere = lettre_(MCOL[MCOL.length - 1]);
