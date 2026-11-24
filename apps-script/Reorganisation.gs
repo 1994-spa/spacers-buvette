@@ -169,6 +169,8 @@ function reorganiser_() {
     if (old) {
       const oh = entete_(old), rows = donnees_(old).filter(function (r) { return Number(r[col_(oh, 'MONTANT HT €')]) && !/renseigner/i.test(String(r[oh.indexOf('FOURNISSEUR')])); })
         .map(function (r) { const d = r[oh.indexOf('DATE')]; return [d, 'Saisie', r[oh.indexOf('FOURNISSEUR')] + ' — ' + r[oh.indexOf('PRODUIT')], '', r[col_(oh, 'MONTANT HT €')], saisonDe_(d), d ? Utilities.formatDate(new Date(d), tz_(), 'yyyy-MM') : '', '', '']; });
+      // Largeur normalisee sur l'en-tete : une ligne plus courte ferait lever setValues.
+      rows.forEach(function (r) { while (r.length < ACHATS_ENTETE.length) r.push(''); });
       if (rows.length) a.getRange(2, 1, rows.length, ACHATS_ENTETE.length).setValues(rows);
     }
   }
