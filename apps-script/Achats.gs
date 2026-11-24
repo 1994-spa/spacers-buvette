@@ -140,8 +140,25 @@ function pennylaneImporterAchats(silencieux) {
   const avant = d.length;
   const garde = d.filter(function (r) { return r[1] !== 'Pennylane' || vus[String(r[iId])] || jour_(r[0]) < depuis; });
   garde.sort(function (a, b) { return String(jour_(b[0])).localeCompare(String(jour_(a[0]))); });
-  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, h.length).clearContent();
-  if (garde.length) sh.getRange(2, 1, garde.length, h.length).setValues(garde);
+  // Écrire D'ABORD, effacer ENSUITE : si l'écriture échoue, rien n'est perdu.
+  // (Le 23/11 à 18h07 la colonne QUANTITÉ a été ajoutée à ACHATS_ENTETE sans que ce fichier
+  //  soit touché : les lignes fabriquées ici faisaient 10 colonnes pour une plage de 11, donc
+  //  setValues levait APRÈS un clearContent réussi, et tout l'onglet disparaissait.)
+  const largeur = h.length;
+  const lignes = garde.map(function (r) {
+    const x = r.slice(0, largeur);
+    while (x.length < largeur) x.push('');
+    return x;
+  });
+  const avaitDesLignes = sh.getLastRow() > 1;
+  if (!lignes.length && avaitDesLignes) {
+    // Zéro ligne à réécrire alors que l'onglet n'était pas vide : on ne vide jamais sur ce signal,
+    // qui ne distingue pas « tout a été supprimé dans Pennylane » d'une lecture incomplète.
+    throw new Error('Import interrompu : la synchronisation ne ramène aucune ligne alors que 🛒 ACHATS en contient. Onglet laissé intact.');
+  }
+  if (lignes.length) sh.getRange(2, 1, lignes.length, largeur).setValues(lignes);
+  const reste = sh.getLastRow() - lignes.length - 1;
+  if (reste > 0) sh.getRange(lignes.length + 2, 1, reste, largeur).clearContent();
   PropertiesService.getScriptProperties().setProperty('PL_SYNC', String(Date.now()));
   // Rapprochement Drive ↔ Pennylane : relancé à chaque import, donc idempotent
   let rap = '';
