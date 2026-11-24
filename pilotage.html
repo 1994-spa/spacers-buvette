@@ -135,6 +135,22 @@ th:first-child,td:first-child{text-align:left}
 #club-livs .rows div{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--divider);padding-top:4px}
 .btn.btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
 .err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:12px 14px;font-weight:700}
+/* Refus de la validation HTML5 : la case fautive est encadree et le message s'affiche a cote du bouton */
+.msg-refus{color:var(--bad);font-weight:800}
+/* Les deux clôtures : marchandise et caisse, toujours affichées ensemble */
+.clots{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.clots .cl2{flex:1 1 180px;display:flex;flex-direction:column;gap:2px;border-radius:10px;padding:8px 10px;font-size:.8rem;font-weight:700;background:var(--surface-2);border:1px solid var(--border)}
+.clots .cl2 .t{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.clots .cl2.ok{background:var(--good-bg);color:var(--good);border-color:transparent}
+.clots .cl2.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.clots .cl2.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.clots .cl2.ok .t,.clots .cl2.warn .t,.clots .cl2.bad .t{color:inherit;opacity:.75}
+#cloture-bilan{margin-bottom:14px}
+input.refuse{outline:2px solid var(--bad);outline-offset:1px}
+/* Dernier filet : toute erreur JS non rattrapee devient visible au lieu de ne rien faire */
+#bug{position:fixed;left:12px;right:12px;bottom:12px;z-index:60;background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad);border-radius:12px;padding:12px 14px;font-weight:700;font-size:.9rem;box-shadow:var(--shadow)}
+#bug[hidden]{display:none}
+#bug button{margin-left:10px;font:inherit;border:0;background:transparent;color:inherit;cursor:pointer;text-decoration:underline}
 .setup{max-width:560px;margin:40px auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
 .setup h2{font-size:1.2rem}
 .setup label{font-size:.85rem;font-weight:700;color:var(--muted)}
@@ -208,7 +224,7 @@ th:first-child,td:first-child{text-align:left}
     <div class="cmd-params">
       <div class="cmd-aff" id="cmd-aff"></div>
       <label class="cmd-field">Présents prévus
-        <input type="number" id="cmd-presents" min="0" step="10" inputmode="numeric">
+        <input type="number" id="cmd-presents" min="0" step="1" inputmode="numeric">
       </label>
       <label class="cmd-field">Marge de sécurité
         <select id="cmd-niveau">
@@ -262,6 +278,7 @@ th:first-child,td:first-child{text-align:left}
     <h2>Préparation du match <span>stock de départ envoyé aux tablettes</span></h2>
     <form id="prepa-form">
       <div class="tbl"><table class="prepa-tbl" id="prepa-tbl"></table></div>
+      <p class="note" id="prepa-rea" style="margin:8px 0 0"></p>
       <div class="prepa-foot">
         <button class="btn" type="submit" id="prepa-save">Enregistrer le stock</button>
         <span class="note" id="prepa-status" role="status"></span>
@@ -281,6 +298,7 @@ th:first-child,td:first-child{text-align:left}
     </form>
   </section>
   <section class="kpis" id="kpis" aria-label="Indicateurs du match"></section>
+  <div id="cloture-bilan"></div>
   <section class="grid3" id="buvettes" aria-label="Points de vente"></section>
   <div class="two">
     <section class="panel"><h2>Rythme des ventes <span>CA boissons par quart d'heure, par buvette</span></h2><div class="viz" id="g-rythme"></div></section>
@@ -302,6 +320,7 @@ th:first-child,td:first-child{text-align:left}
     <section class="panel"><h2>Billetterie <span>billets valides du match</span></h2><div id="billetterie"></div></section>
   </div>
   <section class="panel"><h2>Installer les tablettes <span>QR plein écran à scanner, ou lien à envoyer par WhatsApp</span></h2><div class="links" id="links"></div></section>
+  <div id="bug" role="alert" hidden></div>
   <div id="tip" role="tooltip"></div>
   <div id="qr-ov"><h3 id="qr-t"></h3><div id="qr-box"></div><p>Avec l'appareil photo de la tablette, vise ce QR puis touche le lien.<br>iPad : après « Sur l'écran d'accueil », ouvre l'icône, touche « 📷 Scanner le QR de configuration » et vise à nouveau.</p><button type="button" id="qr-x">Fermer</button></div>
   <section class="panel"><h2>Repères historiques <span>CA boissons par match, reportings 22-23 à 25-26</span></h2><div id="repere"></div></section>
@@ -408,6 +427,7 @@ function render(d){
 
   // Buvettes
   const noms = {}; (d.produits||[]).forEach(p => noms[p[0]] = p[1]);
+  renderClotureBilan(d);
   $('buvettes').innerHTML = Object.entries(v.parBuvette).map(([nom, x]) => {
     const st = (d.stock||{})[nom] || {};
     const alerts = Object.entries(st).map(([ref, s]) => {
@@ -427,8 +447,8 @@ function render(d){
         : `<div><span>♻️ Gobelets sortis/rendus</span><b style="white-space:nowrap">${int(x.consignes||0)} / ${int(x.rendues||0)}</b></div>`}
         <div><span>🎫 Avec billet</span><b>${pct(x.reliees||0, x.ventes)}</b></div></div>
       ${prods ? `<p class="note" style="margin-top:6px">${prods}</p>` : ''}
-      ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b>${cl.ecartCb != null ? ` · CB vs TPE <b>${cl.ecartCb > 0 ? '+' : ''}${eur(cl.ecartCb, 2)}</b>` : ''}</div>`
-           : `<div class="clot">⏳ Caisse pas encore clôturée sur la tablette</div>`}`;
+      ${etatsCloture(nom, d)}
+      ${cl ? `<div class="clot ${cl.ecart === 0 ? 'ok' : Math.abs(cl.ecart) <= 2 ? 'warn' : 'bad'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · fond ${eur(cl.fond, 2)} · attendu ${eur(cl.attendu, 2)} · compté ${eur(cl.compte, 2)} · <b>écart ${cl.ecart > 0 ? '+' : ''}${eur(cl.ecart, 2)}</b>${cl.ecartCb != null ? ` · CB vs TPE <b>${cl.ecartCb > 0 ? '+' : ''}${eur(cl.ecartCb, 2)}</b>` : ''}</div>` : ''}`;
     return `<article class="panel"><div class="buv-h"><b>${esc(nom)}${BUV_LIEU[nom] ? ` <span class="note">· ${BUV_LIEU[nom]}</span>` : ''}</b><span class="ca">${eur(x.ca)}</span></div>
       <div class="buv-s">${int(x.ventes)} ventes · panier ${eur(x.ventes ? x.ca/x.ventes : null, 2)} · ${pct(x.ca, v.ca)} du CA</div>
       ${rapport}
@@ -609,7 +629,7 @@ function engagePourCeMatch(ref){
   return colonnes().reduce((t, b) => t + (Number((prepa.stocks[b] || {})[ref]) || 0), 0);
 }
 function champsQtes(prefixe, valeurs){
-  return club.lignes.map(([ref, nom]) => `<label>${esc(nom)}<input type="number" min="0" step="${ref === 'FUT' ? '0.25' : '1'}" inputmode="decimal" id="${prefixe}-${ref}" value="${valeurs && valeurs[ref] != null ? Math.round(valeurs[ref]*100)/100 : ''}" placeholder="0"></label>`).join('');
+  return club.lignes.map(([ref, nom]) => `<label>${esc(nom)}<input type="number" min="0" step="${ref === 'FUT' ? 'any' : '1'}" inputmode="decimal" id="${prefixe}-${ref}" value="${valeurs && valeurs[ref] != null ? Math.round(valeurs[ref]*100)/100 : ''}" placeholder="0"></label>`).join('');
 }
 function renderClub(){
   if (!club) return;
@@ -694,14 +714,30 @@ function renderPrepa(){
   const titre = b => (prepa.reserves || []).includes(b) ? `🙋 ${esc(b)}<span class="tab-state">hors vente</span>` : `${esc(b)}<span class="tab-state" id="ts-${bk(b)}"></span>`;
   let h = `<thead><tr><th>Produit</th>${B.map(b => `<th>${titre(b)}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
   L.forEach(([ref, nom]) => {
-    h += `<tr><td>${esc(nom)}</td>${B.map(b => `<td><input type="number" min="0" step="${ref==='FUT'?'0.5':'1'}" inputmode="decimal" id="pp-${bk(b)}-${ref}" data-b="${esc(b)}" data-ref="${ref}" value="${(st[b]||{})[ref] || 0}" aria-label="${esc(nom)} ${esc(b)}"></td>`).join('')}<td><b id="pt-${ref}"></b></td></tr>`;
+    h += `<tr><td>${esc(nom)}</td>${B.map(b => `<td><input type="number" min="0" step="${ref==='FUT'?'any':'1'}" inputmode="decimal" id="pp-${bk(b)}-${ref}" data-b="${esc(b)}" data-ref="${ref}" value="${(st[b]||{})[ref] || 0}" aria-label="${esc(nom)} ${esc(b)}"></td>`).join('')}<td><b id="pt-${ref}"></b></td></tr>`;
   });
   $('prepa-tbl').innerHTML = h + '</tbody>';
+  renderReassorts();
   renderInventaire();
   $('prepa-tbl').querySelectorAll('input').forEach(i => i.addEventListener('input', totaux));
   totaux(); renderTabState(); autoRepartir();
   const ev = events.find(e => e.id === current);
   $('prepa-status').textContent = prepa.idMatch ? `Match ${prepa.idMatch}` + (prepa.actif && prepa.actif.eventId === current ? ' · match actif des tablettes' : ' · pas encore envoyé aux tablettes') : 'Pas encore préparé' + (ev ? ' : ' + ev.nom : '');
+}
+// Stock reçu en cours de match, saisi sur les tablettes. Les cases ci-dessus portent le
+// départ DÉCLARÉ : les réassorts s'ajoutent à la lecture et ne sont jamais réenregistrés
+// par ce formulaire. On les affiche pour que le départ réel soit visible.
+function renderReassorts(){
+  const box = $('prepa-rea'); if (!box) return;
+  const r = (prepa && prepa.reassortsTotaux) || {};
+  const nom = ref => { const l = (prepa.lignes || []).find(x => x[0] === ref); return l ? l[1].replace(/\s*\(.*\)$/, '') : ref; };
+  const parts = Object.keys(r).map(b => {
+    const q = Object.keys(r[b]).filter(ref => r[b][ref] > 0);
+    return q.length ? `${esc(b)} : ${q.map(ref => '+' + nbFr(r[b][ref], ref) + ' ' + esc(nom(ref))).join(', ')}` : '';
+  }).filter(Boolean);
+  box.innerHTML = parts.length
+    ? `<b>\u{1F4E6} Reçu en cours de match</b> (saisi sur les tablettes, compris dans le départ réel et dans le coût matière) \u2014 ${parts.join(' \u00b7 ')}`
+    : '';
 }
 function totaux(){
   prepa.lignes.forEach(([ref]) => {
@@ -737,7 +773,7 @@ function renderInventaire(){
   L.forEach(([ref, nom]) => {
     h += `<tr><td>${esc(nom)}${ref === 'FUT' ? ' (en fûts)' : ''}</td>${B.map(b => {
       const debut = (prepa.stocks && prepa.stocks[b] || {})[ref] || 0;
-      return `<td><input type="number" min="0" step="${ref==='FUT'?'0.25':'1'}" inputmode="decimal" id="iv-${bk(b)}-${ref}" value="${val(b, ref)}" placeholder="/ ${debut}" aria-label="Reste ${esc(nom)} ${esc(b)}"></td>`;
+      return `<td><input type="number" min="0" step="${ref==='FUT'?'any':'1'}" inputmode="decimal" id="iv-${bk(b)}-${ref}" value="${val(b, ref)}" placeholder="/ ${debut}" aria-label="Reste ${esc(nom)} ${esc(b)}"></td>`;
     }).join('')}</tr>`;
   });
   $('inv-tbl').innerHTML = h + '</tbody>';
@@ -785,13 +821,74 @@ async function enregistrerPrepa(auto){
     const j = await r.json();
     if (j.status !== 'ok') throw new Error(j.message || 'refus');
     await loadPrepa(); loadClub();
-    $('prepa-status').textContent = auto
+    // Bug 4 : une sauvegarde sur un match déjà joué ne déplace plus le match actif.
+    // Le serveur renvoie actif:false et son propre message : ne pas annoncer « match actif » à tort.
+    $('prepa-status').textContent = j.actif === false
+      ? '✅ ' + (j.message || `Stock enregistré pour ${j.idMatch} : le match actif des tablettes n'a pas été déplacé.`)
+      : auto
       ? `✅ Stock proposé enregistré automatiquement pour ${j.idMatch} : les tablettes le chargent seules. Tu peux le modifier puis réenregistrer.`
       : `✅ Stock enregistré pour ${j.idMatch} (match actif). Les tablettes le prennent en compte dans les 5 minutes.`;
   } catch(err) { $('prepa-status').textContent = '❌ ' + err.message; }
   $('prepa-save').disabled = false;
 }
 
+// ══ Les deux clôtures ══════════════════════════════════════════════════════
+// Il y a deux clôtures par point de vente et elles sont indépendantes :
+//   • MARCHANDISE (PIL_INVENTAIRE_) : trois valeurs — comptée, théorique (comptage raté
+//     déclaré, donc sans casse inventée), ou pas comptée du tout ;
+//   • CAISSE (PIL_CLOTURE_) : clôturée ou non.
+// Le coût matière du match ne dépend QUE de la première. Afficher la seule seconde, comme
+// avant, laissait une marge se gonfler sans que rien ne le signale.
+function etatMarchandise(b, d){
+  const o = (d.inventaire || {})[b];
+  if (!o) {
+    const cl = (d.clotures || {})[b];
+    return cl ? { cls:'bad', txt:'❌ Pas comptée', det:'caisse clôturée sans inventaire' }
+              : { cls:'', txt:'⏳ Pas comptée', det:'en attente de la tablette' };
+  }
+  const src = String(o._source || '');
+  const h = o._ts ? new Date(o._ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+  if (/non compté/.test(src)) return { cls:'warn', txt:'≈ Théorique', det:'comptage raté déclaré' + (h ? ' · ' + h : '') };
+  if (/tableau de bord/.test(src)) return { cls:'ok', txt:'✓ Comptée', det:'saisie ici' + (h ? ' · ' + h : '') };
+  return { cls:'ok', txt:'✓ Comptée', det:'sur la tablette' + (h ? ' · ' + h : '') };
+}
+function etatCaisse(b, d){
+  if ((d.sansCaisse || []).includes(b)) {
+    const c0 = (d.clotures || {})[b];
+    return c0 ? { cls:'ok', txt:'✓ Clôturée', det:'sans espèces (CB seulement)' }
+              : { cls:'', txt:'⏳ Pas clôturée', det:'sans espèces (CB seulement)' };
+  }
+  const cl = (d.clotures || {})[b];
+  if (!cl) return { cls:'', txt:'⏳ Pas clôturée', det:'en attente de la tablette' };
+  const h = new Date(cl.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const e = Number(cl.ecart) || 0;
+  return { cls: e === 0 ? 'ok' : Math.abs(e) <= 2 ? 'warn' : 'bad',
+    txt:'🔒 Clôturée', det: h + ' · écart ' + (e > 0 ? '+' : '') + eur(e, 2) };
+}
+function etatsCloture(b, d){
+  const m = etatMarchandise(b, d), c = etatCaisse(b, d);
+  const box = (t, e) => `<div class="cl2 ${e.cls}"><span class="t">${t}</span><b>${e.txt}</b><span>${esc(e.det)}</span></div>`;
+  return `<div class="clots">${box('📦 Marchandise', m)}${box('💶 Caisse', c)}</div>`;
+}
+// Synthèse : ce qui manque, des deux côtés. L'alerte se déclenche deux heures après le coup
+// d'envoi — et sur l'un OU l'autre manquant, pas sur la caisse seule.
+function renderClotureBilan(d){
+  const box = $('cloture-bilan'); if (!box) return;
+  const pdv = (d.prepares && d.prepares.length) ? d.prepares : (d.buvette && d.buvette.parBuvette ? Object.keys(d.buvette.parBuvette) : []);
+  if (!pdv.length) { box.innerHTML = ''; return; }
+  const coup = d.event && d.event.date ? new Date(d.event.date) : null;
+  const depasse = coup && (Date.now() - coup.getTime() > 2 * 3600 * 1000);
+  const sansMarch = pdv.filter(b => !(d.inventaire || {})[b]);
+  const sansCaisse = pdv.filter(b => !(d.clotures || {})[b] && !(d.reserves || []).includes(b));
+  if (!sansMarch.length && !sansCaisse.length) {
+    box.innerHTML = `<div class="clot ok">✅ Les deux clôtures sont faites partout : marchandise comptée et caisse clôturée sur ${pdv.length} point(s) de vente.</div>`;
+    return;
+  }
+  const l = [];
+  if (sansMarch.length) l.push(`<b>marchandise pas comptée</b> : ${sansMarch.map(esc).join(', ')} — le coût matière du match ne repose que là-dessus`);
+  if (sansCaisse.length) l.push(`<b>caisse pas clôturée</b> : ${sansCaisse.map(esc).join(', ')}`);
+  box.innerHTML = `<div class="${depasse ? 'err' : 'clot warn'}">${depasse ? '⛔' : '⏳'} ${depasse ? 'Plus de deux heures après le coup d\'envoi et il manque une clôture' : 'Clôtures en attente'} \u2014 ${l.join(' \u00b7 ')}.${depasse ? ' Compte le stock restant, ou déclare le comptage raté avec « Comptage raté → théorique » (le stock théorique est alors repris sans inventer de casse).' : ''}</div>`;
+}
 function kpi(l, val, s, cls, ratio, extra){
   return `<div class="kpi ${cls||''}"><span class="l">${l}</span><span class="v">${val}</span><span class="s">${s}${extra ? ' · ' + extra : ''}</span>${ratio != null ? `<div class="meter"><div style="width:${Math.min(100, ratio*100).toFixed(1)}%"></div></div>` : ''}</div>`;
 }
@@ -1052,6 +1149,61 @@ function afficherQr(n, url){
   sc.onload = go; sc.onerror = () => alert('Pas de connexion : impossible d\'afficher le QR. Copie le lien à la place.');
   document.head.appendChild(sc);
 }
+
+// ── Handlers appelés depuis un attribut onclick du HTML généré ────────────
+// Ils sont définis dans cette IIFE : sans exposition sur window, le navigateur lève un
+// ReferenceError dans la console et le clic ne fait visiblement rien. Toute fonction
+// nouvellement appelée depuis un onclick="…" doit être ajoutée ici.
+window.supprimerLivraison = supprimerLivraison;
+window.nonCompte = nonCompte;
+
+// ── Dernier filet : aucune erreur ne doit rester muette ─────────────────
+function signalerBug(msg){
+  const b = $('bug'); if (!b) return;
+  b.textContent = '⚠️ Une action n\'a pas pu s\'exécuter : ' + String(msg || 'erreur inconnue')
+    + ' — rien n\'a été enregistré. Recharge la page (⟳) et réessaie.';
+  const x = document.createElement('button');
+  x.type = 'button'; x.textContent = 'Fermer'; x.onclick = () => { b.hidden = true; };
+  b.appendChild(x); b.hidden = false;
+}
+window.addEventListener('error', e => signalerBug(e.message));
+window.addEventListener('unhandledrejection', e => signalerBug((e.reason && e.reason.message) || e.reason));
+
+// ── Refus silencieux de la validation HTML5 ────────────────────────
+// Quand un champ est hors tolérance (step, min, required), le navigateur annule l'envoi
+// sans émettre d'événement « submit » : le bouton ne fait visiblement rien. On l'écrit à l'écran.
+const FORMS_STATUS = { 'setup':'setup-err', 'liv-form':'liv-status', 'cpt-form':'cpt-status', 'prepa-form':'prepa-status', 'inv-form':'inv-status' };
+function nomChamp(el){
+  const l = el.getAttribute('aria-label') || (el.labels && el.labels[0] ? el.labels[0].textContent : '') || el.id || 'ce champ';
+  return String(l).replace(/\s+/g, ' ').trim();
+}
+Object.keys(FORMS_STATUS).forEach(fid => {
+  const f = $(fid), s = $(FORMS_STATUS[fid]);
+  if (!f || !s) return;
+  // « invalid » ne remonte pas : on l'écoute en phase de capture
+  f.addEventListener('invalid', e => {
+    const el = e.target;
+    el.classList.add('refuse');
+    if (s.dataset.avant == null) s.dataset.avant = s.textContent;
+    s.classList.add('msg-refus');
+    s.textContent = '⛔ Rien n\'a été enregistré : « ' + nomChamp(el) + ' » est refusé ('
+      + (el.validationMessage || 'valeur non acceptée') + '). Corrige la case encadrée en rouge, puis réessaie.';
+    if (!f.dataset.vu) {   // premier champ fautif seulement : on l'amène sous les yeux
+      f.dataset.vu = '1';
+      try { el.scrollIntoView({ behavior:'smooth', block:'center' }); el.focus({ preventScroll:true }); } catch(err) {}
+      setTimeout(() => { delete f.dataset.vu; }, 500);
+    }
+  }, true);
+  f.addEventListener('input', e => {
+    const el = e.target;
+    if (!el.classList || !el.classList.contains('refuse') || !el.checkValidity()) return;
+    el.classList.remove('refuse');
+    if (f.querySelector('.refuse')) return;
+    s.classList.remove('msg-refus');
+    s.textContent = s.dataset.avant || '';
+    delete s.dataset.avant;
+  });
+});
 
 loadCfg();
 renderLinks();

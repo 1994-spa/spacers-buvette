@@ -619,6 +619,11 @@ const TPES = [
   { id:'6053438-003', nom:'A920 n°3 (6053438-003)' }, { id:'2668543-001', nom:'D177 (2668543-001)' },
   { id:'2668544-001', nom:'D177 (2668544-001)' },     { id:'6053437-003', nom:'D200 (6053437-003)' },
 ];
+// Flotte buvette : un terminal par point de vente, stable depuis le début de la saison 26-27.
+// Choisir librement dans une liste de six, sans contrôle, a fait déclarer à Tours un D177
+// d'un autre contrat commerçant — et 457,20 € d'écart CB que personne ne sait expliquer.
+const TPE_ATTENDU = { 'Buvette 1':'6053438-001', 'Buvette 2':'6053438-002', 'Buvette 3':'6053438-003' };
+const contratDe = id => String(id || '').split('-')[0];
 
 // Ordre des tuiles = ordre de la grille 4×2 (les plus vendues en haut à gauche)
 // La consigne écocup n'est jamais automatique : le bénévole l'ajoute (bouton « + Gobelet »)
@@ -702,7 +707,7 @@ function cumulTab(tab) {
   if (typeof c.nbBenev !== 'number') c.nbBenev = 0;
   return c;
 }
-const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','fondsAppliques','mouvCaisse','releves','modeFin','offertes','hh'];
+const CLES = ['tab','url','token','pin','match','futLitres','stocks','billets','cumul','outbox','envoyees','historique','clotures','fond','prix','forcer','reassorts','brouillons','fondsAppliques','mouvCaisse','releves','modeFin','offertes','hh','archives'];
 let alerteMemoire = false;
 function save() {
   if (entrainement) return;
@@ -816,6 +821,11 @@ function stockCompte(ref) { return BOUTEILLE_L[ref] ? bouteillesApresVentes(ref)
 function aStock(ref) { return estLibre(ref) || (LITRES[ref] ? stockInit('FUT') > 0 : stockInit(ref) > 0); }
 // Sans match chargé, on laisse vendre (le stock n'est simplement pas suivi)
 function stockSuivi() { return !!state.match; }
+// Du stock a-t-il été préparé pour cette buvette ? Si oui, la clôture marchandise est due.
+function aStockPrepare() {
+  const st = state.stocks[state.tab] || {};
+  return Object.keys(st).some(r => (Number(st[r]) || 0) > 0);
+}
 function peutAjouter(ref) { return !stockSuivi() || !!(state.forcer || {})[ref] || stockDispo(ref) > 0; }
 function stockSnapshot() {
   const o = {};
@@ -1161,11 +1171,14 @@ function renderAlerts() {
 
 function renderNet() {
   const n = document.getElementById('net'), t = document.getElementById('net-txt');
-  const off = navigator.onLine === false, att = state.outbox.length;
+  const off = navigator.onLine === false, att = state.outbox.length, rea = reassortsEnAttente();
   if (entrainement) { n.className = 'net wait'; t.textContent = 'Entraînement · rien n\'est envoyé'; }
   else if (!state.url || !state.token) { n.className = 'net off'; t.textContent = 'Non configurée'; }
-  else if (off) { n.className = 'net wait'; t.textContent = att ? `Hors ligne · ${att} vente${att > 1 ? 's' : ''} gardée${att > 1 ? 's' : ''}` : 'Hors ligne · tout est à jour'; }
-  else if (att) { n.className = 'net wait'; t.textContent = `Envoi en cours (${att})`; }
+  // Un réassort en attente doit se voir : c'est du stock qui manquera au coût matière.
+  const sRea = rea ? ` · ${rea} réassort${rea > 1 ? 's' : ''} à envoyer` : '';
+  if (off) { n.className = 'net wait'; t.textContent = (att ? `Hors ligne · ${att} vente${att > 1 ? 's' : ''} gardée${att > 1 ? 's' : ''}` : 'Hors ligne · tout est à jour') + sRea; }
+  else if (att) { n.className = 'net wait'; t.textContent = `Envoi en cours (${att})` + sRea; }
+  else if (rea) { n.className = 'net wait'; t.textContent = `Envoi du stock reçu (${rea})`; }
   else if (Object.values(state.clotures || {}).some(x => !x.envoyee)) { n.className = 'net wait'; t.textContent = 'Envoi du rapport…'; }
   else { n.className = 'net ok'; t.textContent = 'Connectée · tout est envoyé'; }
 }
@@ -1607,11 +1620,14 @@ async function envoyerVentes() {
     if (state.outbox.length && navigator.onLine !== false) setTimeout(envoyerVentes, 20000);
   }
 }
-window.addEventListener('online', () => { renderNet(); envoyerVentes(); chargerMatch(true); });
+window.addEventListener('online', () => { renderNet(); envoyerVentes(); envoyerReassorts(); chargerMatch(true); });
 window.addEventListener('offline', renderNet);
 setInterval(() => chargerMatch(true), 5 * 60000);
-setInterval(() => { if (state.outbox.length || Object.values(state.clotures || {}).some(x => !x.envoyee)) envoyerVentes(); }, 30000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyerVentes(); });   // tablette rallumée au bureau
+setInterval(() => {
+  if (state.outbox.length || Object.values(state.clotures || {}).some(x => !x.envoyee)) envoyerVentes();
+  if (reassortsEnAttente()) envoyerReassorts();          // sinon un réassort hors ligne ne repart jamais
+}, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { envoyerVentes(); envoyerReassorts(); } });   // tablette rallumée au bureau
 
 // ═══════════════════════════════════════════════════════════════════
 // BILLET / CARTE ABONNÉ — caméra, douchette ou saisie
@@ -1822,7 +1838,8 @@ function afficherRapport() {
     <div class="caisse">
       <div class="k"><span>CB enregistrée</span><b>${fmt(c.cb)}</b><small>${c.nbCb} paiement${c.nbCb > 1 ? 's' : ''} sur la tablette</small></div>
       <label>TPE utilisé à cette buvette<select class="input" id="cl-tpe-id" ${cl ? 'disabled' : ''} onchange="memoBrouillon()">
-        <option value="">choisir</option>${TPES.map(t => `<option value="${t.id}" ${tpeId === t.id ? 'selected' : ''}>${esc(t.nom)}</option>`).join('')}</select></label>
+        <option value="">choisir</option>${TPES.slice().sort((a, b) => (b.id === TPE_ATTENDU[state.tab] ? 1 : 0) - (a.id === TPE_ATTENDU[state.tab] ? 1 : 0))
+          .map(t => `<option value="${t.id}" ${tpeId === t.id ? 'selected' : ''}>${esc(t.nom)}${t.id === TPE_ATTENDU[state.tab] ? ' — habituel ici' : ''}</option>`).join('')}</select></label>
       <label>Total du ticket TPE<input class="input" id="cl-tpe" inputmode="decimal" placeholder="ticket de fin" value="${esc(String(tpeVal))}" ${cl ? 'disabled' : ''} oninput="majEcart()"></label>
       <div class="k" id="cl-ecb-box"><span>Écart CB</span><b id="cl-ecb">—</b><small id="cl-ecb-s"></small></div>
     </div>
@@ -1833,7 +1850,7 @@ function afficherRapport() {
     + (cl ? `<div class="msg ${cl.envoyee ? 'ok' : 'warn'}">🔒 Caisse clôturée à ${new Date(cl.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })} — ${cl.envoyee ? 'rapport arrivé dans le Sheet ✅' : 'rapport gardé dans la tablette, il partira au retour du wifi 📶'}</div>
           <button class="btn small" style="margin-top:8px" onclick="rouvrirCaisse()">Rouvrir la caisse (corriger le comptage)</button>`
          : `<button class="btn prim" style="width:100%;margin-top:10px;min-height:60px" onclick="cloturerCaisse()">🔒 Clôturer : caisse + inventaire, envoyer le rapport</button>`
-           + (stockSuivi() ? `<button class="btn" style="width:100%;margin-top:8px;min-height:54px" onclick="cloturerCaisseSeule()">💶 Clôturer la caisse seulement<small style="display:block;font-weight:600">pas le temps de compter le stock : on garde le stock théorique, à corriger au tableau de bord</small></button>` : ''));
+           + (stockSuivi() ? `<button class="btn" style="width:100%;margin-top:8px;min-height:54px" onclick="cloturerCaisseSeule()">💶 Clôturer la caisse seulement<small style="display:block;font-weight:600">déclare le comptage de marchandise <b>raté</b> : on garde le stock théorique, sans inventer de casse. Corrigeable au tableau de bord.</small></button>` : ''));
   h += `<div class="grid2"><div><div class="sec">Vendu</div><div class="rows">`;
   const vendus = CATALOGUE.filter(p => (c.lignes[p.ref] || 0) > 0);
   h += vendus.length ? vendus.map(p => `<div><span>${esc(p.nom)} × ${c.lignes[p.ref]}</span><b>${fmt(c.lignes[p.ref] * p.pv)}</b></div>`).join('') : '<div><span>Aucune vente</span><b>—</b></div>';
@@ -1856,10 +1873,14 @@ function afficherRapport() {
       return `<div><span class="${x.annulee ? 'barre' : ''}">${heure} · ${esc(det)} · ${x.paiement === 'CB' ? '💳' : x.paiement === 'BENEVOLE' ? '🙋 bénévole' : x.paiement === 'NON_REMB' ? '🚫 pas remboursé (plus d\'espèces)' : x.paiement === 'LAISSE' ? '🫙 récupéré sans remboursement' : '💶'} ${x.paiement === 'NON_REMB' ? ((x.gob.n33 || 0) + (x.gob.n50 || 0)) + ' gob.' : x.paiement === 'LAISSE' ? ((x.gob.l33 || 0) + (x.gob.l50 || 0)) + ' gob.' : fmt(x.total)}${x.billet ? ' · 🎫' : ''}</span>${x.annulee ? '<b>annulée</b>' : `<button class="btn small" onclick="annulerVente('${x.id}')">↶ Annuler</button>`}</div>`;
     }).join('') + '</div>';
   }
+  const reaAtt = reassortsEnAttente();
   h += state.outbox.length
     ? `<div class="msg warn">📶 ${state.outbox.length} vente(s) gardée(s) dans la tablette : elles partiront toutes seules au retour du wifi.</div>`
+    : reaAtt ? ''
     : `<div class="msg ok">✅ Toutes les ventes sont arrivées dans le Sheet.</div>`;
-  if (state.outbox.length) h += `<button class="btn prim" style="width:100%;margin-top:10px" onclick="envoyerVentes()">📤 Réessayer l'envoi maintenant</button>`;
+  // Un réassort non envoyé fausse le coût matière du match : on le dit, et on ne prétend pas que tout est arrivé.
+  if (reaAtt) h += `<div class="msg warn">📦 ${reaAtt} saisie(s) de stock reçu pas encore arrivée(s) au Sheet : sans elles, le stock apporté en cours de match manquera au coût du match. Elles repartent toutes seules au retour du wifi.</div>`;
+  if (state.outbox.length || reaAtt) h += `<button class="btn prim" style="width:100%;margin-top:10px" onclick="envoyerVentes();envoyerReassorts()">📤 Réessayer l'envoi maintenant</button>`;
   document.getElementById('bilan').innerHTML = h;
   majEcart(); majInventaire();
   ouvrir('m-bilan');
@@ -1904,6 +1925,16 @@ function basculerNonCompte(v) { invNonCompte = !!v; memoBrouillon(); afficherRap
 // La caisse/TPE et l'inventaire ne se font pas au même endroit : chaque saisie est gardée dans la tablette
 // (à chaque frappe, et par les boutons 💾), retrouvée en rouvrant le Rapport, et effacée à la clôture.
 function brouillon() { return (state.brouillons || {})[state.tab] || {}; }
+// Tout ce qui n'est pas encore arrivé au Sheet. Sert de verrou avant de changer de match :
+// effacer un brouillon de clôture jamais transmis est une perte de données sèche.
+function resteAEnvoyer() {
+  const r = [];
+  if ((state.outbox || []).length) r.push((state.outbox || []).length + ' vente(s)');
+  if (Object.values(state.clotures || {}).some(x => !x.envoyee)) r.push('le rapport de fin de match');
+  if ((state.reassorts || []).some(x => !x.envoye)) r.push('du stock reçu en cours de match');
+  if (Object.keys(brouillon()).length) r.push('un comptage commencé mais pas clôturé');
+  return r;
+}
 function memoBrouillon(partie) {
   if (state.clotures[state.tab] || !document.getElementById('cl-fond')) return;
   state.brouillons = state.brouillons || {};
@@ -1998,8 +2029,32 @@ function cloturerCaisse() {
   if (c.nbCb > 0 && (tpe == null || isNaN(tpe))) { info('Saisis le total du ticket de fin du TPE'); document.getElementById('cl-tpe').focus(); return; }
   const tpeId = (document.getElementById('cl-tpe-id') || {}).value || '';
   if (c.nbCb > 0 && !tpeId) { info('Choisis le TPE utilisé à cette buvette'); document.getElementById('cl-tpe-id').focus(); return; }
+  // Terminal inhabituel : on ne bloque pas définitivement (un échange de TPE est possible),
+  // mais on force une confirmation explicite. Sans ce garde-fou, une mauvaise ligne choisie
+  // dans une liste de six passe inaperçue et l'écart CB devient inexplicable après coup.
+  const tpeAtt = TPE_ATTENDU[state.tab];
+  if (c.nbCb > 0 && tpeAtt && tpeId !== tpeAtt) {
+    const nomAtt = (TPES.find(t => t.id === tpeAtt) || {}).nom || tpeAtt;
+    const nomDec = (TPES.find(t => t.id === tpeId) || {}).nom || tpeId;
+    const autreContrat = contratDe(tpeId) !== contratDe(tpeAtt);
+    const sig = state.tab + '|' + tpeId;
+    if (tpeConfirme !== sig) {
+      tpeConfirme = sig;
+      info('⚠️ ' + state.tab + ' utilise d\'habitude le ' + nomAtt + ', pas le ' + nomDec + '.'
+        + (autreContrat ? ' Ce terminal relève d\'un AUTRE contrat commerçant.' : '')
+        + ' Vérifie le ticket Z. Si c\'est bien celui-là, touche à nouveau Clôturer.');
+      return;
+    }
+  }
   const { inv, manque, nonCompte } = lireInventaire();
   if (manque.length) { info('Inventaire à compléter : ' + manque.slice(0, 3).join(', ') + (manque.length > 3 ? '…' : '') + ' (ou coche « je ne peux pas compter »)'); return; }
+  // Il y a DEUX clôtures : la caisse et la marchandise. Clôturer la caisse sans inventaire
+  // laisse le coût matière du match sans base et gonfle la marge, en silence. Si du stock a
+  // été préparé, il faut donc soit un comptage, soit un comptage raté DÉCLARÉ.
+  if (stockSuivi() && aStockPrepare() && !Object.keys(inv).length) {
+    info('⛔ Rien n\'a été clôturé : il manque l\'inventaire. Compte le stock restant, ou touche « 💶 Clôturer la caisse seulement » pour déclarer le comptage raté.');
+    return;
+  }
   if (!nonCompte) {
     const sus = ecartsSuspects(inv), sig = JSON.stringify(inv);
     if (sus.length && ecartConfirme !== sig) {
@@ -2018,13 +2073,19 @@ function cloturerCaisse() {
     gobeletsSortis: c.consigne, gobeletsRendus: c.rendue, gob: Object.assign({}, c.gob), lignes: Object.assign({}, c.lignes),
     tpe: tpe == null || isNaN(tpe) ? null : tpe, ecartCb: tpe == null || isNaN(tpe) ? null : Math.round((tpe - c.cb) * 100) / 100,
     stock: stockSuivi() ? stockSnapshot() : {}, inventaire: inv, nonCompte: !!nonCompte, tpeId,
+    // Numéro de contrat commerçant et conformité à la flotte : conservés pour le rapprochement CB
+    tpeContrat: contratDe(tpeId), tpeAttendu: TPE_ATTENDU[state.tab] || '',
+    tpeConforme: !TPE_ATTENDU[state.tab] || !tpeId || tpeId === TPE_ATTENDU[state.tab],
     benev: Object.assign({}, c.benev), nbBenev: c.nbBenev, mouvCaisse: totalMouv(), envoyee: false };
-  invNonCompte = false; ecartConfirme = '';
+  invNonCompte = false; ecartConfirme = ''; tpeConfirme = '';
   if (state.brouillons) delete state.brouillons[state.tab];
   save();
   envoyerVentes();
   afficherRapport();
-  info('🔒 Caisse clôturée');
+  // On nomme les deux clôtures : le bénévole doit savoir laquelle il vient de faire.
+  info(nonCompte
+    ? '🔒 Caisse clôturée · 📦 marchandise : comptage raté déclaré (stock théorique repris)'
+    : '🔒 Caisse clôturée · 📦 marchandise comptée');
 }
 // Clôture caisse sans inventaire : même envoi, stock théorique (comme la case « je ne peux pas compter »)
 function cloturerCaisseSeule() { invNonCompte = true; cloturerCaisse(); if (!state.clotures[state.tab]) invNonCompte = false; }
@@ -2052,22 +2113,39 @@ function ajouterReassort() {
   info('📦 Stock ajouté à ' + state.tab);
   envoyerReassorts();
 }
+// Reassorts encore dans la tablette : ils doivent partir, sinon le fut apporte en cours de
+// match n'entre jamais dans le cout matiere. Compte utilise par renderNet et le bilan.
+function reassortsEnAttente() { return (state.reassorts || []).filter(x => !x.envoye).length; }
+let tpeConfirme = '';   // confirmation explicite d'un terminal inhabituel (bug 12)
 let reassortEnCours = false;
 async function envoyerReassorts() {
   const r = state.reassorts.find(x => !x.envoye);
-  if (!r || reassortEnCours || !state.url || !state.token) return;
+  if (!r || reassortEnCours || !state.url || !state.token) { renderNet(); return; }
   reassortEnCours = true;
   try {
     const res = await (await fetchT(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
       body: JSON.stringify({ action:'reassort', token: state.token, reassort: r }) })).json();
     if (res.status !== 'ok') throw new Error(res.message || 'refus');
     r.envoye = true; if (res.prepa && state.match) state.match.prepa = res.prepa;   // déjà compté ici : pas de rechargement en double
+    // Référence que le Sheet n'a pas reconnue : elle n'entrera pas dans le coût du match.
+    // On le dit au comptoir plutôt que de la perdre en silence.
+    if (res.refuses && res.refuses.length) {
+      r.refuses = res.refuses;
+      info('\u26a0\ufe0f Stock reçu : ' + res.refuses.join(', ') + ' non reconnu(s) par le Sheet. Signale-le, le reste est bien enregistré.');
+    }
     state.reassorts = state.reassorts.filter(x => !x.envoye || Date.now() - Date.parse(x.ts) < 2 * 86400000);
     save();
     reassortEnCours = false;
     if (document.getElementById('m-bilan').classList.contains('open')) afficherRapport();
+    renderNet();
     envoyerReassorts();
-  } catch(e) { reassortEnCours = false; }
+  } catch(e) {
+    // Reseau coupe : on reessaie. Sans cette relance, un reassort saisi hors ligne
+    // ne repartait JAMAIS (une seule tentative, aucun signal a l'ecran).
+    reassortEnCours = false;
+    renderNet();
+    if (navigator.onLine !== false) setTimeout(envoyerReassorts, 20000);
+  }
 }
 async function envoyerCloture() {
   envoyerReassorts();
@@ -2168,12 +2246,17 @@ async function chargerMatch(auto) {
     if (d.status !== 'ok') throw new Error(d.message || 'réponse invalide');
     const nouveau = !state.match || state.match.eventId !== d.match.eventId;
     const ventesEnCours = Object.values(state.cumul).reduce((a, c) => a + (c.ventes || 0), 0);
-    if (nouveau && ventesEnCours > 0) {
+    // Avant, la confirmation n'était demandée que si le compteur de ventes était non nul :
+    // une tablette dont les ventes étaient déjà envoyées mais qui gardait un brouillon de
+    // clôture basculait sur le nouveau match SANS RIEN DEMANDER, et le brouillon disparaissait.
+    const aGarder = resteAEnvoyer();
+    if (nouveau && (ventesEnCours > 0 || aGarder.length)) {
       chargementEnAttente = d;
       if (auto) { renderBanner(); return; }
       const box = document.getElementById('reset-confirm');
       box.hidden = false;
-      box.querySelector('p').textContent = `Nouveau match : ${d.match.nom}. Les compteurs (${ventesEnCours} ventes) repartiront à zéro. Les ventes pas encore envoyées sont gardées.`;
+      box.querySelector('p').textContent = `Nouveau match : ${d.match.nom}. Les compteurs (${ventesEnCours} ventes) repartiront à zéro. Les ventes pas encore envoyées sont gardées.`
+        + (aGarder.length ? ` ⚠️ Il reste à envoyer : ${aGarder.join(', ')}.` : '');
       st.hidden = true;
       return;
     }
@@ -2206,7 +2289,22 @@ function appliquerChargement(d, nouveau) {
   (state.reassorts || []).filter(r => !r.envoye && r.buvette === state.tab && r.matchId === d.match.idMatch)
     .forEach(r => Object.entries(r.ajout).forEach(([k, q]) => { state.stocks[state.tab][k] = (Number(state.stocks[state.tab][k]) || 0) + q; }));
   if (d.billetsOk) { const m = {}; (d.billets || []).forEach(([code, id, tarif, nom, profil]) => { m[code] = [id, tarif, nom || '', profil || '']; }); state.billets = m; }
-  if (nouveau) { state.cumul = {}; state.historique = []; state.clotures = {}; state.brouillons = {}; state.mouvCaisse = {}; state.releves = {}; state.modeFin = false; derniereCmd = null; state.forcer = {}; state.offertes = {}; state.hh = {}; panier = nouveauPanier(); billet = null; }
+  if (nouveau) {
+    // On ARCHIVE le match précédent avant de remettre les compteurs à zéro. Avant, clôtures,
+    // brouillons, mouvements de caisse et relevés étaient simplement effacés : si quelque chose
+    // n'était pas arrivé au Sheet, c'était perdu sans trace. Deux matchs sont conservés.
+    const ancien = (state.match && state.match.idMatch) || 'inconnu';
+    const aArchiver = { clotures: state.clotures || {}, brouillons: state.brouillons || {},
+      mouvCaisse: state.mouvCaisse || {}, releves: state.releves || {}, fond: state.fond || {},
+      stocks: state.stocks || {}, archiveLe: new Date().toISOString() };
+    const plein = Object.keys(aArchiver.clotures).length || Object.keys(aArchiver.brouillons).length
+      || Object.keys(aArchiver.mouvCaisse).length || Object.keys(aArchiver.releves).length;
+    state.archives = state.archives || {};
+    if (plein) state.archives[ancien] = aArchiver;
+    const ids = Object.keys(state.archives);
+    if (ids.length > 2) ids.slice(0, ids.length - 2).forEach(k => { delete state.archives[k]; });
+    state.cumul = {}; state.historique = []; state.clotures = {}; state.brouillons = {}; state.mouvCaisse = {}; state.releves = {}; state.modeFin = false; derniereCmd = null; state.forcer = {}; state.offertes = {}; state.hh = {}; panier = nouveauPanier(); billet = null;
+  }
   else if (reassort) state.forcer = {};   // nouveau stock reçu : on refait confiance au comptage
   fusionnerOffertes(d);
   appliquerFondsMatch();
@@ -2224,7 +2322,12 @@ function fusionnerOffertes(d) {
   d.offertes.forEach(c => { state.offertes[String(c).toLowerCase()] = 1; });
 }
 function confirmerNouveauMatch() {
-  if (Object.values(state.clotures || {}).some(x => !x.envoyee)) { info('⏳ Le rapport de fin de match n\'est pas encore arrivé au Sheet : attends le wifi avant de changer de match'); return; }
+  // Le verrou couvrait la clôture envoyée, pas le comptage en cours : on couvre les deux.
+  const reste = resteAEnvoyer();
+  if (reste.length) {
+    info('⏳ Pas encore arrivé au Sheet : ' + reste.join(', ') + '. Attends le wifi, ou clôture, avant de changer de match.');
+    return;
+  }
   document.getElementById('reset-confirm').hidden = true;
   if (chargementEnAttente) { const d = chargementEnAttente; chargementEnAttente = null; appliquerChargement(d, true); }
 }
@@ -2269,6 +2372,7 @@ appliquerFondsMatch();
 renderAll();
 chargerVisuels();
 envoyerVentes();
+envoyerReassorts();          // un réassort resté en attente d'un match précédent repart au démarrage
 setTimeout(() => chargerMatch(true), 1500);
 try { if (!localStorage.getItem('buvette_aide_vue')) ouvrir('m-aide'); } catch(e) {}
 // Mise à jour toute seule : la tablette cherche une nouvelle version toutes les 5 minutes (avec du réseau) et se recharge
