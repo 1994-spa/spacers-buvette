@@ -477,16 +477,43 @@ function pilCompterRefs_(idm) {
       .findAll().filter(function (rg) { return rg.getSheet().getName() !== nom; }).length;
   } catch (e) { return 1; }
 }
+// Renomme les propriétés indexées par ID_MATCH. Renvoie la liste des conflits rencontrés,
+// pour qu'ils apparaissent dans le rapport de synchronisation.
+//
+// Les familles indexées par match sont PIL_PREPA_, PIL_INVENTAIRE_, PIL_CLOTURE_,
+// PIL_REASSORTS_ et PIL_PMP_ (le PMP figé du match). Un test vérifie cette liste en rescannant
+// le code : toute nouvelle famille suffixée par un ID_MATCH doit être ajoutée ICI, sinon un
+// renommage la laisse orpheline. PIL_REASSORTS_ manquait : un renommage déplaçait la préparation, l'inventaire
+// et la clôture mais laissait le journal des réassorts orphelin sous l'ancien ID, donc
+// introuvable. Depuis que le départ réel vaut « déclaré + journal », cet oubli efface
+// directement du stock du coût matière.
+//
+// Et quand la destination existait déjà, le deleteProperty s'exécutait quand même : le
+// contenu de la source était détruit sans trace, sans message et sans journal. On ne
+// supprime plus rien dans ce cas. Une propriété laissée sous un ID absent de 📅 MATCHS est
+// simplement ignorée par les calculs (pilStockClub_ saute les ID sans date), donc la garder
+// ne fausse aucun chiffre et la rend récupérable à la main.
 function pilRenommerProps_(a, b) {
   const p = PropertiesService.getScriptProperties();
-  ['PIL_PREPA_', 'PIL_INVENTAIRE_', 'PIL_CLOTURE_'].forEach(function (pre) {
+  const conflits = [];
+  // Porte de sortie : poser la propriété de script PIL_RENOMMAGE_OFF = 1 neutralise le SEUL
+  // renommage d'ID_MATCH. Le reste de la synchronisation (adversaires, billets, affluences,
+  // fidélité) continue normalement. Se règle dans Paramètres du projet → Propriétés du script,
+  // sans coller de code. À retirer une fois le doute levé.
+  if (String(p.getProperty('PIL_RENOMMAGE_OFF') || '') === '1') {
+    return ['renommage neutralisé (PIL_RENOMMAGE_OFF = 1) : propriétés de ' + a + ' laissées en place'];
+  }
+  ['PIL_PREPA_', 'PIL_INVENTAIRE_', 'PIL_CLOTURE_', 'PIL_REASSORTS_', 'PIL_PMP_'].forEach(function (pre) {
     const v = p.getProperty(pre + a);
     if (v == null) return;
-    if (p.getProperty(pre + b) == null) p.setProperty(pre + b, v);
-    p.deleteProperty(pre + a);
+    const dest = p.getProperty(pre + b);
+    if (dest == null) { p.setProperty(pre + b, v); p.deleteProperty(pre + a); return; }
+    if (dest === v) { p.deleteProperty(pre + a); return; }        // contenu identique : rien à perdre
+    conflits.push(pre + b + ' existe déjà avec un autre contenu : ' + pre + a + ' CONSERVÉ, à arbitrer à la main');
   });
   const act = pilActif_();
   if (act && act.idMatch === a) { act.idMatch = b; p.setProperty('PIL_MATCH_ACTIF', JSON.stringify(act)); }
+  return conflits;
 }
 // Répare les lignes déjà écrites avec le mauvais adversaire (soirées doubles mal découpées).
 // Lancé à chaque synchronisation : la correction est portée par le code, pas par une saisie à la main.
@@ -512,8 +539,11 @@ function pilCorrigerAdversaires_(evs) {
         if (n) note += ' · ID_MATCH gardé (' + n + ' ligne(s) déjà rattachée(s) à ' + idAct + ')';
         else {
           sh.getRange(r + 1, cId + 1).setValue(idAttendu);
-          pilRenommerProps_(idAct, idAttendu);
+          const conflits = pilRenommerProps_(idAct, idAttendu);
           note += ' · ID_MATCH → ' + idAttendu;
+          // Un conflit de renommage ne doit pas passer inaperçu : il remonte dans le rapport
+          // de synchronisation, au même endroit que la correction qui l'a provoqué.
+          if (conflits.length) note += ' · ⚠️ ' + conflits.join(' · ');
         }
       }
       rapport.push(note);
@@ -596,25 +626,91 @@ function pilEnregistrerPrepa_(eventId, stocks) {
     Object.keys(stocks[b]).forEach(function (ref) { prepa[b][ref] = Math.max(0, Math.round((Number(stocks[b][ref]) || 0) * 100) / 100); });
   });
   pilSetProp_('PIL_PREPA_' + idm, prepa);
-  const actifCell = SpreadsheetApp.getActiveSpreadsheet().getRangeByName('MATCH_ACTIF');   // 🏠 ACCUEIL
-  if (actifCell) actifCell.setValue(idm); else { const pilot = pilSheet_('PILOTAGE'); if (pilot) pilot.getRange('B9').setValue(idm); }
-  PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify({ eventId: eventId, idMatch: idm, saved: now.toISOString() }));
-  return { idMatch: idm, saved: now.toISOString() };
+  // Enregistrer la préparation d'un match PASSÉ (correction d'après-match) ne doit pas
+  // déplacer le match actif : une tablette qui se charge à cet instant encaisserait sur
+  // le match d'avant. On ne bascule que vers un match du jour ou à venir.
+  const aujourdhui = pilDate_(now);
+  const futur = !ev.dateMatch || ev.dateMatch >= aujourdhui;
+  const actifAvant = pilActif_();
+  if (futur) {
+    const actifCell = SpreadsheetApp.getActiveSpreadsheet().getRangeByName('MATCH_ACTIF');   // 🏠 ACCUEIL
+    if (actifCell) actifCell.setValue(idm); else { const pilot = pilSheet_('PILOTAGE'); if (pilot) pilot.getRange('B9').setValue(idm); }
+    PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify({ eventId: eventId, idMatch: idm, saved: now.toISOString() }));
+    return { idMatch: idm, saved: now.toISOString(), actif: true };
+  }
+  return { idMatch: idm, saved: now.toISOString(), actif: false,
+    actifInchange: actifAvant ? actifAvant.idMatch : '',
+    message: 'Stock enregistré pour ' + idm + ' (match déjà joué) : le match actif des tablettes n\'a pas été déplacé'
+      + (actifAvant && actifAvant.idMatch ? ' (toujours ' + actifAvant.idMatch + ')' : '') + '.' };
 }
-// Stock reçu pendant le match, saisi sur la tablette : ajouté au stock de départ de la buvette (coût matière juste)
+// ── Réassorts : journalisés, et ajoutés AU MOMENT DE LA LECTURE ──────────
+// PIL_PREPA_<idm> ne contient désormais QUE le départ déclaré au tableau de bord.
+// Le stock reçu en cours de match vit dans PIL_REASSORTS_<idm> et s'ajoute à la lecture.
+// Pourquoi : PIL_PREPA était un total mutable mélangeant les deux sources, et
+// pilEnregistrerPrepa_ l'écrase ligne à ligne depuis le formulaire. Un formulaire chargé
+// avant un réassort (la boucle d'auto-rafraîchissement ne recharge pas la préparation)
+// reversait donc le total et effaçait définitivement le réassort, qu'aucun calcul ne
+// relisait dans son journal. Désormais aucune sauvegarde ne peut plus l'effacer.
+//
+// Seules les entrées qui déclarent EXPLICITEMENT ne pas avoir été appliquées (applique === false)
+// sont additionnées. Ce drapeau n'est écrit que par le code ci-dessous. Toute entrée sans drapeau
+// vient de l'ancien code, qui l'additionnait lui-même dans PIL_PREPA : la compter ici la
+// compterait deux fois. Le défaut est donc volontairement du côté sans risque — un réassort
+// ancien reste tel qu'il a été enregistré, jamais doublé.
+//
+// Conséquence voulue : la correction tient même si migrerReassortsAppliques() n'est pas lancée.
+// Cette migration ne fait plus que rendre l'état explicite pour l'audit. Et pendant la fenêtre où
+// des tablettes anciennes parlent au serveur nouveau, rien ne change : la tablette n'écrit jamais
+// PIL_PREPA (elle n'a pas accès aux propriétés du script), elle ne fait que poster son réassort.
+// C'est le serveur qui décide, donc une seule version du calcul s'applique à la fois.
+function pilReassortsTotaux_(idm) {
+  const out = {};
+  pilProp_('PIL_REASSORTS_' + idm, []).forEach(function (x) {
+    if (!x || x.applique !== false) return;
+    const b = String(x.buvette || ''); if (!b) return;
+    out[b] = out[b] || {};
+    Object.keys(x.ajout || {}).forEach(function (ref) {
+      const q = Number(x.ajout[ref]) || 0;
+      if (q > 0) out[b][ref] = Math.round(((out[b][ref] || 0) + q) * 100) / 100;
+    });
+  });
+  return out;
+}
+// Départ RÉEL du match = départ déclaré + réassorts non encore intégrés.
+// C'est la seule base à utiliser pour le coût matière, le mouvement du stock du club
+// et le stock théorique des tablettes. pilStocksPrepa_ reste le départ déclaré seul,
+// réservé au formulaire du tableau de bord et à son enregistrement.
+function pilStocksDepart_(idm) {
+  const out = pilStocksPrepa_(idm), rea = pilReassortsTotaux_(idm);
+  Object.keys(rea).forEach(function (b) {
+    if (!out[b]) return;
+    Object.keys(rea[b]).forEach(function (ref) {
+      if (out[b][ref] == null) return;
+      out[b][ref] = Math.round((out[b][ref] + rea[b][ref]) * 100) / 100;
+    });
+  });
+  return out;
+}
+// Stock reçu pendant le match, saisi sur la tablette : journalisé ici, jamais écrit dans PIL_PREPA
 function pilEnregistrerReassort_(r) {
   if (!r.id || !r.matchId || PIL.BUVETTES.indexOf(r.buvette) < 0) throw new Error('Réassort incomplet');
   const deja = pilProp_('PIL_REASSORTS_' + r.matchId, []);
   const actif = pilActif_();
   if (deja.some(function (x) { return x.id === r.id; })) return { recu: r.id, prepa: actif && actif.idMatch === r.matchId ? actif.saved : null };
-  const prepa = pilStocksPrepa_(r.matchId), ajout = {};
+  const connues = pilStocksPrepa_(r.matchId), ajout = {}, refuses = [];
   Object.keys(r.ajout || {}).forEach(function (ref) {
     const q = Math.round((Number(r.ajout[ref]) || 0) * 100) / 100;
-    if (q <= 0 || prepa[r.buvette][ref] == null) return;
-    prepa[r.buvette][ref] = Math.round((prepa[r.buvette][ref] + q) * 100) / 100; ajout[ref] = q;
+    if (q <= 0) return;
+    // Référence inconnue de 📦 PRODUITS : on la refuse, mais on le DIT (avant, l'ajout
+    // disparaissait en silence et le journal gardait un ajout vide, impossible à expliquer après coup).
+    if ((connues[r.buvette] || {})[ref] == null) { refuses.push(ref); return; }
+    ajout[ref] = q;
   });
-  pilSetProp_('PIL_PREPA_' + r.matchId, prepa);
-  deja.push({ id: r.id, ts: r.ts, buvette: r.buvette, ajout: ajout, recu: new Date().toISOString() });
+  // On journalise TOUJOURS, même si tout a été refusé : faire échouer la requête ferait
+  // réessayer la tablette sans fin (boucle de reprise). Les refus repartent dans la réponse
+  // pour être affichés au comptoir — c'est le silence de l'ancien code qui a rendu
+  // les écarts de Tours inexplicables, pas le refus lui-même.
+  deja.push({ id: r.id, ts: r.ts, buvette: r.buvette, ajout: ajout, applique: false, recu: new Date().toISOString(), refuses: refuses });
   pilSetProp_('PIL_REASSORTS_' + r.matchId, deja);
   let saved = null;
   if (actif && actif.idMatch === r.matchId) {   // nouveau repère : le tableau de bord et les autres tablettes voient le changement
@@ -622,7 +718,7 @@ function pilEnregistrerReassort_(r) {
     PropertiesService.getScriptProperties().setProperty('PIL_MATCH_ACTIF', JSON.stringify(actif));
   }
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}
-  return { recu: r.id, prepa: saved };
+  return { recu: r.id, prepa: saved, refuses: refuses, ajout: ajout };
 }
 function pilStocksPrepa_(idm) {
   const out = {}, saved = pilProp_('PIL_PREPA_' + idm, {});
@@ -636,7 +732,11 @@ function pilLirePrepa_(eventId) {
   if (eventId) { const ev = pilEvent_(eventId); if (ev) idm = pilIdMatch_(ev, false); }
   else if (actif) { idm = actif.idMatch; eventId = actif.eventId; }
   return { eventId: eventId || '', idMatch: idm, actif: actif, lignes: pilLignesStock_(), buvettes: PIL.BUVETTES, reserves: PIL.RESERVES,
-    stocks: idm ? pilStocksPrepa_(idm) : null, tablettes: pilLireJournal_(),
+    // stocks = départ DÉCLARÉ (ce que le formulaire rééditera) ; depart = déclaré + réassorts
+    // (affiché à titre indicatif). Les deux sont distincts pour qu'une sauvegarde du
+    // tableau de bord ne puisse jamais réenregistrer un réassort comme du déclaré.
+    stocks: idm ? pilStocksPrepa_(idm) : null, depart: idm ? pilStocksDepart_(idm) : null,
+    reassortsTotaux: idm ? pilReassortsTotaux_(idm) : {}, tablettes: pilLireJournal_(),
     inventaire: idm ? pilProp_('PIL_INVENTAIRE_' + idm, {}) : {}, reassorts: idm ? pilProp_('PIL_REASSORTS_' + idm, []) : [],
     clotures: idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {}, futLitres: PIL.FUT_LITRES };
 }
@@ -651,7 +751,8 @@ function pilChargerTablette_(buvette) {
   try { billets = pilListerBillets_(ev.id).concat(pilListerBillets_(PIL.ABONNEMENT_EVENT_ID)); } catch (e) { billetsOk = false; }
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
-    buvette: buvette, stock: pilStocksPrepa_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
+    // départ réel (réassorts compris) : le stock théorique de la tablette les intègre
+    buvette: buvette, stock: pilStocksDepart_(actif.idMatch)[buvette], futLitres: PIL.FUT_LITRES, produits: pilPrixTablette_(),
     // Structure de stock lue dans 📦 PRODUITS : { réf: { unite, services } }. La tablette s'en sert pour
     // convertir verres/doses ↔ bouteilles ; sans réseau elle garde ses valeurs par défaut.
     stockCat: (function () { const o = {}; pilLignesStock_().forEach(function (l) { o[l[0]] = { unite: l[3], services: l[4] }; }); return o; })(),
@@ -742,6 +843,11 @@ function pilEnregistrerVentes_(ventes) {
       t.ticket_id || '', t.barcode || '', t.tarif || '', '',
       [v.annule ? 'annulation de ' + v.annule : '',
        v.offerte && v.offerte.ref ? 'boisson offerte ' + v.offerte.ref + ' (' + (v.profilRemise || 'billet') + ') : ' + (Number(v.offerte.montant) || 0).toFixed(2).replace('.', ',') + ' €' : '',
+       // Même famille que le défaut du prix ci-dessous : « Number(x) || défaut » écrase un zéro
+       // légitime. Ici et à la ligne suivante, le zéro est aujourd'hui impossible — l'expression
+       // n'est évaluée que si Number(v.hh.n) puis pilRemiseHorsHh_(v) sont vrais, donc un taux
+       // existe. Ces deux replis ne touchent que le libellé de la colonne Fidélité, pas l'argent.
+       // Ne pas retirer ces gardes sans remplacer les || par un test d'absence explicite.
        v.hh && Number(v.hh.n) ? 'happy hour ' + Math.round((Number(v.hh.taux) || 0.5) * 100) + ' % : ' + Number(v.hh.n) + ' boisson' + (Number(v.hh.n) > 1 ? 's' : '') + ' · ' + (Number(v.hh.montant) || 0).toFixed(2).replace('.', ',') + ' €' : '',
        pilRemiseHorsHh_(v) ? 'remise ' + (v.profilRemise === 'ABO' ? 'abonné' : v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise] ? v.profilRemise : 'billet') + ' ' + Math.round((v.hh ? (v.profilRemise === 'ABO' || (v.profilRemise && !PIL.BILLETS_BOISSON[v.profilRemise]) ? 0.10 : 0.05) : (Number(v.tauxRemise) || 0.05)) * 100) + ' % : ' + pilRemiseHorsHh_(v).toFixed(2).replace('.', ',') + ' €' : '']
         .filter(Boolean).join(' · ')];
@@ -749,7 +855,14 @@ function pilEnregistrerVentes_(ventes) {
     row.push(v.paiement === 'CB' ? 'CB' : v.paiement === 'ESP' ? 'ESP' : v.paiement === 'BENEVOLE' ? 'BENEVOLE' : '');
     rows.push(row);
     Object.keys(v.lignes || {}).forEach(function (ref) {
-      const q = Number(v.lignes[ref]) || 0, p = pilProduit_(ref), pu = Number((v.prix || {})[ref]) || p[2];
+      const q = Number(v.lignes[ref]) || 0, p = pilProduit_(ref);
+      // Prix réellement encaissé par verre, envoyé par la tablette. Il vaut légitimement 0
+      // quand la boisson offerte (billet « place + boisson ») est le seul avantage de la vente :
+      // « Number(0) || p[2] » retombait alors sur le prix catalogue et écrivait la ligne plein
+      // tarif, alors que le Total € encaissé était bien net. Il faut distinguer « absent »
+      // (tablette ancienne, prix non transmis → prix catalogue) de « zéro » (gratuit, à garder).
+      const px = (v.prix || {})[ref];
+      const pu = (px === null || px === undefined || px === '' || isNaN(Number(px))) ? p[2] : Number(px);
       if (q) vdRows.push([idm, day, b, ref, p[1], q, pu, 0, q * pu, 0, v.paiement === 'BENEVOLE' ? (v.annule ? 'ANNULATION_BENEVOLE' : 'BENEVOLE') : v.annule ? 'ANNULATION' : 'VENTE']);
     });
     // Écocups par taille (E33 / E50) ; tablette ancienne version sans détail → E01
@@ -825,8 +938,17 @@ function pilEnregistrerCloture_(c) {
     esp: c.esp, nbEsp: c.nbEsp, fond: c.fond, attendu: c.attendu, compte: c.compte, ecart: c.ecart,
     gobeletsSortis: c.gobeletsSortis, gobeletsRendus: c.gobeletsRendus, gob: c.gob || null, stock: c.stock || {},
     tpe: c.tpe == null ? null : c.tpe, ecartCb: c.ecartCb == null ? null : c.ecartCb, tpeId: c.tpeId || '',
+    // Contrat commerçant du terminal et conformité à la flotte buvette : un terminal d'un autre
+    // contrat explique un écart CB, encore faut-il que l'information survive à la clôture.
+    tpeContrat: c.tpeContrat || '', tpeAttendu: c.tpeAttendu || '', tpeConforme: c.tpeConforme !== false,
     nonCompte: !!c.nonCompte, benev: c.benev || {}, nbBenev: Number(c.nbBenev) || 0,
-    mouvCaisse: Number(c.mouvCaisse) || 0 };   // argent pris (−) / monnaie apportée (+) par le responsable en cours de match
+    mouvCaisse: Number(c.mouvCaisse) || 0,   // argent pris (−) / monnaie apportée (+) par le responsable en cours de match
+    // Il y a DEUX clôtures : celle de la caisse (cet enregistrement) et celle de la marchandise
+    // (PIL_INVENTAIRE_). Une tablette peut clôturer sa caisse sans envoyer d'inventaire : la
+    // seconde n'existe alors pas, et comme le coût matière ne dépend que d'elle, la marge se
+    // gonfle en silence. On inscrit donc l'état de la clôture marchandise ici aussi, pour qu'il
+    // soit lisible même quand aucun inventaire n'est arrivé.
+    marchandise: (c.inventaire && Object.keys(c.inventaire).length) ? (c.nonCompte ? 'théorique' : 'comptée') : 'absente' };
   pilSetProp_('PIL_CLOTURE_' + idm, all);
   if (c.inventaire && Object.keys(c.inventaire).length) {
     // Inventaire compté : il remplace le stock théorique (reste réel pour la commande suivante).
@@ -973,8 +1095,20 @@ function pilDashboard_(eventId) {
   }
   const stock = pilProp_('PIL_STOCK', {});
   const clotures = idm ? pilProp_('PIL_CLOTURE_' + idm, {}) : {};
+  // Clôture marchandise : le tableau de bord en a besoin pour l'afficher à part de la caisse.
+  // prepares = points de vente et réserves réellement préparés pour ce match (départ non nul) :
+  // seuls ceux-là doivent être réclamés, la réserve bénévoles comprise si elle a été préparée.
+  const inventaire = idm ? pilProp_('PIL_INVENTAIRE_' + idm, {}) : {};
+  const prepares = [];
+  if (idm) {
+    const dep = pilStocksDepart_(idm);
+    PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) {
+      if (Object.keys(dep[b] || {}).some(function (r) { return Number(dep[b][r]) > 0; })) prepares.push(b);
+    });
+  }
   const graph = pilGraphiques_(data, rows, idm);
   return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(), clotures: clotures,
+    inventaire: inventaire, prepares: prepares, reserves: PIL.RESERVES,
     produits: pilProduitsCols_().map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString(),
     serie: graph.serie, saison: graph.saison, fonds: PIL.FONDS_CAISSE, sansCaisse: PIL.BUVETTES_SANS_CAISSE };
 }
@@ -1236,7 +1370,8 @@ function pilStockClub_(idmExclu) {
   PropertiesService.getScriptProperties().getKeys().filter(function (k) { return k.indexOf('PIL_PREPA_') === 0; }).forEach(function (k) {
     const idm = k.slice('PIL_PREPA_'.length), date = dates[idm];
     if (!date || idm === idmExclu || (R.base && date <= baseDate)) return;
-    const prepa = pilStocksPrepa_(idm), inv = pilProp_('PIL_INVENTAIRE_' + idm, {}), clot = pilProp_('PIL_CLOTURE_' + idm, {});
+    // départ réel : un fût apporté en cours de match est bien sorti de la réserve du club
+    const prepa = pilStocksDepart_(idm), inv = pilProp_('PIL_INVENTAIRE_' + idm, {}), clot = pilProp_('PIL_CLOTURE_' + idm, {});
     const sorti = pilQtesPrepa_({}), revenu = pilQtesPrepa_({});
     let fini = 0;
     PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) {
@@ -1598,4 +1733,55 @@ function pilotageDetailBuvette(silencieux) {
   if (!silencieux) { try { ss.toast(out.length + ' ligne(s) dans ' + PIL_DETAIL_TAB); } catch (e) {} }
   try { pilotageStockEcocups(true); } catch (e) {}   // 🥤 STOCK ÉCOCUPS suit le détail buvette
   return out.length;
+}
+
+/**
+ * migrerReassortsAppliques — À LANCER UNE SEULE FOIS, avec le déploiement du correctif réassorts.
+ *
+ * Marque applique:true sur toutes les entrées existantes de PIL_REASSORTS_*, pour rendre leur
+ * état explicite dans les audits. Ces réassorts ont déjà été additionnés dans PIL_PREPA par
+ * l'ancien code.
+ *
+ * ELLE N'EST PAS UN PRÉALABLE : pilReassortsTotaux_ n'additionne que les entrées portant
+ * applique === false, drapeau que seul le nouveau code écrit. Une entrée ancienne, sans drapeau,
+ * est donc déjà ignorée. Oublier cette migration ne double rien — elle ne sert qu'à la lisibilité.
+ *
+ * Idempotente : relancer ne fait rien de plus. N'écrit que dans les propriétés du script,
+ * jamais dans le classeur.
+ */
+function migrerReassortsAppliques() {
+  const p = PropertiesService.getScriptProperties();
+  const cles = p.getKeys().filter(function (k) { return k.indexOf('PIL_REASSORTS_') === 0; });
+  const L = ['MIGRATION DES RÉASSORTS — bornage aux matchs à venir', ''];
+  let marquees = 0, deja = 0, actives = 0;
+  cles.sort().forEach(function (k) {
+    const j = pilProp_(k, []);
+    if (!Array.isArray(j) || !j.length) return;
+    let n = 0, a = 0;
+    j.forEach(function (x) {
+      if (!x) return;
+      // On ne touche QUE les entrées sans drapeau : elles viennent de l'ancien code et sont
+      // déjà dans PIL_PREPA. Une entrée applique:false est un réassort écrit par le NOUVEAU
+      // code, légitimement additionné à la lecture : la marquer true le retirerait du départ.
+      // C'est ce qui rend cette migration rejouable sans rien perdre.
+      if (x.applique === undefined) { x.applique = true; n++; }
+      else if (x.applique === false) a++;
+      else deja++;
+    });
+    if (n) { pilSetProp_(k, j); marquees += n; }
+    actives += a;
+    L.push('  ' + k.slice('PIL_REASSORTS_'.length) + ' : ' + j.length + ' entrée(s), ' + n
+      + ' ancienne(s) marquée(s) applique:true, ' + a + ' active(s) laissée(s) intacte(s)');
+  });
+  L.push('');
+  L.push('Total : ' + marquees + ' ancienne(s) marquée(s), ' + deja + ' déjà marquée(s), '
+    + actives + ' active(s) laissée(s) intacte(s) — celles-là restent additionnées au départ.');
+  L.push('Effet rétroactif sur les matchs déjà joués : 0,00 € — avant comme après cette migration,');
+  L.push('une entrée sans drapeau applique:false n\'est jamais additionnée.');
+  L.push('Les réassorts de Tours (TOU-21-11) sont gelés eux aussi : leur réintégration');
+  L.push('éventuelle est une décision à part, à prendre après diagnosticReassorts().');
+  Logger.log(L.join('\n'));
+  alerte_('Migration des réassorts\n\n' + marquees + ' entrée(s) marquée(s) « déjà appliquée ».\n'
+    + 'Effet rétroactif : 0,00 €.\n\nDétail : Affichage → Journaux.');
+  return { marquees: marquees };
 }

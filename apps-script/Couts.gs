@@ -118,27 +118,54 @@ function cumpEcartJours_(a, b) {
 }
 
 // Quantités d'une facture : colonne QUANTITÉ d'abord, puis la livraison rattachée.
+// HORS : mot-clé de la colonne QUANTITÉ de 🛒 ACHATS réservé au MONTANT HT, en euros, de ce qui
+// n'est pas du stock buvette sur cette facture.
+//
+// Exemple réel, facture Crouzil du 19/11 (1 592,40 € HT) :
+//     bière                1 125,00
+//     accise 0,34 €/L        152,10   →  part fûts 1 277,10  →  85,14 € le fût
+//     gaz CO2 3 × 10 kg      312,31
+//     frais de gestion         2,99   →  HORS        315,30
+//                          ---------
+//     base taxable         1 592,40
+//   soit, dans la colonne QUANTITÉ :  FUT 15 ; HORS 315,30
+//
+// Recoupement : 85,14 € le fût ici, contre 85,34 € sur la facture mono-référence du 02/11 qui ne
+// portait que de la bière. Deux factures indépendantes à dix-sept jours d'écart, vingt centimes
+// d'écart : un fût de 30 L revient à 85-90 € HT. Un prix reconstitué hors de cette fourchette
+// signale un montant HORS mal saisi (180,60 € déclaré → 94,12 € le fût ; rien déclaré → 106,16 €).
+//
+// Sans ce mot-clé, une référence inconnue était écartée en silence et tout le montant retombait
+// sur les références restantes, gonflant leur prix unitaire.
+var CUMP_HORS = 'HORS';
 function cumpQtesFacture_(f, refs) {
+  const inconnues = {};
   const propre = function (o) {
     const q = {}; let n = 0;
     Object.keys(o || {}).forEach(function (ref) {
-      if (refs.indexOf(ref) < 0) return;
+      if (ref === CUMP_HORS || ref === 'HORS_STOCK') return;
+      if (refs.indexOf(ref) < 0) {
+        const x = Number(o[ref]) || 0;
+        if (x) inconnues[ref] = (inconnues[ref] || 0) + x;   // gardée pour pouvoir le DIRE
+        return;
+      }
       const x = Number(o[ref]) || 0; if (x) { q[ref] = (q[ref] || 0) + x; n++; }
     });
     return n ? q : null;
   };
   const s = f.saisie;
+  const horsMontant = s ? (Number(s[CUMP_HORS]) || Number(s['HORS_STOCK']) || 0) : 0;
   if (s && s['*'] != null) {   // nombre seul : valable si la livraison rattachée ne porte qu'une référence
     const lq = f.livraison ? propre(f.livraison.qte) : null;
     const seuls = lq ? Object.keys(lq) : [];
-    if (seuls.length === 1) { const q = {}; q[seuls[0]] = Number(s['*']); return { qte: q, source: 'QUANTITÉ (réf. de la livraison)' }; }
-    return { qte: null, source: '', ambigu: true };
+    if (seuls.length === 1) { const q = {}; q[seuls[0]] = Number(s['*']); return { qte: q, source: 'QUANTITÉ (réf. de la livraison)', hors: inconnues, horsMontant: horsMontant }; }
+    return { qte: null, source: '', ambigu: true, hors: inconnues, horsMontant: horsMontant };
   }
   const saisi = propre(s);
-  if (saisi) return { qte: saisi, source: 'QUANTITÉ' };
+  if (saisi) return { qte: saisi, source: 'QUANTITÉ', hors: inconnues, horsMontant: horsMontant };
   const liv = f.livraison ? propre(f.livraison.qte) : null;
-  if (liv) return { qte: liv, source: 'livraison ' + (f.livraison.piece || f.livraison.date) };
-  return { qte: null, source: '' };
+  if (liv) return { qte: liv, source: 'livraison ' + (f.livraison.piece || f.livraison.date), hors: inconnues, horsMontant: horsMontant };
+  return { qte: null, source: '', hors: inconnues, horsMontant: horsMontant };
 }
 
 // Répartition du montant HT d'une facture entre ses références, au prorata de la valeur
@@ -184,6 +211,19 @@ function cumpConstruire_(matchs, cat) {
   // ── 1. Entrées valorisées par les factures ───────────────────────────────
   const entrees = [];                      // { date, qte:{}, valeur:{}, libelle, auPmp }
   const premierPrix = {};                  // ref → prix unitaire de la 1re facture connue
+  // Garde-fou : le montant HORS est tapé à la main, de nuit, après un match. Un prix unitaire
+  // reconstitué très loin du dernier prix connu pour la même référence est presque toujours une
+  // erreur de saisie — c'est ce qui sépare 85,14 € le fût (gaz et frais correctement déduits) de
+  // 94,12 € (hors-stock sous-évalué) ou 106,16 € (hors-stock non déduit). Les factures sont
+  // parcourues par date, donc dernierPu porte bien le prix précédent de la saison.
+  const dernierPu = {};                    // ref → dernier prix unitaire reconstitué
+  // Seuil à 10 % et non 20 % : à 20 %, l'erreur réellement commise sur la facture du 19/11
+  // (HORS sous-évalué à 180,60 € → 94,12 € le fût, soit +10,3 % et 134,70 € de trop sur 15 fûts)
+  // passait sans un mot. Les prix d'achat de la buvette bougent de quelques dixièmes de pour cent
+  // d'une facture à l'autre (85,34 € le 02/11, 85,14 € le 19/11), donc 10 % reste très au-dessus
+  // du bruit réel ; et une hausse fournisseur supérieure à 10 % mérite de toute façon un regard.
+  // C'est une alerte, jamais un blocage.
+  const CUMP_ECART_MAX = 0.10;
   factures.forEach(function (f) {
     const q = cumpQtesFacture_(f, refs);
     if (!q.qte) {
@@ -193,16 +233,57 @@ function cumpConstruire_(matchs, cat) {
       entrees.push({ date: f.date, qte: {}, valeur: {}, libelle: (f.piece || f.libelle).slice(0, 40), montantSeul: f.montant });
       return;
     }
-    const rep = cumpRepartir_(f.montant, q.qte, cat);
+    // Facture mixte : des articles hors stock figurent sur la facture. Leur montant doit être
+    // retiré avant toute répartition, sinon il gonfle le prix unitaire des références suivies.
+    const horsRefs = Object.keys(q.hors || {});
+    let montant = f.montant;
+    if (q.horsMontant > 0) {
+      montant = cumpArr_(f.montant - q.horsMontant);
+      alertes.push('Facture mixte : ' + f.date + ' · ' + (f.piece || f.libelle).slice(0, 60) +
+        ' · ' + cumpEuro_(q.horsMontant) + ' déclaré hors stock (HORS) et retiré avant répartition' +
+        (horsRefs.length ? ' — articles hors stock : ' + horsRefs.join(', ') : '') +
+        '. Reste réparti : ' + cumpEuro_(montant) + '.');
+    } else if (horsRefs.length) {
+      // On REFUSE de valoriser : attribuer tout le montant aux références suivies fausserait leur
+      // prix (facture Crouzil du 19/11 : 15 fûts + 3 CO2, 1 592,40 € → 106,16 € le fût au lieu de
+      // 85-90 €). La facture passe en montant non affecté, et on dit exactement quoi faire.
+      alertes.push('⚠️ Facture NON valorisée (articles hors stock) : ' + f.date + ' · ' +
+        (f.piece || f.libelle).slice(0, 60) + ' · ' + cumpEuro_(f.montant) +
+        ' — elle porte ' + horsRefs.join(', ') + ', inconnu(s) de 📦 PRODUITS. Deux solutions : ' +
+        'ajouter « ; HORS <montant HT des articles hors stock> » dans la colonne QUANTITÉ de 🛒 ACHATS, ' +
+        'ou scinder la facture en deux lignes. Tant que ce n\'est pas fait, elle n\'entre pas dans le PMP. ' +
+        'Repère pour vérifier le montant déclaré : un fût de 30 L revient à 85-90 € HT ' +
+        '(85,34 € sur la facture du 02/11 sans gaz, 85,14 € sur celle du 19/11 gaz et frais déduits). ' +
+        'Si le fût sort loin de cette fourchette, le montant HORS est faux.');
+      entrees.push({ date: f.date, qte: {}, valeur: {}, libelle: (f.piece || f.libelle).slice(0, 40), montantSeul: f.montant });
+      return;
+    }
+    const rep = cumpRepartir_(montant, q.qte, cat);
     Object.keys(q.qte).forEach(function (ref) {
       const qt = Number(q.qte[ref]) || 0;
-      if (qt > 0 && premierPrix[ref] == null) premierPrix[ref] = rep.valeur[ref] / qt;
+      if (qt <= 0) return;
+      const pu = rep.valeur[ref] / qt;
+      // Référence de comparaison : le dernier prix reconstitué pour cette référence, à défaut le
+      // PRIX ACHAT de 📦 PRODUITS. Les deux sont « le dernier prix connu » au sens de l'utilisateur.
+      const connu = dernierPu[ref] != null ? dernierPu[ref] : cumpPrixCatalogue_(cat, ref);
+      const origine = dernierPu[ref] != null ? 'dernier prix reconstitué' : 'PRIX ACHAT de 📦 PRODUITS';
+      if (connu != null && connu > 0 && Math.abs(pu - connu) / connu > CUMP_ECART_MAX) {
+        const ecart = Math.round((pu - connu) / connu * 100);
+        alertes.push('⚠️ Prix unitaire inhabituel : ' + ref + ' à ' + cumpEuro_(pu) + ' sur la facture du ' +
+          f.date + ' · ' + (f.piece || f.libelle).slice(0, 40) + ' — ' + (ecart > 0 ? '+' : '') + ecart +
+          ' % par rapport au ' + origine + ' (' + cumpEuro_(connu) + '). ' +
+          (q.horsMontant > 0
+            ? 'Vérifie le montant HORS déclaré (' + cumpEuro_(q.horsMontant) + ') : c\'est lui qui fixe ce prix.'
+            : 'Vérifie la quantité de la colonne QUANTITÉ, et qu\'aucun article hors stock ne reste sur la facture (mot-clé HORS).'));
+      }
+      dernierPu[ref] = pu;
+      if (premierPrix[ref] == null) premierPrix[ref] = pu;
     });
     if (rep.prorata) alertes.push('Facture à plusieurs références répartie au prorata du prix catalogue : ' +
-      f.date + ' · ' + (f.piece || f.libelle).slice(0, 60) + ' · ' + cumpEuro_(f.montant));
+      f.date + ' · ' + (f.piece || f.libelle).slice(0, 60) + ' · ' + cumpEuro_(montant));
     entrees.push({ date: f.date, qte: q.qte, valeur: rep.valeur, libelle: (f.piece || f.libelle).slice(0, 40), source: q.source });
-    detail.push({ type: 'facture', date: f.date, nom: (f.piece || f.libelle).slice(0, 40), montant: f.montant,
-      qte: q.qte, valeur: rep.valeur, source: q.source });
+    detail.push({ type: 'facture', date: f.date, nom: (f.piece || f.libelle).slice(0, 40), montant: montant,
+      qte: q.qte, valeur: rep.valeur, source: q.source, hors: q.horsMontant || 0 });
   });
   // ── 2. Livraisons sans facture : entrées au PMP en vigueur (quantités justes, PMP non dilué) ──
   livraisons.forEach(function (l) {
@@ -340,6 +421,52 @@ function cumpConstruire_(matchs, cat) {
   };
 }
 
+// ── PMP figé par match ───────────────────────────────────────────────────
+// Le PMP est recalculé à chaque passage de majMatchs sur TOUS les matchs : une facture saisie
+// aujourd'hui réécrivait donc la marge de tous les matchs antérieurs. (C'est ce qui a produit
+// un écart de −690,58 € là où +167 € était annoncé, le 23/11.) Une fois l'inventaire de fin
+// d'un match complet, son PMP est figé dans PIL_PMP_<idm> et ne bouge plus.
+// Même sémantique que cump.pour() : prix par unité servie, FUT au litre, repli sur le
+// PRIX ACHAT de 📦 PRODUITS si la référence manque à l'instantané.
+function cumpPrixFige_(snap, cat) {
+  const f = function (ref, qte) {
+    let u = (snap || {})[ref];
+    if (u == null) { u = cumpPrixCatalogue_(cat, ref); if (u != null && qte) f.replis[ref] = true; }
+    if (u == null) return null;
+    return ref === 'FUT' ? u / (PIL.FUT_LITRES || 30) : u;
+  };
+  f.replis = {};
+  return f;
+}
+// Liste des matchs dont le PMP est figé, pour le rapport de valorisation
+function cumpMatchsFiges_() {
+  return PropertiesService.getScriptProperties().getKeys()
+    .filter(function (k) { return k.indexOf('PIL_PMP_') === 0; })
+    .map(function (k) { return k.slice('PIL_PMP_'.length); }).sort();
+}
+/**
+ * Dégeler le PMP d'un match (ou de tous) : son coût matière sera recalculé au PMP courant
+ * au prochain « Mettre à jour les matchs ». Même esprit que 🔓 Détail buvette.
+ */
+function pilotagePmpDegeler() {
+  const ui = SpreadsheetApp.getUi();
+  const figes = cumpMatchsFiges_();
+  if (!figes.length) { ui.alert('Aucun match n\'a son PMP figé.'); return; }
+  const rep = ui.prompt('Dégeler le PMP d\'un match',
+    'Figés : ' + figes.join(', ') + '\n\nID du match à dégeler (ou TOUS) :', ui.ButtonSet.OK_CANCEL);
+  if (rep.getSelectedButton() !== ui.Button.OK) return;
+  const id = String(rep.getResponseText() || '').trim().toUpperCase();
+  const p = PropertiesService.getScriptProperties();
+  if (id === 'TOUS') {
+    figes.forEach(function (m) { p.deleteProperty('PIL_PMP_' + m); });
+    ui.alert(figes.length + ' match(s) dégelé(s). Lance « 🔄 Mettre à jour les matchs » pour recalculer.');
+    return;
+  }
+  if (figes.indexOf(id) < 0) { ui.alert(id + ' n\'a pas son PMP figé.'); return; }
+  p.deleteProperty('PIL_PMP_' + id);
+  ui.alert(id + ' dégelé. Lance « 🔄 Mettre à jour les matchs » pour recalculer son coût matière.');
+}
+
 // Valeur du stock au comptage de base : STOCK_DEBUT (prioritaire, réparti au prorata),
 // sinon prix de la 1re facture connue par référence, sinon PRIX ACHAT de 📦 PRODUITS.
 function cumpOuverture_(base, refs, premierPrix, cat, alertes) {
@@ -379,6 +506,10 @@ function cumpEuro_(x) { return (Math.round((Number(x) || 0) * 100) / 100).toFixe
 function cumpNb_(x) { return String(Math.round((Number(x) || 0) * 100) / 100).replace('.', ','); }
 function cumpLibQte_(q) {
   return Object.keys(q || {}).map(function (ref) { return cumpNb_(q[ref]) + ' ' + ref; }).join(', ');
+}
+function cumpResumeFiges_() {
+  const f = cumpMatchsFiges_();
+  return f.length ? 'PMP figé (inventaire complet) : ' + f.join(', ') + ' — menu 🔓 Dégeler le PMP d\'un match pour recalculer.' : '';
 }
 function cumpResume_(final, repli, refs) {
   return (refs || Object.keys(final)).filter(function (ref) { return final[ref] != null; }).map(function (ref) {
