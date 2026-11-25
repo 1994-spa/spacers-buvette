@@ -46,7 +46,13 @@ const PIL = {
   BUVETTES_SANS_CAISSE: ['Buvette 3'],
   // Fond de caisse de départ, identique à chaque match de la saison (même réglage dans la tablette, LIEUX).
   // Le fond saisi à la clôture de caisse, s'il a été envoyé, prime pour ce match.
-  FONDS_CAISSE: { 'Buvette 1': 350, 'Buvette 2': 450 },
+  // Fond de caisse : PLUS DE VALEUR PAR DÉFAUT. Décision de Clément du 07/11, inscrite au
+  // registre transverse le 23/11 : « il n'est pas fixe, Clément le communique avant chaque
+  // match, buvette par buvette ». Les 350 € et 450 € qui vivaient ici n'ont jamais été les
+  // vraies valeurs — Tours a tourné à 400 € et 500 € — et un fond inventé fausse le
+  // contrôle des espèces de 50 € par caisse en donnant l'air d'être juste.
+  // Le fond du match se déclare dans PIL_FONDS_<ID_MATCH> (voir pilFondsMatch_).
+  FONDS_CAISSE: {},
   // Réserves hors vente : stock de début et de fin saisis au tableau de bord, jamais sur une tablette
   RESERVES: ['Bénévoles'],
   // Catalogue 26-27 : réf, libellé, prix de référence (la tablette envoie ses prix)
@@ -215,6 +221,7 @@ function pilotageMenu_(ui) {
     .addItem('🎫 Relier les billets scannés + fidélité', 'pilotageTraiterBillets')
     .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
     .addItem('🔥 Réchauffer la billetterie maintenant', 'pilotageRechauffer')
+    .addItem('💶 Fond de caisse du match (par buvette)', 'pilotageFondsCaisse')
     .addItem('🥤 Mettre à jour le détail buvette (alcool, écocups, espèces)', 'pilotageDetailBuvette')
     .addItem('🔓 Détail buvette : recalculer un match figé', 'pilotageDetailRefiger')
     .addItem('🥤 Stock écocups et rachat', 'pilotageStockEcocups')
@@ -1078,6 +1085,49 @@ function pilStocksPrepa_(idm) {
   PIL.BUVETTES.concat(PIL.RESERVES).forEach(function (b) { out[b] = {}; pilLignesStock_().forEach(function (p) { out[b][p[0]] = Number((saved[b] || {})[p[0]]) || 0; }); });
   return out;
 }
+// Fond de caisse déclaré pour un match, buvette par buvette : { 'Buvette 1': 400, … }.
+// Règle du registre transverse (décision du 07/11) : le fond n'est pas fixe, il est
+// communiqué avant chaque match. Il n'y a donc pas de valeur de saison, et une buvette
+// dont le fond n'a pas été déclaré ne reçoit aucun chiffre plutôt qu'un chiffre faux.
+function pilFondsMatch_(idm) {
+  if (!idm) return {};
+  const o = pilProp_('PIL_FONDS_' + idm, null);
+  return o && typeof o === 'object' ? o : {};
+}
+// Déclare le fond de caisse d'un match. Appelée depuis le menu ou le tableau de bord.
+function pilDeclarerFonds_(idm, fonds) {
+  if (!idm) throw new Error('ID_MATCH manquant');
+  const o = {};
+  Object.keys(fonds || {}).forEach(function (b) {
+    if (PIL.BUVETTES.indexOf(b) < 0) return;
+    const v = Number(fonds[b]);
+    if (v > 0) o[b] = v;
+  });
+  pilSetProp_('PIL_FONDS_' + idm, o);
+  return o;
+}
+// Saisie du fond de caisse depuis le menu, pour le match actif.
+function pilotageFondsCaisse() {
+  const ui = SpreadsheetApp.getUi(), actif = pilActif_();
+  if (!actif || !actif.idMatch) { ui.alert('Aucun match préparé : enregistre d\'abord le stock au tableau de bord.'); return; }
+  const avecCaisse = PIL.BUVETTES.filter(function (b) { return PIL.BUVETTES_SANS_CAISSE.indexOf(b) < 0; });
+  const actuel = pilFondsMatch_(actif.idMatch);
+  const r = ui.prompt('Fond de caisse — ' + actif.idMatch,
+    'Un montant en euros par buvette, dans l\'ordre ' + avecCaisse.join(', ') + ', séparés par des virgules.\n'
+    + 'Exemple : 400, 500\n\nActuellement : '
+    + (Object.keys(actuel).length ? avecCaisse.map(function (b) { return b + ' ' + (actuel[b] || '—') + ' €'; }).join(' · ') : 'rien de déclaré'),
+    ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const vals = String(r.getResponseText()).split(/[,;]/).map(function (x) { return Number(String(x).replace(',', '.').trim()); });
+  const fonds = {};
+  avecCaisse.forEach(function (b, i) { if (vals[i] > 0) fonds[b] = vals[i]; });
+  if (!Object.keys(fonds).length) { ui.alert('Aucun montant lisible, rien n\'a été enregistré.'); return; }
+  const ecrit = pilDeclarerFonds_(actif.idMatch, fonds);
+  ui.alert('✅ Fond de caisse de ' + actif.idMatch + ' : '
+    + Object.keys(ecrit).map(function (b) { return b + ' ' + ecrit[b] + ' €'; }).join(' · ')
+    + '\n\nLe fond saisi par le bénévole à la clôture reste prioritaire sur cette valeur.');
+}
+
 function pilActif_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PIL_MATCH_ACTIF') || 'null'); } catch (e) { return null; } }
 function pilLirePrepa_(eventId) {
   const actif = pilActif_();
@@ -1494,7 +1544,7 @@ function pilDashboard_(eventId) {
   return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(), clotures: clotures,
     inventaire: inventaire, prepares: prepares, reserves: PIL.RESERVES,
     produits: pilProduitsCols_().map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString(),
-    serie: graph.serie, saison: graph.saison, fonds: PIL.FONDS_CAISSE, sansCaisse: PIL.BUVETTES_SANS_CAISSE };
+    serie: graph.serie, saison: graph.saison, fonds: pilFondsMatch_(idm), sansCaisse: PIL.BUVETTES_SANS_CAISSE };
 }
 
 // ── Graphiques du tableau de bord ────────────────────────────────────────
@@ -2176,13 +2226,16 @@ function pilotageDetailBuvette(silencieux) {
     return PIL_DETAIL_COLS.map(function (c) { return t[c[0]]; });
   };
 
-  // Fond de caisse de départ par match et par buvette : fond saisi à la clôture (s'il est > 0), sinon PIL.FONDS_CAISSE
+  // Fond de caisse de départ par match et par buvette : d'abord le fond saisi à la clôture
+  // par le bénévole (s'il est > 0), sinon celui déclaré pour CE match, sinon rien — jamais
+  // un chiffre inventé, qui rendrait le contrôle des espèces faussement juste.
   const fondDe = function (m, b) {
     if (PIL.BUVETTES_SANS_CAISSE.indexOf(b) >= 0) return null;
     const cl = (pilProp_('PIL_CLOTURE_' + m, {}) || {})[b] || {};
     const f = Number(cl.fond);
     if (f > 0) return f;
-    return b in PIL.FONDS_CAISSE ? PIL.FONDS_CAISSE[b] : '';
+    const d = Number(pilFondsMatch_(m)[b]);
+    return d > 0 ? d : '';
   };
   const iFond = PIL_DETAIL_COLS.findIndex(function (c) { return c[0] === 'fond'; }) + 1;
   const AFF_COLS = PIL_DETAIL_COLS.slice(0, iFond).concat(PIL_DETAIL_FOND_COLS).concat(PIL_DETAIL_COLS.slice(iFond));
