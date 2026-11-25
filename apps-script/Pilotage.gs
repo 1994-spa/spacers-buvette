@@ -360,6 +360,38 @@ function pilCache_(key, ttl, fn) {
   try { c.put(key, JSON.stringify(v), ttl); } catch (e) {}
   return v;
 }
+// Cache d'une valeur trop grosse pour une seule entrée : CacheService plafonne à 100 Ko par clé.
+// La chaîne JSON est découpée en tranches de 40 000 caractères (80 Ko au pire en UTF-8), chacune
+// sous sa propre clé, avec un manifeste qui porte le nombre de tranches. Toute tranche manquante
+// ou illisible ⇒ on recalcule : le cache n'est JAMAIS une vérité, seulement un raccourci.
+function pilCacheGros_(key, ttl, fn) {
+  const c = CacheService.getScriptCache(), TAILLE = 40000;
+  try {
+    const n = Number(c.get(key + '_n'));
+    if (n > 0 && n <= 200) {
+      const cles = [];
+      for (let i = 0; i < n; i++) cles.push(key + '_' + i);
+      const parts = c.getAll(cles);
+      let s = '';
+      for (let i = 0; i < n; i++) {
+        const p = parts[key + '_' + i];
+        if (p == null) { s = null; break; }
+        s += p;
+      }
+      if (s) return JSON.parse(s);
+    }
+  } catch (e) {}
+  const v = fn();
+  try {
+    const s = JSON.stringify(v), n = Math.ceil(s.length / TAILLE), lot = {};
+    if (n > 0 && n <= 200) {
+      for (let i = 0; i < n; i++) lot[key + '_' + i] = s.substr(i * TAILLE, TAILLE);
+      lot[key + '_n'] = String(n);
+      c.putAll(lot, ttl);
+    }
+  } catch (e) {}
+  return v;
+}
 function pilMatchsTickie_() {
   return pilCache_('pil_events', 600, function () {
     const res = pilApi_(PIL.VIVENU_BASE, '/events', { top: 100 });
@@ -412,9 +444,24 @@ function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom d
   try { pilParcourirBillets_(eventId, ajouter, 'DETAILSREQUIRED'); } catch (e) {}
   return out;
 }
-function pilCompterEntrees_(eventId) {   // null si le contrôle d'accès n'est pas accessible
+// Entrées scannées au contrôle d'accès. null si le contrôle d'accès n'est pas accessible.
+//
+// Le parcours est CHER : l'API Tickie ne sait pas compter, il faut dérouler TOUS les scans de
+// l'événement par pages de 1000. Et pilDonneesCommande_ le refait pour CHAQUE match déjà joué
+// (taux de présence appris). Avec un cache de 60 s et un tableau de bord qui se rafraîchit
+// toutes les 30 s, un chargement sur deux repayait l'intégralité du parcours, pour tous les
+// matchs : c'est l'origine des doGet à 70-110 s relevés le 25/11/2026.
+//
+// Les scans d'un match passé ne changent plus : on les gèle dans une propriété, comme le PMP.
+// Propriété indexée par ID D'ÉVÉNEMENT TICKIE et non par ID_MATCH : elle n'entre donc PAS dans
+// la liste de pilRenommerProps_ (renommer un ID_MATCH ne la concerne pas).
+function pilCompterEntrees_(eventId) {
+  const gele = pilProp_('PIL_ENTREES_EV_' + eventId, null);
+  if (gele != null) return Number(gele);
   try {
-    return pilCache_('pil_entrees_' + eventId, 60, function () {
+    let passe = false;
+    try { const ev = pilEvent_(eventId); passe = !!ev && ev.dateMatch < pilDate_(new Date()); } catch (e) {}
+    const n = pilCache_('pil_entrees_' + eventId, passe ? 21600 : 300, function () {
       const vus = {}; let skip = 0;
       while (true) {
         const res = pilApi_(PIL.PORTIER_BASE, '/scans', { eventId: eventId, top: 1000, skip: skip });
@@ -428,6 +475,13 @@ function pilCompterEntrees_(eventId) {   // null si le contrôle d'accès n'est 
       }
       return Object.keys(vus).length;
     });
+    // On ne gèle qu'un décompte NON NUL : un zéro peut venir d'une synchronisation Tickie en
+    // retard ou d'un match sans contrôle d'accès, et une fois gelé il ne se corrigerait plus.
+    // Un zéro reste simplement en cache 6 h (le maximum de CacheService).
+    // Dégel d'un décompte erroné : supprimer la propriété PIL_ENTREES_EV_<id événement> dans
+    // Paramètres du projet → Propriétés du script. Aucun autre calcul n'en dépend.
+    if (passe && n > 0) { try { pilSetProp_('PIL_ENTREES_EV_' + eventId, n); } catch (e) {} }
+    return n;
   } catch (e) { return null; }
 }
 
@@ -483,7 +537,10 @@ function pilCompterRefs_(idm) {
 // Les familles indexées par match sont PIL_PREPA_, PIL_INVENTAIRE_, PIL_CLOTURE_,
 // PIL_REASSORTS_ et PIL_PMP_ (le PMP figé du match). Un test vérifie cette liste en rescannant
 // le code : toute nouvelle famille suffixée par un ID_MATCH doit être ajoutée ICI, sinon un
-// renommage la laisse orpheline. PIL_REASSORTS_ manquait : un renommage déplaçait la préparation, l'inventaire
+// renommage la laisse orpheline. Les familles suffixées _EV_ (PIL_ENTREES_EV_ et PIL_TAUX_EV_,
+// gelées après un match joué) sont indexées par ID D'ÉVÉNEMENT TICKIE et non par ID_MATCH :
+// elles n'entrent donc PAS dans cette liste.
+// PIL_REASSORTS_ manquait : un renommage déplaçait la préparation, l'inventaire
 // et la clôture mais laissait le journal des réassorts orphelin sous l'ancien ID, donc
 // introuvable. Depuis que le départ réel vaut « déclaré + journal », cet oubli efface
 // directement du stock du coût matière.
@@ -747,8 +804,17 @@ function pilChargerTablette_(buvette) {
   const actif = pilActif_();
   if (!actif) throw new Error('Aucun match préparé : saisis le stock dans le tableau de bord');
   const ev = pilEvent_(actif.eventId) || { id: actif.eventId, nom: actif.idMatch, date: '' };
+  // La liste des billets est le gros du chargement : elle déroule TOUS les billets du match et
+  // TOUS les abonnements, par pages de 1000, sans aucun cache. Trois tablettes qui se
+  // rafraîchissent toutes les 5 minutes (index.html) = trois parcours complets toutes les
+  // 5 minutes, plus un à chaque ouverture. Un cache calé sur ce même pas de 5 minutes ne change
+  // RIEN à la fraîcheur vue par la tablette — elle ne redemande pas plus souvent — et divise
+  // le travail par trois. Les abonnements ne bougent pas d'un match à l'autre : une heure.
   let billets = [], billetsOk = true;
-  try { billets = pilListerBillets_(ev.id).concat(pilListerBillets_(PIL.ABONNEMENT_EVENT_ID)); } catch (e) { billetsOk = false; }
+  try {
+    billets = pilCacheGros_('pil_liste_billets_' + ev.id, 300, function () { return pilListerBillets_(ev.id); })
+      .concat(pilCacheGros_('pil_liste_billets_abo', 3600, function () { return pilListerBillets_(PIL.ABONNEMENT_EVENT_ID); }));
+  } catch (e) { billetsOk = false; }
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
     // départ réel (réassorts compris) : le stock théorique de la tablette les intègre
@@ -1033,7 +1099,12 @@ function pilDashboard_(eventId) {
   const idm = ev ? pilIdMatch_(ev, false) : '';
   let billetterie = null;
   if (ev) {
-    const b = pilCompterBillets_(ev.id, 120);
+    // 300 s et non 120 s : le tableau de bord se rafraîchit toutes les 30 s (pilotage.html) et
+    // le parcours des billets Tickie dure à lui seul des dizaines de secondes sur un gros match.
+    // À 120 s, un chargement sur quatre repayait tout le parcours et les appels se chevauchaient.
+    // Les ventes au guichet pendant le match sont un filet d'eau : 5 minutes de retard sur le
+    // nombre de billets ne change aucune décision, et l'écran affiche son âge (« mis à jour… »).
+    const b = pilCompterBillets_(ev.id, 300);
     let abonnes = null;
     try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
     billetterie = { billets: b.total, payants: b.payants, invitations: b.invitations, parTarif: b.parTarif,
@@ -1288,13 +1359,28 @@ function pilDonneesCommande_(eventId) {
   const observes = Object.keys(parMatch).filter(function (m) { return aff[m] > 0; })
     .map(function (m) { return { idMatch: m, presents: aff[m], qte: parMatch[m].qte, parBuvette: parMatch[m].parBuvette }; });
 
-  // Taux de présence appris : entrées scannées / (billets + abonnés) sur les matchs passés
+  // Taux de présence appris : entrées scannées / (billets + abonnés) sur les matchs passés.
+  // Le taux d'un match joué est définitif : on le gèle, sinon chaque ouverture de l'onglet
+  // Commande re-parcourt les billets ET les scans de TOUS les matchs déjà joués de la saison
+  // (10 paginations Tickie pour 5 matchs, des dizaines de secondes chacune).
+  // On ne gèle que si le nombre d'abonnés a bien été lu : sans lui le taux serait surestimé,
+  // et une fois gelé il ne se corrigerait plus. Dégel : supprimer PIL_TAUX_EV_<id événement>.
   const taux = [];
   Object.keys(evDe).forEach(function (m) {
     if (!parMatch[m]) return;
+    const evId = evDe[m];
+    const fige = pilProp_('PIL_TAUX_EV_' + evId, null);
+    if (fige != null) { taux.push(Number(fige)); return; }
     try {
-      const e = pilCompterEntrees_(evDe[m]);
-      if (e > 0) { const bb = pilCompterBillets_(evDe[m], 3600).total; if (bb + abonnes > 0) taux.push(e / (bb + abonnes)); }
+      const e = pilCompterEntrees_(evId);
+      if (e <= 0) return;
+      const bb = pilCompterBillets_(evId, 3600).total;
+      if (bb + abonnes <= 0) return;
+      const t = e / (bb + abonnes);
+      taux.push(t);
+      let passe = false;
+      try { const ev2 = pilEvent_(evId); passe = !!ev2 && ev2.dateMatch < pilDate_(new Date()); } catch (e2) {}
+      if (passe && abonnes > 0) { try { pilSetProp_('PIL_TAUX_EV_' + evId, t); } catch (e2) {} }
     } catch (err) {}
   });
 
