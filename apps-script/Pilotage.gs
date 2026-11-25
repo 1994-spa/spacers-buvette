@@ -265,55 +265,106 @@ function pilotageInstallerDeclencheur() {
 }
 
 // ── Réchauffement : tout ce qui coûte un parcours Tickie se fait ICI ─────
-// Les tablettes et le tableau de bord ne doivent jamais attendre Tickie. Ce passage,
-// toutes les 5 minutes, calcule l'instantané de billetterie du match actif et du
-// prochain match, et remplit le cache de la liste des billets que les trois tablettes
-// se partagent. Il est volontairement court et ne touche aucune feuille de calcul :
-// même s'il échoue, rien d'autre ne s'arrête.
+// Les tablettes et le tableau de bord ne doivent jamais attendre Tickie.
+//
+// Trois bornes, chacune pour une panne précise :
+//
+// 1. UN BUDGET DE 150 s. On ne DÉMARRE pas un parcours au-delà, car un passage tué à
+//    6 minutes n'écrit rien du tout — l'instantané comme le cache ne sont écrits qu'à
+//    la toute fin de leur calcul. Sans budget, un passage trop chargé échouerait à
+//    l'identique à chaque fois : une boucle d'échec stable, pas un incident passager.
+// 2. UN ÂGE MINIMUM avant de recalculer : 4 minutes un jour de match, 6 heures sinon.
+//    Toutes les 5 minutes, c'est 288 passages par jour et toute l'année ; recalculer
+//    à chaque fois épuiserait le quota de temps d'exécution des déclencheurs du compte
+//    (90 min par jour sur un compte gratuit, 6 h sur Workspace) — et quand ce quota
+//    tombe, TOUS les déclencheurs s'arrêtent jusqu'au lendemain, la liaison des billets
+//    comprise, un samedi de match. C'est le point de défaillance unique de cette
+//    architecture : un compteur invisible qui désactive tout le reste.
+// 3. RIEN POUR UN MATCH DÉJÀ JOUÉ. Tant que la préparation du match suivant n'est pas
+//    enregistrée, le match actif est celui du week-end dernier : on repayait sans fin
+//    le parcours des billets que plus aucune tablette ne lira.
+//
+// L'ordre compte : la liste des billets des tablettes passe AVANT le gel des taux de
+// présence. Les tablettes en dépendent au comptoir ; les taux ne servent qu'à l'onglet
+// Commande, consulté à J-3. Si le budget s'épuise, c'est le gel qui saute.
+// Ce passage lit 📅 MATCHS (pilEventParMatch_) mais n'y écrit rien.
 function pilotageRechauffer() {
+  const debut = Date.now(), auj = pilDate_(new Date());
+  const budget = function () { return Date.now() - debut < 150000; };
   const actif = pilActif_();
-  const ids = [];
-  if (actif && actif.eventId) ids.push(actif.eventId);
-  try {
-    const auj = pilDate_(new Date());
-    const suivant = pilMatchsTickie_().filter(function (e) { return /spacer/i.test(e.nom) && e.dateMatch >= auj; })[0];
-    if (suivant && ids.indexOf(suivant.id) < 0) ids.push(suivant.id);
-  } catch (e) {}
-  const faits = [];
-  ids.forEach(function (ev) {
-    try {
-      const snap = pilBilletterieSnap_(ev);
-      if (snap && snap.fige) return;              // match passé : ses chiffres ne bougeront plus
-      if (pilCalculerBilletterie_(ev, true)) faits.push(ev);
-    } catch (e) { Logger.log('Réchauffement billetterie ' + ev + ' : ' + (e && e.message || e)); }
-  });
-  // Taux de présence des matchs joués : deux par passage, pour que l'onglet Commande
-  // n'ait jamais à les calculer lui-même. Le plafond garde ce passage court.
-  try {
-    let abonnes = 0;
-    try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
-    if (abonnes > 0) {
-      const auj = pilDate_(new Date()), evDe = pilEventParMatch_();
-      const aGeler = [];
-      Object.keys(evDe).forEach(function (m) {
-        const ev = evDe[m];
-        if (pilProp_('PIL_TAUX_EV_' + ev, null) != null) return;
-        const e = pilEvent_(ev);
-        if (e && e.dateMatch < auj) aGeler.push(ev);
-      });
-      aGeler.slice(0, 2).forEach(function (ev) { pilTauxPresence_(ev, abonnes, true); });
-      if (aGeler.length) Logger.log('Réchauffement : ' + Math.min(2, aGeler.length) + ' taux de présence gelé(s), ' + Math.max(0, aGeler.length - 2) + ' restant(s)');
-    }
-  } catch (e) { Logger.log('Réchauffement taux de présence : ' + (e && e.message || e)); }
+  let evActif = null;
+  if (actif && actif.eventId) { try { evActif = pilEvent_(actif.eventId); } catch (e) {} }
+  let suivant = null;
+  try { suivant = pilMatchsTickie_().filter(function (e) { return /spacer/i.test(e.nom) && e.dateMatch >= auj; })[0] || null; } catch (e) {}
 
-  // Liste des billets de la tablette : le même parcours, fait une fois ici pour les trois.
-  if (actif && actif.eventId) {
+  const cibles = [];
+  if (evActif && evActif.dateMatch >= auj) cibles.push(evActif);
+  if (suivant && !cibles.some(function (x) { return x.id === suivant.id; })) cibles.push(suivant);
+  const jourDeMatch = cibles.some(function (x) { return x.dateMatch === auj; });
+  const AGE = jourDeMatch ? 240000 : 21600000;      // 4 min un jour de match, 6 h sinon
+
+  const faits = [];
+  cibles.forEach(function (ev) {
+    if (!budget()) return;
     try {
-      pilCacheGros_('pil_liste_billets_' + actif.eventId, 1200, function () { return pilListerBillets_(actif.eventId); }, true);
-      pilCacheGros_('pil_liste_billets_abo', 3600, function () { return pilListerBillets_(PIL.ABONNEMENT_EVENT_ID); });
+      const snap = pilBilletterieSnap_(ev.id);
+      if (snap && snap.fige) return;                // match passé : ses chiffres ne bougeront plus
+      if (snap && snap.calcule && (Date.now() - new Date(snap.calcule).getTime()) < AGE) return;
+      if (pilCalculerBilletterie_(ev.id, true)) faits.push(ev.id);
+    } catch (e) { Logger.log('Réchauffement billetterie ' + ev.id + ' : ' + (e && e.message || e)); }
+  });
+
+  // Liste des billets des tablettes : le même parcours, fait une fois ici pour les trois.
+  let liste = '';
+  if (evActif && evActif.dateMatch >= auj && budget()) {
+    try {
+      pilCacheGros_('pil_liste_billets_' + evActif.id, 600, function () { return pilListerBillets_(evActif.id); }, true);
+      liste = ' · liste billets';
+      // Les abonnements bougent peu : on les refait toutes les 30 minutes, et EN FORÇANT.
+      // Sans le forçage, ce passage relisait son propre cache et ne réchauffait jamais
+      // rien : c'était la première tablette chargée après expiration qui payait le
+      // parcours complet des abonnements dans sa propre requête, une fois par heure.
+      const vuAbo = Number(pilProp_('PIL_WARM_ABO', 0)) || 0;
+      if (budget() && Date.now() - vuAbo > 1800000) {
+        pilCacheGros_('pil_liste_billets_abo', 3600, function () { return pilListerBillets_(PIL.ABONNEMENT_EVENT_ID); }, true);
+        try { pilSetProp_('PIL_WARM_ABO', Date.now()); } catch (e) {}
+        liste += ' + abonnés';
+      }
     } catch (e) { Logger.log('Réchauffement liste billets : ' + (e && e.message || e)); }
   }
-  Logger.log('Réchauffement : ' + faits.length + ' instantané(s) de billetterie sur ' + ids.length + ' match(s)');
+
+  // Taux de présence des matchs joués, deux par passage, et seulement s'il reste du
+  // budget. Le point de départ TOURNE : un match dont le taux n'est pas calculable
+  // (aucune entrée scannée, abonnés illisibles) resterait sinon éternellement en tête
+  // de liste et empêcherait tous les suivants d'être gelés.
+  let taux = '';
+  if (budget()) {
+    try {
+      let abonnes = 0;
+      try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+      if (abonnes > 0) {
+        const evDe = pilEventParMatch_(), aGeler = [];
+        Object.keys(evDe).forEach(function (m) {
+          const ev = evDe[m];
+          if (pilProp_('PIL_TAUX_EV_' + ev, null) != null) return;
+          const e = pilEvent_(ev);
+          if (e && e.dateMatch < auj) aGeler.push(ev);
+        });
+        if (aGeler.length) {
+          const dep = (Number(pilProp_('PIL_TAUX_OFFSET', 0)) || 0) % aGeler.length;
+          const lot = [aGeler[dep], aGeler[(dep + 1) % aGeler.length]]
+            .filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+          lot.forEach(function (ev) { if (budget()) pilTauxPresence_(ev, abonnes, true); });
+          try { pilSetProp_('PIL_TAUX_OFFSET', (dep + lot.length) % aGeler.length); } catch (e) {}
+          taux = ' · ' + lot.length + ' taux tenté(s) sur ' + aGeler.length + ' à geler';
+        }
+      }
+    } catch (e) { Logger.log('Réchauffement taux de présence : ' + (e && e.message || e)); }
+  }
+
+  Logger.log('Réchauffement : ' + faits.length + ' instantané(s) sur ' + cibles.length + ' match(s)'
+    + liste + taux + (jourDeMatch ? ' · jour de match' : '') + (budget() ? '' : ' · ⚠️ budget épuisé')
+    + ' en ' + Math.round((Date.now() - debut) / 1000) + ' s');
   return faits;
 }
 
@@ -420,37 +471,100 @@ function pilCache_(key, ttl, fn, forcer) {
   try { c.put(key, JSON.stringify(v), ttl); } catch (e) {}
   return v;
 }
-// Cache d'une valeur trop grosse pour une seule entrée : CacheService plafonne à 100 Ko par clé.
-// La chaîne JSON est découpée en tranches de 40 000 caractères (80 Ko au pire en UTF-8), chacune
-// sous sa propre clé, avec un manifeste qui porte le nombre de tranches. Toute tranche manquante
-// ou illisible ⇒ on recalcule : le cache n'est JAMAIS une vérité, seulement un raccourci.
+// Cache d'une valeur trop grosse pour une seule entrée : CacheService plafonne à 100 Ko
+// par clé. La chaîne JSON est découpée en tranches, chacune sous sa propre clé, avec un
+// manifeste qui porte le numéro de génération, le nombre de tranches et la longueur
+// totale attendue.
+//
+// La GÉNÉRATION est indispensable : putAll n'est pas atomique et deux exécutions peuvent
+// écrire la même liste en même temps. Sans elle, un lecteur pouvait assembler la tranche
+// 0 de l'une et la tranche 1 de l'autre ; quand les deux découpages avaient le même
+// nombre de tranches — deux listes qui ne diffèrent que d'un nom, le cas courant à
+// 5 minutes d'intervalle — le JSON recollé restait VALIDE et la donnée mélangée passait
+// pour vraie. Chaque écriture a maintenant ses propres clés et le manifeste désigne une
+// génération entière ; la longueur reconstruite est vérifiée avant de parser.
+//
+// 24 000 caractères par tranche : 96 Ko au pire absolu (4 octets par caractère en UTF-8),
+// donc sous le plafond même pour un nom écrit hors alphabet latin. La coupe ne tombe
+// jamais entre les deux moitiés d'un caractère codé sur deux unités (un emoji dans un nom
+// de titulaire) : CacheService ne restituerait pas la moitié à l'identique et le nom
+// revenait abîmé sans que rien ne le signale.
+//
+// Toute tranche manquante, tout manifeste illisible, toute longueur qui ne tombe pas
+// juste ⇒ on recalcule. Le cache n'est JAMAIS une vérité, seulement un raccourci.
+// forcer = true : on ne LIT pas le cache, on recalcule et on réécrit. C'est ce dont le
+// réchauffement a besoin : sans ça il relirait sa propre valeur et ne réchaufferait rien,
+// la donnée vieillissant jusqu'à expiration avant qu'une tablette ne repaye le parcours.
 function pilCacheGros_(key, ttl, fn, forcer) {
-  const c = CacheService.getScriptCache(), TAILLE = 40000;
+  const c = CacheService.getScriptCache(), TAILLE = 24000, MAX = 400;
   try {
-    const n = forcer ? 0 : Number(c.get(key + '_n'));
-    if (n > 0 && n <= 200) {
-      const cles = [];
-      for (let i = 0; i < n; i++) cles.push(key + '_' + i);
-      const parts = c.getAll(cles);
-      let s = '';
-      for (let i = 0; i < n; i++) {
-        const p = parts[key + '_' + i];
-        if (p == null) { s = null; break; }
-        s += p;
+    const brut = forcer ? null : c.get(key + '_m');
+    if (brut) {
+      const m = JSON.parse(brut);
+      if (m && m.g && m.n > 0 && m.n <= MAX) {
+        const cles = [];
+        for (let i = 0; i < m.n; i++) cles.push(key + '_' + m.g + '_' + i);
+        const parts = c.getAll(cles);
+        let txt = '';
+        for (let i = 0; i < m.n; i++) { const t = parts[cles[i]]; if (t == null) { txt = null; break; } txt += t; }
+        if (txt != null && txt.length === m.l) return JSON.parse(txt);
       }
-      if (s) return JSON.parse(s);
     }
   } catch (e) {}
   const v = fn();
   try {
-    const s = JSON.stringify(v), n = Math.ceil(s.length / TAILLE), lot = {};
-    if (n > 0 && n <= 200) {
-      for (let i = 0; i < n; i++) lot[key + '_' + i] = s.substr(i * TAILLE, TAILLE);
-      lot[key + '_n'] = String(n);
-      c.putAll(lot, ttl);
+    const txt = JSON.stringify(v);
+    if (typeof txt !== 'string') return v;
+    const bornes = [];
+    let i = 0;
+    while (i < txt.length) {
+      let j = Math.min(txt.length, i + TAILLE);
+      if (j < txt.length) {
+        const cc = txt.charCodeAt(j - 1);
+        if (cc >= 0xD800 && cc <= 0xDBFF) j--;      // ne pas couper une paire de substituts
+      }
+      if (j <= i) j = Math.min(txt.length, i + TAILLE);
+      bornes.push([i, j]); i = j;
     }
-  } catch (e) {}
+    if (!bornes.length || bornes.length > MAX) {
+      Logger.log('pilCacheGros_ : ' + key + ' non mis en cache (' + bornes.length + ' tranches pour ' + txt.length + ' caractères)');
+      return v;
+    }
+    const g = String(Date.now()) + '-' + Math.floor(Math.random() * 1000);
+    const lot = {};
+    bornes.forEach(function (b, k) { lot[key + '_' + g + '_' + k] = txt.slice(b[0], b[1]); });
+    lot[key + '_m'] = JSON.stringify({ g: g, n: bornes.length, l: txt.length });
+    c.putAll(lot, ttl);
+  } catch (e) {
+    Logger.log('pilCacheGros_ : échec de mise en cache de ' + key + ' — ' + (e && e.message || e));
+  }
   return v;
+}
+// Le cache porte-t-il une valeur pour cette clé ? Sert à décider s'il faut parcourir
+// Tickie dans une requête de tablette, sans déclencher le parcours pour le savoir.
+function pilCacheGrosPresent_(key) {
+  try { return !!CacheService.getScriptCache().get(key + '_m'); } catch (e) { return false; }
+}
+// Liste des billets servie à une tablette, ou null si Tickie est déjà en cours de
+// parcours ailleurs.
+//
+// Le cache vide, trois tablettes qui se rafraîchissent sur le même top de 5 minutes
+// lançaient trois parcours Tickie en parallèle, chacun de 40 à 160 s — alors que la
+// tablette abandonne au bout de 60 s et affiche « Chargement impossible. Vérifie le
+// wifi. » au bénévole, dont le wifi va très bien. On rend donc la main tout de suite :
+// la tablette garde sa liste précédente, et le réchauffement remplira le cache dans les
+// 5 minutes. Un seul parcours à la fois, jamais trois.
+function pilListeBilletsTablette_(eventId) {
+  const c = CacheService.getScriptCache(), jeton = 'pil_liste_calcul';
+  const chaud = pilCacheGrosPresent_('pil_liste_billets_' + eventId) && pilCacheGrosPresent_('pil_liste_billets_abo');
+  if (!chaud) {
+    if (c.get(jeton)) return null;
+    try { c.put(jeton, '1', 240); } catch (e) {}
+  }
+  try {
+    return pilCacheGros_('pil_liste_billets_' + eventId, 600, function () { return pilListerBillets_(eventId); })
+      .concat(pilCacheGros_('pil_liste_billets_abo', 3600, function () { return pilListerBillets_(PIL.ABONNEMENT_EVENT_ID); }));
+  } finally { if (!chaud) { try { c.remove(jeton); } catch (e) {} } }
 }
 function pilMatchsTickie_() {
   return pilCache_('pil_events', 600, function () {
@@ -517,7 +631,7 @@ function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom d
 // la liste de pilRenommerProps_ (renommer un ID_MATCH ne la concerne pas).
 function pilCompterEntrees_(eventId, forcer) {
   const gele = pilProp_('PIL_ENTREES_EV_' + eventId, null);
-  if (gele != null) return Number(gele);
+  if (gele != null && isFinite(Number(gele))) return Number(gele);
   try {
     let passe = false;
     try { const ev = pilEvent_(eventId); passe = !!ev && ev.dateMatch < pilDate_(new Date()); } catch (e) {}
@@ -605,7 +719,16 @@ function pilCalculerBilletterie_(eventId, forcer) {
   const snap = { billets: b.total, payants: b.payants, invitations: b.invitations, parTarif: b.parTarif,
     abonnes: abonnes, entrees: pilCompterEntrees_(eventId, forcer), jauge: ev.jauge,
     calcule: new Date().toISOString(), fige: ev.dateMatch < pilDate_(new Date()) };
-  try { pilSetProp_(PIL_SNAP_PRE + eventId, snap); } catch (e) {}
+  // On ne garde une propriété que pour un événement du CLUB. Le sélecteur du tableau de
+  // bord liste les cent événements Tickie du compte (France Avenir, FFVB…) : garder un
+  // instantané pour chacun remplirait le magasin de propriétés, dont le quota de 500 Ko
+  // est partagé avec PIL_STOCK, PIL_CLOTURE_ et PIL_PREPA_ — qui, eux, ne sont pas
+  // enveloppés dans un try : à saturation, c'est la remontée des ventes des tablettes et
+  // la clôture de caisse qui échouent. Un événement hors club est donc recalculé à
+  // chaque consultation, ce qui reste exceptionnel.
+  let duClub = false;
+  try { const m = pilEventParMatch_(); duClub = Object.keys(m).some(function (k) { return m[k] === eventId; }); } catch (e) {}
+  if (duClub) { try { pilSetProp_(PIL_SNAP_PRE + eventId, snap); } catch (e) {} }
   return snap;
 }
 
@@ -645,10 +768,16 @@ function pilBilletterieServie_(eventId) {
   if (snap) return snap;
   const c = CacheService.getScriptCache(), jeton = 'pil_snap_calcul_' + eventId;
   if (c.get(jeton)) return null;
-  try { c.put(jeton, '1', 300); } catch (e) {}
-  try { return pilCalculerBilletterie_(eventId); }
-  catch (e) { return null; }
-  finally { try { c.remove(jeton); } catch (e) {} }
+  // Le jeton vaut 90 s : si l'exécution est tuée avant le finally, il reste posé et tous
+  // les appels renvoient null le temps de son expiration. Mieux vaut un doublon de
+  // parcours rare qu'un tableau de bord vide cinq minutes.
+  try { c.put(jeton, '1', 90); } catch (e) {}
+  let ok = false;
+  try { const r = pilCalculerBilletterie_(eventId); ok = !!r; return r; }
+  catch (e) { Logger.log('Billetterie ' + eventId + ' : ' + (e && e.message || e)); return null; }
+  // En cas d'ÉCHEC on garde le jeton : Tickie en panne et un tableau de bord qui
+  // redemande toutes les 30 s rempileraient les parcours comme le 25/11.
+  finally { if (ok) { try { c.remove(jeton); } catch (e) {} } }
 }
 
 // ── Nom d'événement Tickie → adversaire des Spacer's ────────────────────
@@ -703,7 +832,8 @@ function pilCompterRefs_(idm) {
 // Les familles indexées par match sont PIL_PREPA_, PIL_INVENTAIRE_, PIL_CLOTURE_,
 // PIL_REASSORTS_ et PIL_PMP_ (le PMP figé du match). Un test vérifie cette liste en rescannant
 // le code : toute nouvelle famille suffixée par un ID_MATCH doit être ajoutée ICI, sinon un
-// renommage la laisse orpheline. Les familles suffixées _EV_ (PIL_ENTREES_EV_ et PIL_TAUX_EV_,
+// renommage la laisse orpheline. PIL_BILLET_SNAP_ et les familles suffixées _EV_
+// (PIL_ENTREES_EV_, PIL_TAUX_EV_,
 // gelées après un match joué) sont indexées par ID D'ÉVÉNEMENT TICKIE et non par ID_MATCH :
 // elles n'entrent donc PAS dans cette liste.
 // PIL_REASSORTS_ manquait : un renommage déplaçait la préparation, l'inventaire
@@ -970,18 +1100,18 @@ function pilChargerTablette_(buvette) {
   const actif = pilActif_();
   if (!actif) throw new Error('Aucun match préparé : saisis le stock dans le tableau de bord');
   const ev = pilEvent_(actif.eventId) || { id: actif.eventId, nom: actif.idMatch, date: '' };
-  // La liste des billets est le gros du chargement : elle déroule TOUS les billets du match et
-  // TOUS les abonnements, par pages de 1000. Trois tablettes qui se rafraîchissent toutes les
-  // 5 minutes (index.html) faisaient trois parcours complets toutes les 5 minutes.
-  // Elle est maintenant REMPLIE À L'AVANCE par pilotageRechauffer, toutes les 5 minutes : la
-  // liste vue au comptoir n'est donc pas plus vieille qu'avant, mais aucune tablette n'attend
-  // le parcours. Les 1200 s ne sont qu'un filet : si un réchauffement est manqué, la liste
-  // reste servie au lieu qu'une tablette repaye le parcours au mauvais moment.
-  // Les abonnements ne bougent pas d'un match à l'autre : une heure.
+  // La liste des billets est le gros du chargement : elle déroule TOUS les billets du match
+  // et TOUS les abonnements, par pages de 1000. Elle est REMPLIE À L'AVANCE par
+  // pilotageRechauffer : aucune tablette n'attend le parcours, et les trois se partagent le
+  // même travail. Le mécanisme, et ce qui se passe quand le cache est vide, sont décrits
+  // dans pilListeBilletsTablette_.
+  //
+  // billetsOk à faux veut dire « liste non rafraîchie », pas « liste vide » : la tablette
+  // garde alors celle qu'elle a en mémoire (index.html) plutôt que de perdre ses remises.
   let billets = [], billetsOk = true;
   try {
-    billets = pilCacheGros_('pil_liste_billets_' + ev.id, 1200, function () { return pilListerBillets_(ev.id); })
-      .concat(pilCacheGros_('pil_liste_billets_abo', 3600, function () { return pilListerBillets_(PIL.ABONNEMENT_EVENT_ID); }));
+    const l = pilListeBilletsTablette_(ev.id);
+    if (l) billets = l; else billetsOk = false;
   } catch (e) { billetsOk = false; }
   pilJournal_(buvette, actif.idMatch, 3);
   return { match: { eventId: ev.id, idMatch: actif.idMatch, nom: ev.nom, date: ev.date, prepa: actif.saved },
@@ -1453,13 +1583,27 @@ function pilAffluenceTickie_(idm) { return 0; }   // compatibilité Code.gs V12 
 // un seul passage de fidélité (_fidCrediterLot_), et des gardes de temps qui laissent
 // toujours de quoi finir les recalculs.
 function pilotageTraiterBillets() {
+  // L'horloge démarre AVANT tout le reste. pilotageSyncMatchs, déclenché une fois par
+  // heure juste en dessous, parcourt lui-même les billets de tous les matchs de la
+  // saison : s'il consomme 200 s et que l'horloge ne démarre qu'après, les gardes de
+  // 150 et 180 s ne protègent plus rien et les recalculs de fin sautent — exactement
+  // le défaut que cette réécriture corrige.
+  const debut = Date.now();
+  // Le déclencheur de réchauffement s'installe de lui-même s'il manque : sans lui, les
+  // requêtes retombent sur un parcours Tickie et le tableau de bord revient à 100 s.
+  try {
+    if (!ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'pilotageRechauffer'; })) {
+      ScriptApp.newTrigger('pilotageRechauffer').timeBased().everyMinutes(5).create();
+      Logger.log('Déclencheur de réchauffement installé automatiquement : il manquait.');
+    }
+  } catch (e) {}
   if (Date.now() - (Number(PropertiesService.getScriptProperties().getProperty('PIL_SYNC')) || 0) > 3600000) {
     try { pilotageSyncMatchs(true); } catch (e) {}
   }
   const sh = feuille_('VENTES');
   if (!sh || sh.getLastRow() < 2) { try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {} return; }
   const rg = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB);
-  const data = rg.getValues(), debut = Date.now();
+  const data = rg.getValues();
   let relies = 0, credites = 0;
   const annulees = {};                                      // ventes annulées depuis la tablette : pas de points
   data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
@@ -1496,16 +1640,29 @@ function pilotageTraiterBillets() {
   const fidUn = typeof _fidCreditOne_ === 'function';
   let secours = 0, coupe = false;
   const PLAFOND_SECOURS = 25;        // appels unitaires de secours autorisés par passage
+  // Charger un index coûte DEUX paginations complètes (billets du match, puis
+  // abonnements). En dessous du plafond de secours, l'appel unitaire par vente coûte
+  // moins cher : le passage courant d'un jour ordinaire, deux à cinq ventes, ne charge
+  // donc aucun index. L'index ne sert que les gros lots — un soir de match.
+  const parIndex = aRelier.length > PLAFOND_SECOURS;
   aRelier.forEach(function (r) {
     if (Date.now() - debut > 180000) { coupe = true; return; }
     const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']];
     const key = id || ('bc:' + code);
     if (!(key in memo)) {
-      const iM = indexDe(evDe[String(r[PIL_I['ID_MATCH']])]);
-      const iA = indexDe(PIL.ABONNEMENT_EVENT_ID);
-      const trouve = (iM && iM[key]) || (iA && iA[key]) || null;
+      let trouve = null, indexLu = false;
+      if (parIndex) {
+        const ev = evDe[String(r[PIL_I['ID_MATCH']])];
+        if (!ev) Logger.log('Liaison : ' + r[PIL_I['ID_MATCH']] + ' n\'a pas de TICKIE_EVENT_ID dans 📅 MATCHS, ses ventes passent par des appels unitaires.');
+        const iM = indexDe(ev);
+        if (iM) { indexLu = true; trouve = iM[key] || null; }
+        if (!trouve) {   // les abonnés ne sont pas dans l'événement du match : second index, chargé seulement si besoin
+          const iA = indexDe(PIL.ABONNEMENT_EVENT_ID);
+          if (iA) { indexLu = true; trouve = iA[key] || null; }
+        }
+      }
       if (trouve) memo[key] = trouve;
-      else if (!iM && !iA) memo[key] = undefined;           // aucun index lisible : on réessaiera
+      else if (parIndex && !indexLu) memo[key] = undefined;  // aucun index lisible : on réessaiera
       else if (secours >= PLAFOND_SECOURS) memo[key] = undefined;   // on ne sait pas : on réessaiera
       else {
         // Absent des index : soit le billet n'existe pas, soit il a été créé après leur
@@ -1533,7 +1690,7 @@ function pilotageTraiterBillets() {
     if ((fidLot || fidUn) && c.email && montant > 0) {
       credits.push({ carte: c.email, nom: c.nom, montant: montant,
         matchId: r[PIL_I['ID_MATCH']], tab: r[PIL_I['Buvette']], dateStr: pilDate_(r[PIL_I['Horodatage']]) });
-      notesAvant.push([r, String(r[PIL_I['Fidélité']] || '')]);
+      notesAvant.push([r, String(r[PIL_I['Fidélité']] || ''), c.email]);
       noter(r, Math.floor(montant) + ' pts'); credites++;
     } else noter(r, 'relié');
   });
@@ -1543,14 +1700,33 @@ function pilotageTraiterBillets() {
   // créditées pour toujours alors qu'aucun point n'a été écrit, et le statut les
   // exclurait de tous les passages suivants.
   if (credits.length) {
+    // _fidCrediterLot_ n'est pas atomique : il écrit une ligne par abonné. On ne remet
+    // donc à retraiter que les ventes dont la carte n'a PAS été écrite — sinon un échec
+    // au milieu du lot ferait recréditer au tour suivant tous ceux qui l'étaient déjà.
+    let ecrites = null;
     try {
-      if (fidLot) _fidCrediterLot_(credits, '', '', pilDate_(new Date()));
-      else credits.forEach(function (e) { _fidCreditOne_(e, e.matchId, e.tab, e.dateStr); });
+      if (fidLot) {
+        const bilanFid = _fidCrediterLot_(credits, '', '', pilDate_(new Date())) || {};
+        ecrites = {};
+        (bilanFid.ecrites || []).forEach(function (c) { ecrites[c] = 1; });
+        if ((bilanFid.echouees || []).length) Logger.log('Fidélité : ' + bilanFid.echouees.length + ' carte(s) non écrite(s), leurs ventes repasseront.');
+      } else {
+        ecrites = {};
+        credits.forEach(function (e) {
+          try { _fidCreditOne_(e, e.matchId, e.tab, e.dateStr); ecrites[String(e.carte).trim().toLowerCase()] = 1; } catch (e2) {}
+        });
+      }
     } catch (e) {
-      notesAvant.forEach(function (x) { x[0][PIL_I['Fidélité']] = x[1]; });
-      credites = 0;
-      Logger.log('Fidélité : crédit du lot impossible, ' + credits.length + ' vente(s) laissée(s) à retraiter — ' + (e && e.message || e));
+      ecrites = {};        // rien d'écrit : tout repasse
+      Logger.log('Fidélité : crédit du lot impossible — ' + (e && e.message || e));
     }
+    let rendues = 0;
+    notesAvant.forEach(function (x) {
+      const carte = String(x[2]).trim().toLowerCase();
+      if (ecrites && ecrites[carte]) return;
+      x[0][PIL_I['Fidélité']] = x[1]; rendues++;
+    });
+    if (rendues) { credites -= rendues; Logger.log('Fidélité : ' + rendues + ' vente(s) laissée(s) à retraiter au prochain passage.'); }
   }
 
   rg.setValues(data);
@@ -1574,7 +1750,12 @@ function pilDonneesCommande_(eventId) {
   if (!ev) throw new Error('Match introuvable dans Tickie');
   // Même instantané que le tableau de bord : l'onglet Commande s'ouvre souvent pendant
   // qu'il se rafraîchit, et deux parcours Tickie simultanés se gênent l'un l'autre.
-  const snap = pilBilletterieServie_(ev.id) || {};
+  // On LÈVE si l'instantané manque, au lieu de renvoyer des zéros : la commande
+  // conseillée afficherait « 0 billets + 0 abonnés = 0 attendus » et zéro colis partout
+  // comme si c'était la vérité. L'onglet affiche « Données indisponibles » et on
+  // réessaie — c'est ce que faisait l'ancien code quand Tickie tombait.
+  const snap = pilBilletterieServie_(ev.id);
+  if (!snap) throw new Error('billetterie en cours de calcul, réessaie dans une minute');
   const b = { total: Number(snap.billets) || 0, payants: Number(snap.payants) || 0, invitations: Number(snap.invitations) || 0 };
   const abonnes = Number(snap.abonnes) || 0;
   const idm = pilIdMatch_(ev, false);
