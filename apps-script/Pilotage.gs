@@ -1170,7 +1170,12 @@ function pilChargerTablette_(buvette) {
     // Structure de stock lue dans 📦 PRODUITS : { réf: { unite, services } }. La tablette s'en sert pour
     // convertir verres/doses ↔ bouteilles ; sans réseau elle garde ses valeurs par défaut.
     stockCat: (function () { const o = {}; pilLignesStock_().forEach(function (l) { o[l[0]] = { unite: l[3], services: l[4] }; }); return o; })(),
-    billets: billets, billetsOk: billetsOk, offertes: pilBoissonsOffertes_(actif.idMatch), hh: pilHappyHourServies_(actif.idMatch), charge: new Date().toISOString() };
+    billets: billets, billetsOk: billetsOk, offertes: pilBoissonsOffertes_(actif.idMatch), hh: pilHappyHourServies_(actif.idMatch),
+    // Fond de caisse déclaré pour CE match (registre transverse du 07/11 : il n'est pas fixe).
+    // La tablette porte encore une table codée en dur avec le seul match de Tours : tant qu'elle
+    // ne lit pas ce champ, elle pré-remplira 350 ou 450 € à la clôture, qui sont faux. Le champ
+    // est envoyé dès maintenant pour qu'un déploiement de la tablette suffise à le brancher.
+    fonds: pilFondsMatch_(actif.idMatch), charge: new Date().toISOString() };
 }
 // Billets « place + boisson » dont la boisson a déjà été donnée pendant ce match (toutes buvettes), ventes annulées exclues
 function pilBoissonsOffertes_(idm) {
