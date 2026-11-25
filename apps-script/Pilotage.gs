@@ -280,13 +280,21 @@ function pilotageInstallerDeclencheur() {
 //    6 minutes n'écrit rien du tout — l'instantané comme le cache ne sont écrits qu'à
 //    la toute fin de leur calcul. Sans budget, un passage trop chargé échouerait à
 //    l'identique à chaque fois : une boucle d'échec stable, pas un incident passager.
-// 2. UN ÂGE MINIMUM avant de recalculer : 4 minutes un jour de match, 6 heures sinon.
-//    Toutes les 5 minutes, c'est 288 passages par jour et toute l'année ; recalculer
-//    à chaque fois épuiserait le quota de temps d'exécution des déclencheurs du compte
+// 2. UN ÂGE MINIMUM avant de recalculer : 4 minutes un jour de match, 30 minutes sinon.
+//    Toutes les 5 minutes, c'est 288 passages par jour et toute l'année ; recalculer à
+//    chaque fois épuiserait le quota de temps d'exécution des déclencheurs du compte
 //    (90 min par jour sur un compte gratuit, 6 h sur Workspace) — et quand ce quota
 //    tombe, TOUS les déclencheurs s'arrêtent jusqu'au lendemain, la liaison des billets
 //    comprise, un samedi de match. C'est le point de défaillance unique de cette
 //    architecture : un compteur invisible qui désactive tout le reste.
+//    La borne était à 6 heures : c'était trop, et par méconnaissance du coût réel. Le
+//    premier passage mesuré en production, le 25/11 à 15h00, a fait l'instantané, la
+//    liste des billets ET celle des abonnés en 5 SECONDES. Les 40 à 160 s relevées sur
+//    les requêtes venaient de l'empilement, pas du parcours lui-même. À 5 s le passage,
+//    rafraîchir toutes les 30 minutes coûte 5 minutes de déclencheur par jour — et le
+//    tableau de bord n'affiche plus des ventes de billets vieilles d'une demi-journée
+//    dans la semaine qui précède un match, ce qui était un recul pour le suivi des
+//    800 payants.
 // 3. RIEN POUR UN MATCH DÉJÀ JOUÉ. Tant que la préparation du match suivant n'est pas
 //    enregistrée, le match actif est celui du week-end dernier : on repayait sans fin
 //    le parcours des billets que plus aucune tablette ne lira.
@@ -308,7 +316,7 @@ function pilotageRechauffer() {
   if (evActif && evActif.dateMatch >= auj) cibles.push(evActif);
   if (suivant && !cibles.some(function (x) { return x.id === suivant.id; })) cibles.push(suivant);
   const jourDeMatch = cibles.some(function (x) { return x.dateMatch === auj; });
-  const AGE = jourDeMatch ? 240000 : 21600000;      // 4 min un jour de match, 6 h sinon
+  const AGE = jourDeMatch ? 240000 : 1800000;       // 4 min un jour de match, 30 min sinon
 
   const faits = [];
   cibles.forEach(function (ev) {
