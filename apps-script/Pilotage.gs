@@ -1393,13 +1393,20 @@ function pilFamilleTarif_(tarif, code) {
 }
 
 function pilDashboard_(eventId) {
+  // Chronomètre de diagnostic. Depuis que la billetterie est hors requête, ce qui reste
+  // est du tableur : mesuré le 25/11, 74 s par appel dont une dizaine seulement pour
+  // Tickie. Ce relevé par bloc est écrit dans le journal d'exécution à chaque appel ;
+  // il ne coûte rien et c'est lui qui dira quoi sortir de la requête ensuite.
+  const tDeb = Date.now(); let tBil = 0, tVen = 0, tDet = 0, tGra = 0, nVen = 0, nCol = 0, nDet = 0;
   const ev = pilEvent_(eventId);
   const idm = ev ? pilIdMatch_(ev, false) : '';
   // Billetterie : instantané calculé par pilotageRechauffer, simplement lu ici.
   // Aucun parcours Tickie dans la requête (voir pilBilletterieServie_).
   let billetterie = null;
   if (ev) {
+    const t0 = Date.now();
     billetterie = pilBilletterieServie_(ev.id);
+    tBil = Date.now() - t0;
     if (idm && billetterie) {
       pilAffluence_(idm, billetterie.entrees > 0 ? billetterie.entrees
         : (Number(billetterie.billets) || 0) + (Number(billetterie.abonnes) || 0));
@@ -1407,7 +1414,9 @@ function pilDashboard_(eventId) {
   }
   const sh = feuille_('VENTES');
   const cPay = pilColPaiement_();
+  const tV = Date.now();
   const data = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(cPay + 1, sh.getLastColumn())).getValues() : [];
+  tVen = Date.now() - tV; nVen = data.length; nCol = data.length ? data[0].length : 0;
   const rows = data.filter(function (r) {
     return idm ? String(r[PIL_I['ID_MATCH']]) === idm : (ev && pilDate_(r[PIL_I['Horodatage']]) === ev.dateMatch);
   });
@@ -1447,7 +1456,9 @@ function pilDashboard_(eventId) {
   // Écocups par taille (⚙️ détail ventes : E33 / E50, E01 = ancien → 33)
   buv.gob = { s33: 0, r33: 0, s50: 0, r50: 0 };
   const vd = idm ? feuille_('DETAIL') : null;
+  const tD = Date.now();
   if (vd && vd.getLastRow() > 1) {
+    nDet = vd.getLastRow() - 1;
     vd.getRange(2, 1, vd.getLastRow() - 1, PIL_VD_HDR.length).getValues().forEach(function (r) {
       if (String(r[0]) !== idm) return;
       const pp = buv.parProduit[String(r[3])];   // CA encaissé par produit (prix de la tablette, remises comprises), pour le graphique
@@ -1471,7 +1482,15 @@ function pilDashboard_(eventId) {
       if (Object.keys(dep[b] || {}).some(function (r) { return Number(dep[b][r]) > 0; })) prepares.push(b);
     });
   }
+  tDet = Date.now() - tD;
+  const tG = Date.now();
   const graph = pilGraphiques_(data, rows, idm);
+  tGra = Date.now() - tG;
+  Logger.log('Tableau de bord ' + (idm || '?') + ' : ' + Math.round((Date.now() - tDeb) / 1000) + ' s au total'
+    + ' · billetterie ' + Math.round(tBil / 1000) + ' s'
+    + ' · ventes ' + Math.round(tVen / 1000) + ' s (' + nVen + ' lignes x ' + nCol + ' colonnes)'
+    + ' · détail ' + Math.round(tDet / 1000) + ' s (' + nDet + ' lignes)'
+    + ' · graphiques ' + Math.round(tGra / 1000) + ' s');
   return { event: ev, idMatch: idm, billetterie: billetterie, buvette: buv, stock: stock, tablettes: pilLireJournal_(), clotures: clotures,
     inventaire: inventaire, prepares: prepares, reserves: PIL.RESERVES,
     produits: pilProduitsCols_().map(function (p) { return [p[0], p[1]]; }), maj: new Date().toISOString(),
