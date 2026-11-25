@@ -214,6 +214,7 @@ function pilotageMenu_(ui) {
     .addItem('🔄 Synchroniser les matchs Tickie', 'pilotageSyncMatchs')
     .addItem('🎫 Relier les billets scannés + fidélité', 'pilotageTraiterBillets')
     .addItem('⏱️ Activer le traitement auto (10 min)', 'pilotageInstallerDeclencheur')
+    .addItem('🔥 Réchauffer la billetterie maintenant', 'pilotageRechauffer')
     .addItem('🥤 Mettre à jour le détail buvette (alcool, écocups, espèces)', 'pilotageDetailBuvette')
     .addItem('🔓 Détail buvette : recalculer un match figé', 'pilotageDetailRefiger')
     .addItem('🥤 Stock écocups et rachat', 'pilotageStockEcocups')
@@ -255,9 +256,46 @@ function pilotageAfficherJeton(suite) {
 }
 
 function pilotageInstallerDeclencheur() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pilotageTraiterBillets') ScriptApp.deleteTrigger(t); });
+  ['pilotageTraiterBillets', 'pilotageRechauffer'].forEach(function (f) {
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === f) ScriptApp.deleteTrigger(t); });
+  });
   ScriptApp.newTrigger('pilotageTraiterBillets').timeBased().everyMinutes(10).create();
-  try { SpreadsheetApp.getUi().alert('✅ Toutes les 10 minutes : billets scannés reliés, fidélité créditée et 📅 MATCHS recalculé.\nToutes les heures : matchs et affluences Tickie mis à jour.'); } catch (e) {}
+  ScriptApp.newTrigger('pilotageRechauffer').timeBased().everyMinutes(5).create();
+  try { SpreadsheetApp.getUi().alert('✅ Toutes les 5 minutes : billetterie Tickie calculée à l\'avance, hors requête.\nToutes les 10 minutes : billets scannés reliés, fidélité créditée et 📅 MATCHS recalculé.\nToutes les heures : matchs et affluences Tickie mis à jour.'); } catch (e) {}
+}
+
+// ── Réchauffement : tout ce qui coûte un parcours Tickie se fait ICI ─────
+// Les tablettes et le tableau de bord ne doivent jamais attendre Tickie. Ce passage,
+// toutes les 5 minutes, calcule l'instantané de billetterie du match actif et du
+// prochain match, et remplit le cache de la liste des billets que les trois tablettes
+// se partagent. Il est volontairement court et ne touche aucune feuille de calcul :
+// même s'il échoue, rien d'autre ne s'arrête.
+function pilotageRechauffer() {
+  const actif = pilActif_();
+  const ids = [];
+  if (actif && actif.eventId) ids.push(actif.eventId);
+  try {
+    const auj = pilDate_(new Date());
+    const suivant = pilMatchsTickie_().filter(function (e) { return /spacer/i.test(e.nom) && e.dateMatch >= auj; })[0];
+    if (suivant && ids.indexOf(suivant.id) < 0) ids.push(suivant.id);
+  } catch (e) {}
+  const faits = [];
+  ids.forEach(function (ev) {
+    try {
+      const snap = pilBilletterieSnap_(ev);
+      if (snap && snap.fige) return;              // match passé : ses chiffres ne bougeront plus
+      if (pilCalculerBilletterie_(ev, true)) faits.push(ev);
+    } catch (e) { Logger.log('Réchauffement billetterie ' + ev + ' : ' + (e && e.message || e)); }
+  });
+  // Liste des billets de la tablette : le même parcours, fait une fois ici pour les trois.
+  if (actif && actif.eventId) {
+    try {
+      pilCacheGros_('pil_liste_billets_' + actif.eventId, 1200, function () { return pilListerBillets_(actif.eventId); }, true);
+      pilCacheGros_('pil_liste_billets_abo', 3600, function () { return pilListerBillets_(PIL.ABONNEMENT_EVENT_ID); });
+    } catch (e) { Logger.log('Réchauffement liste billets : ' + (e && e.message || e)); }
+  }
+  Logger.log('Réchauffement : ' + faits.length + ' instantané(s) de billetterie sur ' + ids.length + ' match(s)');
+  return faits;
 }
 
 // ── Matchs Tickie → 📅 MATCHS ────────────────────────────────────────────
@@ -353,9 +391,12 @@ function pilApi_(base, path, query) {
   if (r.getResponseCode() >= 300) throw new Error('Tickie ' + r.getResponseCode() + ' sur ' + path);
   return JSON.parse(r.getContentText());
 }
-function pilCache_(key, ttl, fn) {
-  const c = CacheService.getScriptCache(), hit = c.get(key);
-  if (hit) return JSON.parse(hit);
+// forcer = true : on ne LIT pas le cache, on recalcule et on réécrit. C'est ce dont le
+// réchauffement a besoin : sans ça il relirait sa propre valeur et ne réchaufferait rien,
+// la donnée vieillissant jusqu'à expiration avant qu'une tablette ne repaye le parcours.
+function pilCache_(key, ttl, fn, forcer) {
+  const c = CacheService.getScriptCache();
+  if (!forcer) { const hit = c.get(key); if (hit) return JSON.parse(hit); }
   const v = fn();
   try { c.put(key, JSON.stringify(v), ttl); } catch (e) {}
   return v;
@@ -364,10 +405,10 @@ function pilCache_(key, ttl, fn) {
 // La chaîne JSON est découpée en tranches de 40 000 caractères (80 Ko au pire en UTF-8), chacune
 // sous sa propre clé, avec un manifeste qui porte le nombre de tranches. Toute tranche manquante
 // ou illisible ⇒ on recalcule : le cache n'est JAMAIS une vérité, seulement un raccourci.
-function pilCacheGros_(key, ttl, fn) {
+function pilCacheGros_(key, ttl, fn, forcer) {
   const c = CacheService.getScriptCache(), TAILLE = 40000;
   try {
-    const n = Number(c.get(key + '_n'));
+    const n = forcer ? 0 : Number(c.get(key + '_n'));
     if (n > 0 && n <= 200) {
       const cles = [];
       for (let i = 0; i < n; i++) cles.push(key + '_' + i);
@@ -412,7 +453,7 @@ function pilParcourirBillets_(eventId, fn, statut) {
     if (!rows.length || skip >= (res.total || 0)) break;
   }
 }
-function pilCompterBillets_(eventId, ttl) {
+function pilCompterBillets_(eventId, ttl, forcer) {
   return pilCache_('pil_billets_' + eventId, ttl, function () {
     const o = { total: 0, payants: 0, invitations: 0, parTarif: {} };
     pilParcourirBillets_(eventId, function (t) {
@@ -422,7 +463,7 @@ function pilCompterBillets_(eventId, ttl) {
       o.parTarif[t.ticketName || 'Autre'] = (o.parTarif[t.ticketName || 'Autre'] || 0) + 1;
     });
     return o;
-  });
+  }, forcer);
 }
 // Profil de remise d'un billet : 'ABO' (abonnement), nom du partenaire (lot CLIENTS_REMISE) ou '' (billet simple)
 function pilProfilRemise_(t, eventId) {
@@ -455,7 +496,7 @@ function pilListerBillets_(eventId) {   // [code-barres, id billet, tarif, nom d
 // Les scans d'un match passé ne changent plus : on les gèle dans une propriété, comme le PMP.
 // Propriété indexée par ID D'ÉVÉNEMENT TICKIE et non par ID_MATCH : elle n'entre donc PAS dans
 // la liste de pilRenommerProps_ (renommer un ID_MATCH ne la concerne pas).
-function pilCompterEntrees_(eventId) {
+function pilCompterEntrees_(eventId, forcer) {
   const gele = pilProp_('PIL_ENTREES_EV_' + eventId, null);
   if (gele != null) return Number(gele);
   try {
@@ -474,7 +515,7 @@ function pilCompterEntrees_(eventId) {
         if (!rows.length || skip >= (res.total || 0)) break;
       }
       return Object.keys(vus).length;
-    });
+    }, forcer);
     // On ne gèle qu'un décompte NON NUL : un zéro peut venir d'une synchronisation Tickie en
     // retard ou d'un match sans contrôle d'accès, et une fois gelé il ne se corrigerait plus.
     // Un zéro reste simplement en cache 6 h (le maximum de CacheService).
@@ -483,6 +524,88 @@ function pilCompterEntrees_(eventId) {
     if (passe && n > 0) { try { pilSetProp_('PIL_ENTREES_EV_' + eventId, n); } catch (e) {} }
     return n;
   } catch (e) { return null; }
+}
+
+// ── Billets : index interne et instantané de billetterie ────────────────
+// Le client d'un billet, tel que la liaison des ventes en a besoin.
+function pilClientBillet_(t) {
+  return { customerId: t.customerId || '', email: String(t.email || '').toLowerCase().trim(),
+    nom: [t.firstname, t.lastname].filter(Boolean).join(' '), tarif: t.ticketName || '', id: t._id };
+}
+// Index des billets d'un événement : code-barres ET id de billet → client.
+// Il porte l'email, donc il ne sort JAMAIS vers une tablette (pilListerBillets_ est
+// la version publique, sans email ni adresse) et il n'est pas mis en cache : il est
+// construit une fois par passage du déclencheur, en mémoire, puis jeté.
+// Même couverture de statuts que pilListerBillets_ : les billets payés mais pas
+// encore nominatifs restent des billets du club.
+function pilIndexBillets_(eventId) {
+  const idx = {};
+  const ajouter = function (t) {
+    const o = pilClientBillet_(t);
+    if (t.barcode) idx['bc:' + t.barcode] = o;
+    if (t._id) idx[t._id] = o;
+  };
+  pilParcourirBillets_(eventId, ajouter);
+  try { pilParcourirBillets_(eventId, ajouter, 'DETAILSREQUIRED'); } catch (e) {}
+  return idx;
+}
+// ID_MATCH → id d'événement Tickie, lu dans 📅 MATCHS.
+function pilEventParMatch_() {
+  const out = {};
+  try {
+    const sh = feuille_('MATCHS');
+    if (!sh || sh.getLastRow() < 2) return out;
+    const d = sh.getDataRange().getValues(), h = d[0].map(String);
+    const cId = h.indexOf('ID_MATCH'), cEv = h.indexOf('TICKIE_EVENT_ID');
+    if (cId < 0 || cEv < 0) return out;
+    d.slice(1).forEach(function (r) { if (r[cId] && r[cEv]) out[String(r[cId])] = String(r[cEv]); });
+  } catch (e) {}
+  return out;
+}
+
+// Instantané de billetterie d'un match : les chiffres Tickie, calculés HORS requête.
+//
+// doGet ne doit jamais parcourir Tickie. Mesure du 25/11/2026 : un parcours dure 40 à
+// 160 s, le tableau de bord redemande toutes les 30 s, donc trois ou quatre parcours
+// étaient en vol en permanence et le cache — écrit seulement à la FIN d'un parcours —
+// n'avait jamais le temps de servir. Deux appels consécutifs : 110,8 s puis 87,2 s.
+// Allonger une durée de cache ne corrige pas ça ; sortir le parcours de la requête, oui.
+const PIL_SNAP_PRE = 'PIL_BILLET_SNAP_';
+function pilBilletterieSnap_(eventId) { return pilProp_(PIL_SNAP_PRE + eventId, null); }
+
+// Calcule et enregistre l'instantané. Appelé par pilotageRechauffer (toutes les 5 min),
+// jamais par une requête de tablette. « figé » = match passé : ses chiffres ne bougeront
+// plus, le réchauffement ne le recalcule pas.
+function pilCalculerBilletterie_(eventId, forcer) {
+  const ev = pilEvent_(eventId);
+  if (!ev) return null;
+  const b = pilCompterBillets_(eventId, 1800, forcer);
+  let abonnes = null;
+  // Les abonnements ne bougent pas d'un match à l'autre : une heure de cache, jamais forcée.
+  try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+  const snap = { billets: b.total, payants: b.payants, invitations: b.invitations, parTarif: b.parTarif,
+    abonnes: abonnes, entrees: pilCompterEntrees_(eventId, forcer), jauge: ev.jauge,
+    calcule: new Date().toISOString(), fige: ev.dateMatch < pilDate_(new Date()) };
+  try { pilSetProp_(PIL_SNAP_PRE + eventId, snap); } catch (e) {}
+  return snap;
+}
+
+// Lu par les requêtes. Renvoie l'instantané et ne parcourt Tickie que s'il n'en existe
+// AUCUN pour ce match — le cas d'un match qu'on ouvre pour la première fois. Un jeton de
+// cache empêche alors deux calculs simultanés. Ce jeton n'est pas un verrou atomique
+// (deux exécutions à la même seconde peuvent passer toutes les deux), mais il ramène un
+// empilement de quatre parcours à un ou deux, et surtout il n'utilise PAS le verrou de
+// script : celui-là est pris par les POST des tablettes, et le bloquer 100 s ferait
+// attendre un bénévole au comptoir.
+function pilBilletterieServie_(eventId) {
+  const snap = pilBilletterieSnap_(eventId);
+  if (snap) return snap;
+  const c = CacheService.getScriptCache(), jeton = 'pil_snap_calcul_' + eventId;
+  if (c.get(jeton)) return null;
+  try { c.put(jeton, '1', 300); } catch (e) {}
+  try { return pilCalculerBilletterie_(eventId); }
+  catch (e) { return null; }
+  finally { try { c.remove(jeton); } catch (e) {} }
 }
 
 // ── Nom d'événement Tickie → adversaire des Spacer's ────────────────────
@@ -805,14 +928,16 @@ function pilChargerTablette_(buvette) {
   if (!actif) throw new Error('Aucun match préparé : saisis le stock dans le tableau de bord');
   const ev = pilEvent_(actif.eventId) || { id: actif.eventId, nom: actif.idMatch, date: '' };
   // La liste des billets est le gros du chargement : elle déroule TOUS les billets du match et
-  // TOUS les abonnements, par pages de 1000, sans aucun cache. Trois tablettes qui se
-  // rafraîchissent toutes les 5 minutes (index.html) = trois parcours complets toutes les
-  // 5 minutes, plus un à chaque ouverture. Un cache calé sur ce même pas de 5 minutes ne change
-  // RIEN à la fraîcheur vue par la tablette — elle ne redemande pas plus souvent — et divise
-  // le travail par trois. Les abonnements ne bougent pas d'un match à l'autre : une heure.
+  // TOUS les abonnements, par pages de 1000. Trois tablettes qui se rafraîchissent toutes les
+  // 5 minutes (index.html) faisaient trois parcours complets toutes les 5 minutes.
+  // Elle est maintenant REMPLIE À L'AVANCE par pilotageRechauffer, toutes les 5 minutes : la
+  // liste vue au comptoir n'est donc pas plus vieille qu'avant, mais aucune tablette n'attend
+  // le parcours. Les 1200 s ne sont qu'un filet : si un réchauffement est manqué, la liste
+  // reste servie au lieu qu'une tablette repaye le parcours au mauvais moment.
+  // Les abonnements ne bougent pas d'un match à l'autre : une heure.
   let billets = [], billetsOk = true;
   try {
-    billets = pilCacheGros_('pil_liste_billets_' + ev.id, 300, function () { return pilListerBillets_(ev.id); })
+    billets = pilCacheGros_('pil_liste_billets_' + ev.id, 1200, function () { return pilListerBillets_(ev.id); })
       .concat(pilCacheGros_('pil_liste_billets_abo', 3600, function () { return pilListerBillets_(PIL.ABONNEMENT_EVENT_ID); }));
   } catch (e) { billetsOk = false; }
   pilJournal_(buvette, actif.idMatch, 3);
@@ -1097,19 +1222,15 @@ function pilFamilleTarif_(tarif, code) {
 function pilDashboard_(eventId) {
   const ev = pilEvent_(eventId);
   const idm = ev ? pilIdMatch_(ev, false) : '';
+  // Billetterie : instantané calculé par pilotageRechauffer, simplement lu ici.
+  // Aucun parcours Tickie dans la requête (voir pilBilletterieServie_).
   let billetterie = null;
   if (ev) {
-    // 300 s et non 120 s : le tableau de bord se rafraîchit toutes les 30 s (pilotage.html) et
-    // le parcours des billets Tickie dure à lui seul des dizaines de secondes sur un gros match.
-    // À 120 s, un chargement sur quatre repayait tout le parcours et les appels se chevauchaient.
-    // Les ventes au guichet pendant le match sont un filet d'eau : 5 minutes de retard sur le
-    // nombre de billets ne change aucune décision, et l'écran affiche son âge (« mis à jour… »).
-    const b = pilCompterBillets_(ev.id, 300);
-    let abonnes = null;
-    try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
-    billetterie = { billets: b.total, payants: b.payants, invitations: b.invitations, parTarif: b.parTarif,
-      abonnes: abonnes, entrees: pilCompterEntrees_(ev.id), jauge: ev.jauge };
-    if (idm) pilAffluence_(idm, billetterie.entrees > 0 ? billetterie.entrees : b.total + (abonnes || 0));
+    billetterie = pilBilletterieServie_(ev.id);
+    if (idm && billetterie) {
+      pilAffluence_(idm, billetterie.entrees > 0 ? billetterie.entrees
+        : (Number(billetterie.billets) || 0) + (Number(billetterie.abonnes) || 0));
+    }
   }
   const sh = feuille_('VENTES');
   const cPay = pilColPaiement_();
@@ -1277,6 +1398,17 @@ function pilAffluence_(idm, n) {
 function pilAffluenceTickie_(idm) { return 0; }   // compatibilité Code.gs V12 : l'affluence est déjà dans AFFLUENCE
 
 // ── Billets scannés → client Tickie + fidélité ───────────────────────────
+// ── Liaison des billets scannés et fidélité (déclencheur, 10 min) ───────
+// Réécrit le 25/11/2026. L'ancienne version faisait UN appel Tickie par vente à relier
+// et UN crédit de fidélité par vente, chacun relisant toute la feuille ⭐ FIDÉLITÉ et
+// écrivant ses cellules une par une : 6 dépassements du délai de 6 minutes et 1 échec
+// sur 15 exécutions, relevés dans le journal. Quand le délai expire, ce sont les
+// recalculs de FIN de fonction qui sautent — 📅 MATCHS, 🥤 DÉTAIL BUVETTE et
+// 📈 GRAPHIQUES restent donc en arrière sans que rien ne le signale.
+//
+// Désormais : une seule liste de billets par événement concerné (pilIndexBillets_),
+// un seul passage de fidélité (_fidCrediterLot_), et des gardes de temps qui laissent
+// toujours de quoi finir les recalculs.
 function pilotageTraiterBillets() {
   if (Date.now() - (Number(PropertiesService.getScriptProperties().getProperty('PIL_SYNC')) || 0) > 3600000) {
     try { pilotageSyncMatchs(true); } catch (e) {}
@@ -1284,7 +1416,7 @@ function pilotageTraiterBillets() {
   const sh = feuille_('VENTES');
   if (!sh || sh.getLastRow() < 2) { try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {} return; }
   const rg = sh.getRange(2, 1, sh.getLastRow() - 1, PIL_NB);
-  const data = rg.getValues(), memo = {}, debut = Date.now();
+  const data = rg.getValues(), debut = Date.now();
   let relies = 0, credites = 0;
   const annulees = {};                                      // ventes annulées depuis la tablette : pas de points
   data.forEach(function (r) { const m = String(r[PIL_I['Fidélité']]).match(/^annulation de (.+?)(\s·|$)/); if (m) annulees[m[1]] = 1; });
@@ -1292,23 +1424,62 @@ function pilotageTraiterBillets() {
   // une vente n'est traitée que si elle n'a pas encore de statut fidélité, et le statut s'ajoute à la note.
   const STATUT = /(^|· )(\d+ pts|relié|billet introuvable|vente annulée)$/;
   const noter = function (r, statut) { const n = String(r[PIL_I['Fidélité']] || ''); r[PIL_I['Fidélité']] = n ? n + ' · ' + statut : statut; };
+
+  // Les lignes à relier sont isolées AVANT le premier appel réseau : on sait ainsi
+  // quels événements charger, au lieu de le découvrir vente par vente.
+  const aRelier = [];
   data.forEach(function (r) {
-    if (Date.now() - debut > 270000) return;               // marge sous la limite d'exécution
     const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']], note = String(r[PIL_I['Fidélité']] || '');
     if ((!id && !code) || STATUT.test(note) || /^annulation/.test(note)) return;
     if (annulees[String(r[PIL_I['ID vente']])]) { noter(r, 'vente annulée'); return; }
+    aRelier.push(r);
+  });
+
+  const evDe = pilEventParMatch_();
+  const idxDe = {};
+  // Un index par événement, chargé à la demande. Passé 150 s on n'en charge plus :
+  // les ventes restantes attendront le passage suivant, les recalculs de fin passent.
+  const indexDe = function (ev) {
+    if (!ev) return null;
+    if (!(ev in idxDe)) {
+      if (Date.now() - debut > 150000) return null;
+      try { idxDe[ev] = pilIndexBillets_(ev); } catch (e) { idxDe[ev] = null; }
+    }
+    return idxDe[ev];
+  };
+
+  const memo = {}, credits = [], notesAvant = [];
+  const fidLot = typeof _fidCrediterLot_ === 'function';
+  const fidUn = typeof _fidCreditOne_ === 'function';
+  let secours = 0, coupe = false;
+  const PLAFOND_SECOURS = 25;        // appels unitaires de secours autorisés par passage
+  aRelier.forEach(function (r) {
+    if (Date.now() - debut > 180000) { coupe = true; return; }
+    const id = r[PIL_I['ID billet']], code = r[PIL_I['Code-barres']];
     const key = id || ('bc:' + code);
     if (!(key in memo)) {
-      try {
-        let t = null;
-        if (id) t = pilApi_(PIL.VIVENU_BASE, '/tickets/' + id, {});
-        else { const res = pilApi_(PIL.VIVENU_BASE, '/tickets', { barcode: code, top: 5 }); t = (res.rows || []).filter(function (x) { return x.barcode === code; })[0] || null; }
-        memo[key] = t ? { customerId: t.customerId || '', email: String(t.email || '').toLowerCase().trim(),
-          nom: [t.firstname, t.lastname].filter(Boolean).join(' '), tarif: t.ticketName || '', id: t._id } : null;
-      } catch (e) { memo[key] = undefined; }
+      const iM = indexDe(evDe[String(r[PIL_I['ID_MATCH']])]);
+      const iA = indexDe(PIL.ABONNEMENT_EVENT_ID);
+      const trouve = (iM && iM[key]) || (iA && iA[key]) || null;
+      if (trouve) memo[key] = trouve;
+      else if (!iM && !iA) memo[key] = undefined;           // aucun index lisible : on réessaiera
+      else if (secours >= PLAFOND_SECOURS) memo[key] = undefined;   // on ne sait pas : on réessaiera
+      else {
+        // Absent des index : soit le billet n'existe pas, soit il a été créé après leur
+        // lecture, soit son statut l'en tient à l'écart (annulé, remboursé). On tranche
+        // par un appel unitaire, comme avant, mais leur nombre est borné : sans ce
+        // plafond on retomberait sur un appel par vente les jours de gros écart.
+        secours++;
+        try {
+          let x = null;
+          if (id) x = pilApi_(PIL.VIVENU_BASE, '/tickets/' + id, {});
+          else { const res = pilApi_(PIL.VIVENU_BASE, '/tickets', { barcode: code, top: 5 }); x = (res.rows || []).filter(function (y) { return y.barcode === code; })[0] || null; }
+          memo[key] = x ? pilClientBillet_(x) : null;
+        } catch (e) { memo[key] = undefined; }
+      }
     }
     const c = memo[key];
-    if (c === undefined) return;                            // erreur réseau : on réessaiera
+    if (c === undefined) return;                            // erreur réseau ou doute : on réessaiera
     if (c === null) { noter(r, 'billet introuvable'); return; }
     r[PIL_I['Client Tickie']] = c.customerId;
     if (!r[PIL_I['ID billet']]) r[PIL_I['ID billet']] = c.id;
@@ -1316,17 +1487,40 @@ function pilotageTraiterBillets() {
     relies++;
     // Points sur les consommations, hors consignes
     const montant = (Number(r[PIL_I['Total €']]) || 0) - (Number(r[PIL_I['Consignes +']]) || 0) + (Number(r[PIL_I['Consignes rendues']]) || 0);
-    if (typeof _fidCreditOne_ === 'function' && c.email && montant > 0) {
-      _fidCreditOne_({ carte: c.email, nom: c.nom, montant: montant }, r[PIL_I['ID_MATCH']], r[PIL_I['Buvette']], pilDate_(r[PIL_I['Horodatage']]));
+    if ((fidLot || fidUn) && c.email && montant > 0) {
+      credits.push({ carte: c.email, nom: c.nom, montant: montant,
+        matchId: r[PIL_I['ID_MATCH']], tab: r[PIL_I['Buvette']], dateStr: pilDate_(r[PIL_I['Horodatage']]) });
+      notesAvant.push([r, String(r[PIL_I['Fidélité']] || '')]);
       noter(r, Math.floor(montant) + ' pts'); credites++;
     } else noter(r, 'relié');
   });
+
+  // Fidélité : un seul passage pour tout le lot. Si le crédit échoue, on RETIRE la
+  // mention « n pts » des lignes concernées : sans ça elles resteraient marquées comme
+  // créditées pour toujours alors qu'aucun point n'a été écrit, et le statut les
+  // exclurait de tous les passages suivants.
+  if (credits.length) {
+    try {
+      if (fidLot) _fidCrediterLot_(credits, '', '', pilDate_(new Date()));
+      else credits.forEach(function (e) { _fidCreditOne_(e, e.matchId, e.tab, e.dateStr); });
+    } catch (e) {
+      notesAvant.forEach(function (x) { x[0][PIL_I['Fidélité']] = x[1]; });
+      credites = 0;
+      Logger.log('Fidélité : crédit du lot impossible, ' + credits.length + ' vente(s) laissée(s) à retraiter — ' + (e && e.message || e));
+    }
+  }
+
   rg.setValues(data);
   try { if (typeof pennylaneImportAuto_ === 'function') pennylaneImportAuto_(); } catch (e) {}   // achats Pennylane (toutes les 6 h)
   try { if (typeof majMatchs === 'function') majMatchs(true); } catch (e) {}   // 📅 MATCHS à jour en continu
   try { pilotageDetailBuvette(true); } catch (e) {}                                // 🥤 DÉTAIL BUVETTE à jour en continu
   try { if (typeof graphiquesMaj === 'function') graphiquesMaj(true); } catch (e) {}  // 📈 GRAPHIQUES à jour en continu
-  try { SpreadsheetApp.getActiveSpreadsheet().toast(relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'); } catch (e) {}
+  const bilan = relies + ' vente(s) reliée(s) · ' + credites + ' crédit(s) fidélité'
+    + ' · ' + Object.keys(idxDe).length + ' événement(s) chargé(s)'
+    + (secours ? ' · ' + secours + ' appel(s) unitaire(s)' : '')
+    + (coupe ? ' · ⚠️ passage écourté, reste à traiter au prochain' : '');
+  Logger.log(bilan + ' en ' + Math.round((Date.now() - debut) / 1000) + ' s');
+  try { SpreadsheetApp.getActiveSpreadsheet().toast(bilan); } catch (e) {}
 }
 
 // ── Commande conseillée : données pour le tableau de bord ────────────────
@@ -1335,9 +1529,11 @@ function pilotageTraiterBillets() {
 function pilDonneesCommande_(eventId) {
   const ev = pilEvent_(eventId);
   if (!ev) throw new Error('Match introuvable dans Tickie');
-  const b = pilCompterBillets_(ev.id, 300);
-  let abonnes = 0;
-  try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+  // Même instantané que le tableau de bord : l'onglet Commande s'ouvre souvent pendant
+  // qu'il se rafraîchit, et deux parcours Tickie simultanés se gênent l'un l'autre.
+  const snap = pilBilletterieServie_(ev.id) || {};
+  const b = { total: Number(snap.billets) || 0, payants: Number(snap.payants) || 0, invitations: Number(snap.invitations) || 0 };
+  const abonnes = Number(snap.abonnes) || 0;
   const idm = pilIdMatch_(ev, false);
 
   // Matchs 26-27 déjà joués : quantités vendues et affluence (📅 MATCHS.AFFLUENCE = entrées si connues)
