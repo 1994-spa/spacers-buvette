@@ -287,6 +287,25 @@ function pilotageRechauffer() {
       if (pilCalculerBilletterie_(ev, true)) faits.push(ev);
     } catch (e) { Logger.log('Réchauffement billetterie ' + ev + ' : ' + (e && e.message || e)); }
   });
+  // Taux de présence des matchs joués : deux par passage, pour que l'onglet Commande
+  // n'ait jamais à les calculer lui-même. Le plafond garde ce passage court.
+  try {
+    let abonnes = 0;
+    try { abonnes = pilCompterBillets_(PIL.ABONNEMENT_EVENT_ID, 3600).total; } catch (e) {}
+    if (abonnes > 0) {
+      const auj = pilDate_(new Date()), evDe = pilEventParMatch_();
+      const aGeler = [];
+      Object.keys(evDe).forEach(function (m) {
+        const ev = evDe[m];
+        if (pilProp_('PIL_TAUX_EV_' + ev, null) != null) return;
+        const e = pilEvent_(ev);
+        if (e && e.dateMatch < auj) aGeler.push(ev);
+      });
+      aGeler.slice(0, 2).forEach(function (ev) { pilTauxPresence_(ev, abonnes, true); });
+      if (aGeler.length) Logger.log('Réchauffement : ' + Math.min(2, aGeler.length) + ' taux de présence gelé(s), ' + Math.max(0, aGeler.length - 2) + ' restant(s)');
+    }
+  } catch (e) { Logger.log('Réchauffement taux de présence : ' + (e && e.message || e)); }
+
   // Liste des billets de la tablette : le même parcours, fait une fois ici pour les trois.
   if (actif && actif.eventId) {
     try {
@@ -588,6 +607,30 @@ function pilCalculerBilletterie_(eventId, forcer) {
     calcule: new Date().toISOString(), fige: ev.dateMatch < pilDate_(new Date()) };
   try { pilSetProp_(PIL_SNAP_PRE + eventId, snap); } catch (e) {}
   return snap;
+}
+
+// Taux de présence d'un match joué : entrées scannées / (billets + abonnés).
+// Définitif une fois le match passé, donc gelé dans une propriété.
+// calculer = false (les requêtes) : on renvoie le taux gelé ou rien, et on ne
+// parcourt JAMAIS Tickie. calculer = true : réservé au réchauffement.
+// On ne gèle que si le nombre d'abonnés a bien été lu : sans lui le taux serait
+// surestimé, et une fois gelé il ne se corrigerait plus.
+// Dégel : supprimer PIL_TAUX_EV_<id événement> dans les propriétés du script.
+function pilTauxPresence_(eventId, abonnes, calculer) {
+  const fige = pilProp_('PIL_TAUX_EV_' + eventId, null);
+  if (fige != null) return Number(fige);
+  if (!calculer) return null;
+  try {
+    const e = pilCompterEntrees_(eventId);
+    if (!(e > 0)) return null;
+    const bb = pilCompterBillets_(eventId, 3600).total;
+    if (bb + abonnes <= 0) return null;
+    const t = e / (bb + abonnes);
+    let passe = false;
+    try { const ev = pilEvent_(eventId); passe = !!ev && ev.dateMatch < pilDate_(new Date()); } catch (e2) {}
+    if (passe && abonnes > 0) { try { pilSetProp_('PIL_TAUX_EV_' + eventId, t); } catch (e2) {} }
+    return t;
+  } catch (e) { return null; }
 }
 
 // Lu par les requêtes. Renvoie l'instantané et ne parcourt Tickie que s'il n'en existe
@@ -1555,29 +1598,17 @@ function pilDonneesCommande_(eventId) {
   const observes = Object.keys(parMatch).filter(function (m) { return aff[m] > 0; })
     .map(function (m) { return { idMatch: m, presents: aff[m], qte: parMatch[m].qte, parBuvette: parMatch[m].parBuvette }; });
 
-  // Taux de présence appris : entrées scannées / (billets + abonnés) sur les matchs passés.
-  // Le taux d'un match joué est définitif : on le gèle, sinon chaque ouverture de l'onglet
-  // Commande re-parcourt les billets ET les scans de TOUS les matchs déjà joués de la saison
-  // (10 paginations Tickie pour 5 matchs, des dizaines de secondes chacune).
-  // On ne gèle que si le nombre d'abonnés a bien été lu : sans lui le taux serait surestimé,
-  // et une fois gelé il ne se corrigerait plus. Dégel : supprimer PIL_TAUX_EV_<id événement>.
+  // Taux de présence appris, uniquement depuis les taux DÉJÀ gelés : cet onglet s'ouvre
+  // à la demande, souvent pendant que le tableau de bord se rafraîchit, et il parcourait
+  // les billets ET les scans de TOUS les matchs joués de la saison — 10 paginations Tickie
+  // pour 5 matchs. C'est le réchauffement qui les gèle maintenant, deux par passage.
+  // Conséquence assumée : juste après une mise en service, « taux de présence » reste vide
+  // le temps que le réchauffement ait couvert les matchs passés (un quart d'heure).
   const taux = [];
   Object.keys(evDe).forEach(function (m) {
     if (!parMatch[m]) return;
-    const evId = evDe[m];
-    const fige = pilProp_('PIL_TAUX_EV_' + evId, null);
-    if (fige != null) { taux.push(Number(fige)); return; }
-    try {
-      const e = pilCompterEntrees_(evId);
-      if (e <= 0) return;
-      const bb = pilCompterBillets_(evId, 3600).total;
-      if (bb + abonnes <= 0) return;
-      const t = e / (bb + abonnes);
-      taux.push(t);
-      let passe = false;
-      try { const ev2 = pilEvent_(evId); passe = !!ev2 && ev2.dateMatch < pilDate_(new Date()); } catch (e2) {}
-      if (passe && abonnes > 0) { try { pilSetProp_('PIL_TAUX_EV_' + evId, t); } catch (e2) {} }
-    } catch (err) {}
+    const t = pilTauxPresence_(evDe[m], abonnes, false);
+    if (t != null) taux.push(t);
   });
 
   // Stock du club disponible pour ce match (réserve + invendus des buvettes, hors stock déjà engagé pour ce match).
