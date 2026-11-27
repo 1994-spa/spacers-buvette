@@ -1231,7 +1231,7 @@ function gobeletRecupere(t, n) {
 }
 // ── 💶 Espèces dans la caisse (théorique) ──
 // Fond de caisse propre à un match (communiqué par Clément avant le match) : prime sur le fond par défaut de LIEUX
-const FONDS_MATCH = { 'TOU-21-11': { 'Buvette 1': 400, 'Buvette 2': 500 } };
+const FONDS_MATCH = { 'TOU-21-11': { 'Buvette 1': 400, 'Buvette 2': 500 }, 'PAR-28-11': { 'Buvette 1': 380, 'Buvette 2': 380 } };
 function fondDefaut() {
   const m = FONDS_MATCH[state.match ? state.match.idMatch : ''] || {};
   return m[state.tab] ?? (LIEUX[state.tab] || {}).fond ?? state.fond[state.tab] ?? 0;
